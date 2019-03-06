@@ -1,0 +1,3 @@
+[submodule "mles-webworker"]
+	path = mles-webworker
+	url = https://github.com/jq-rs/mles-webworker
