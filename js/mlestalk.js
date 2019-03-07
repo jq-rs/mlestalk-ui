@@ -93,29 +93,7 @@ var isCordova = false;
 
 var webWorker = new Worker('mles-webworker/js/webworker.js');
 
-function onLoad() {
-	document.addEventListener("deviceready", function () {
-		cordova.plugins.notification.local.requestPermission(function (granted) {
-			can_notify = granted;
-		}); 
-		can_vibrate = true;
-		document.addEventListener("pause", onPause, false);
-		document.addEventListener("resume", onResume, false);
-		cordova.plugins.backgroundMode.setDefaults({
-			title: 'MlesTalk in the background',
-			text: 'Notifications active',
-		});
-		cordova.plugins.backgroundMode.on('activate', function() {
-			cordova.plugins.backgroundMode.disableWebViewOptimizations(); 
-		});
-		isCordova = true;
-	}, false);
-}
-
-
 function onPause() {
-	if(isCordova)
-		cordova.plugins.backgroundMode.enable();
 	will_notify = true;
 	lastMessageNotifiedTs = lastMessageSeenTs;
 }
@@ -124,8 +102,26 @@ function onResume() {
 	will_notify = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
-		cordova.plugins.backgroundMode.disable();
 	}
+}
+
+function onLoad() {
+	document.addEventListener("deviceready", function () {
+		cordova.plugins.notification.local.requestPermission(function (granted) {
+			can_notify = granted;
+		}); 
+		can_vibrate = true;
+		cordova.plugins.backgroundMode.setDefaults({
+			title: 'MlesTalk in the background',
+			text: 'Notifications active',
+		});
+		cordova.plugins.backgroundMode.on('activate', function() {
+			cordova.plugins.backgroundMode.disableWebViewOptimizations(); 
+		});
+		document.addEventListener("pause", onPause, false);
+		document.addEventListener("resume", onResume, false);
+		isCordova = true;
+	}, false);
 }
 
 $(document).ready(function() {
