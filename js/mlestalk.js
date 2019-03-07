@@ -114,8 +114,6 @@ function onLoad() {
 
 
 function onPause() {
-	if(isCordova)
-		cordova.plugins.backgroundMode.enable();
 	will_notify = true;
 	lastMessageNotifiedTs = lastMessageSeenTs;
 }
@@ -124,7 +122,6 @@ function onResume() {
 	will_notify = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
-		cordova.plugins.backgroundMode.disable();
 	}
 }
 
