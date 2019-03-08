@@ -1,5 +1,5 @@
 # MlesTalk UI
 
-MlesTalk UI is Node.js/JavaScript based open source reference client for Mles (Modern Lightweight channEl Service). It is used in Android MlesTalk app.
+MlesTalk UI is Node.js/JavaScript based open source reference client user interface for Mles (Modern Lightweight channEl Service). It is used in Android MlesTalk app.
 
-Please see more info at http://mles.io/app.
+Please see the details at http://mles.io/app.
