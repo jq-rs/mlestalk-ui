@@ -6,4 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-Initial 1.3.0 release. Open source  web-UI for MlesTalk client.
+ * Modify UI to the minor API changes
+
+## [1.3.2]
+
+Initial 1.3.2 release. Open source  web-UI for MlesTalk client.
