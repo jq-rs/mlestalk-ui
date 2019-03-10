@@ -382,7 +382,9 @@ webWorker.onmessage = function(e) {
 			}
 			break;
 		case "close":
-			reconnect();
+			var uid = e.data[1];
+			var channel = e.data[2];
+			reconnect(uid, channel);
 			if(initOk) {
 				var li = '<li class="new"> - <span class="name">reconnecting</span> - </li>';
 				$('#messages').append(li);
@@ -420,7 +422,7 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function reconnect() {
+async function reconnect(uid, channel) {
 	if(reconn_timeout > MAXTIMEOUT) {
 		reconn_timeout=RETIMEOUT;
 		close_socket();
@@ -428,7 +430,7 @@ async function reconnect() {
 	}
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
-	webWorker.postMessage(["reconnect", null]);
+	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function scrollToBottom() {
