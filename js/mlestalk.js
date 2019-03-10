@@ -384,6 +384,8 @@ webWorker.onmessage = function(e) {
 		case "close":
 			var uid = e.data[1];
 			var channel = e.data[2];
+			var myuid = e.data[3];
+			var mychannel = e.data[4];
 			reconnect(uid, channel);
 			if(initOk) {
 				var li = '<li class="new"> - <span class="name">reconnecting</span> - </li>';
