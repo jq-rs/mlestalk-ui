@@ -107,17 +107,32 @@ function onResume() {
 
 function onLoad() {
 	document.addEventListener("deviceready", function () {
+		// Background-fetch handler with JobScheduler.
+		var BackgroundFetch = window.BackgroundFetch;
+
+		// Your background-fetch handler.
+		var fetchCallback = function() {
+			if('' != myname && '' != mychannel && will_notify == true) {
+				sync_reconnect(myname, mychannel);
+			}
+			// Required: Signal completion of your task to native code
+			// If you fail to do this, the OS can terminate your app
+			// or assign battery-blame for consuming too much background-time
+			BackgroundFetch.finish();
+		};
+ 
+		var failureCallback = function(error) {
+			console.log('Background fetch failed', error);
+		};
+ 
+		BackgroundFetch.configure(fetchCallback, failureCallback, {
+			minimumFetchInterval: 2
+		});
+
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			can_notify = granted;
 		}); 
 		can_vibrate = true;
-		cordova.plugins.backgroundMode.setDefaults({
-			title: 'MlesTalk in the background',
-			text: 'Notifications active',
-		});
-		cordova.plugins.backgroundMode.on('activate', function() {
-			cordova.plugins.backgroundMode.disableWebViewOptimizations(); 
-		});
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
 		isCordova = true;
@@ -208,8 +223,6 @@ function send(isFull) {
 function close_socket() {
 	initOk = false;
 	mytoken = null;
-	if(isCordova)
-		cordova.plugins.backgroundMode.disable();
 	alert('The connection is lost. Please try again.');
 	if(!isTokenChannel)
 		$('#qrcode').fadeOut();
@@ -264,8 +277,6 @@ webWorker.onmessage = function(e) {
 			else {
 				$('#qrcode').fadeOut();
 			}
-			if(isCordova)
-				cordova.plugins.backgroundMode.enable();
 			break;
 		case "data":
 			var uid = e.data[1];
@@ -432,6 +443,10 @@ async function reconnect(uid, channel) {
 	}
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
+	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+}
+
+function sync_reconnect(uid, channel) {
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
