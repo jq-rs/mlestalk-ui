@@ -90,6 +90,7 @@ var can_notify = false;
 var can_vibrate = false;
 var will_notify = false;
 var isCordova = false;
+var isReconnect = false;
 
 var webWorker = new Worker('mles-webworker/js/webworker.js');
 
@@ -203,9 +204,7 @@ function ask_channel() {
 function sendEmptyJoin() {
 	send_message(myname, mychannel, "", true);
 
-	//after reconnect, start locally from a new line
-	ownid = ownid + 1;
-	ownappend = false;
+
 }
 
 function send(isFull) {
@@ -222,7 +221,9 @@ function send(isFull) {
 
 function close_socket() {
 	initOk = false;
-	mytoken = null;
+	lastMessageSeenTs = 0;
+	lastMessageNotifiedTs = 0;
+	isReconnect = false;
 	alert('The connection is lost. Please try again.');
 	if(!isTokenChannel)
 		$('#qrcode').fadeOut();
@@ -251,12 +252,22 @@ webWorker.onmessage = function(e) {
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
 				sendEmptyJoin();
+				
+				//after reconnect, start locally from a new line
+				ownid = ownid + 1;
+				ownappend = false;
+				
 				var li;
-				if(!isTokenChannel) {
-					li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
+				if(isReconnect && lastMessageSeenTs > 0) {
+					li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
 				}
 				else {
-					li = '<li class="new"> - <span class="name">' + uid + '</span> - </li>';
+					if(!isTokenChannel) {
+						li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
+					}
+					else {
+						li = '<li class="new"> - <span class="name">' + uid + '</span> - </li>';
+					}
 				}
 				$('#messages').append(li);
 			}
@@ -315,10 +326,8 @@ webWorker.onmessage = function(e) {
 				idappend[duid] = false;
 			}
 
-			if(message.length > 2) {
-				if(lastMessageSeenTs < msgTimestamp) {
-					lastMessageSeenTs = msgTimestamp;
-				}
+			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {
+				lastMessageSeenTs = msgTimestamp;
 
 				var li;
 				var now = timenow();
@@ -398,11 +407,6 @@ webWorker.onmessage = function(e) {
 			var myuid = e.data[3];
 			var mychannel = e.data[4];
 			reconnect(uid, channel);
-			if(initOk) {
-				var li = '<li class="new"> - <span class="name">reconnecting</span> - </li>';
-				$('#messages').append(li);
-				scrollToBottom();
-			}
 			break;
 	}
 }
@@ -443,6 +447,7 @@ async function reconnect(uid, channel) {
 	}
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
+	isReconnect = true;
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
@@ -450,9 +455,6 @@ function sync_reconnect(uid, channel) {
 	if(initOk) {
 		sendEmptyJoin();
 		webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
-		var li = '<li class="new"> - <span class="name">restablishing</span> - </li>';
-		$('#messages').append(li);
-		scrollToBottom();
 	}
 }
 
