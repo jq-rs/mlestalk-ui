@@ -447,7 +447,13 @@ async function reconnect(uid, channel) {
 }
 
 function sync_reconnect(uid, channel) {
-	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	if(initOk) {
+		sendEmptyJoin();
+		webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+		var li = '<li class="new"> - <span class="name">restablishing</span> - </li>';
+		$('#messages').append(li);
+		scrollToBottom();
+	}
 }
 
 function scrollToBottom() {
