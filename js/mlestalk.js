@@ -97,43 +97,53 @@ var webWorker = new Worker('mles-webworker/js/webworker.js');
 function onPause() {
 	will_notify = true;
 	lastMessageNotifiedTs = lastMessageSeenTs;
+	if(isCordova) {
+		cordova.plugins.backgroundMode.enable();
+	}
 }
 
 function onResume() {
 	will_notify = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
+		cordova.plugins.backgroundMode.disable();
 	}
 }
 
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		// Background-fetch handler with JobScheduler.
-		var BackgroundFetch = window.BackgroundFetch;
+        var BackgroundFetch = window.BackgroundFetch;
 
-		// Your background-fetch handler.
-		var fetchCallback = function() {
+        // Your background-fetch handler.
+        var fetchCallback = function() {
 			if('' != myname && '' != mychannel && will_notify == true) {
 				sync_reconnect(myname, mychannel);
 			}
-			// Required: Signal completion of your task to native code
+            // Required: Signal completion of your task to native code
 			// If you fail to do this, the OS can terminate your app
-			// or assign battery-blame for consuming too much background-time
+            // or assign battery-blame for consuming too much background-time
 			BackgroundFetch.finish();
-		};
- 
-		var failureCallback = function(error) {
-			console.log('Background fetch failed', error);
-		};
- 
-		BackgroundFetch.configure(fetchCallback, failureCallback, {
-			minimumFetchInterval: 2
-		});
+        };
 
+        var failureCallback = function(error) {
+            console.log('Background fetch failed', error);
+        };
+
+        BackgroundFetch.configure(fetchCallback, failureCallback, {
+            minimumFetchInterval: 2
+        });
+		
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			can_notify = granted;
 		}); 
 		can_vibrate = true;
+
+		cordova.plugins.backgroundMode.setDefaults({
+			title: 'MlesTalk in the background',
+			text: 'Notifications active'
+		});
+
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
 		isCordova = true;
@@ -203,8 +213,6 @@ function ask_channel() {
 
 function sendEmptyJoin() {
 	send_message(myname, mychannel, "", true);
-
-
 }
 
 function send(isFull) {
@@ -454,8 +462,8 @@ async function reconnect(uid, channel) {
 function sync_reconnect(uid, channel) {
 	if(initOk) {
 		sendEmptyJoin();
-		webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 	}
+	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function scrollToBottom() {
