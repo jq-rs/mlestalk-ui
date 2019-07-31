@@ -106,10 +106,12 @@ function onResume() {
 	will_notify = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
+		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.disable();
 	}
 }
 
+var interval;
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		// Background-fetch handler with JobScheduler.
@@ -117,7 +119,7 @@ function onLoad() {
 
         // Your background-fetch handler.
         var fetchCallback = function() {
-			if('' != myname && '' != mychannel && will_notify == true) {
+			if('' != myname && '' != mychannel) {
 				sync_reconnect(myname, mychannel);
 			}
             // Required: Signal completion of your task to native code
@@ -143,6 +145,9 @@ function onLoad() {
 			title: 'MlesTalk in the background',
 			text: 'Notifications active'
 		});
+
+		// spawns a thread that keeps things rolling
+		cordova.plugins.backgroundMode.disableWebViewOptimizations();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
@@ -380,6 +385,9 @@ webWorker.onmessage = function(e) {
 				if(isFull) {
 					idhash[duid] = idhash[duid] + 1;
 					idappend[duid] = false;
+					if(isCordova) {
+						cordova.plugins.notification.badge.increase();
+					}
 				}
 				else if(true == idappend[duid]){		
 					$('#' + duid + '' + idhash[duid]).replaceWith(li);
@@ -391,6 +399,7 @@ webWorker.onmessage = function(e) {
 
 				if(uid != myname && isFull && will_notify &&
 					can_notify && lastMessageNotifiedTs < msgTimestamp) {
+
 					if(true == isImage) {
 						message = "<an image>";
 					}
@@ -460,9 +469,6 @@ async function reconnect(uid, channel) {
 }
 
 function sync_reconnect(uid, channel) {
-	if(initOk) {
-		sendEmptyJoin();
-	}
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
