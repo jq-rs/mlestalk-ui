@@ -97,9 +97,6 @@ var webWorker = new Worker('mles-webworker/js/webworker.js');
 function onPause() {
 	will_notify = true;
 	lastMessageNotifiedTs = lastMessageSeenTs;
-	if(isCordova) {
-		cordova.plugins.backgroundMode.enable();
-	}
 }
 
 function onResume() {
@@ -107,7 +104,6 @@ function onResume() {
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
 		cordova.plugins.notification.badge.clear();
-		cordova.plugins.backgroundMode.disable();
 	}
 }
 
@@ -141,13 +137,12 @@ function onLoad() {
 		}); 
 		can_vibrate = true;
 
-		cordova.plugins.backgroundMode.setDefaults({
-			title: 'MlesTalk in the background',
-			text: 'Notifications active'
-		});
-
 		// spawns a thread that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
+		// allow network connections from deep sleep
+		// cordova.plugins.backgroundMode.disableBatteryOptimizations();
+		
+		cordova.plugins.notification.badge.clear();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
