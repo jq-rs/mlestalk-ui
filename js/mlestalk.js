@@ -141,7 +141,12 @@ function onLoad() {
 			can_notify = granted;
 		}); 
 		can_vibrate = true;
-
+		
+		cordova.plugins.backgroundMode.setDefaults({
+			title: 'MlesTalk in the background',
+			text: 'Notifications active',
+		});
+		
 		// spawns a thread that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
 		
