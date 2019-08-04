@@ -98,7 +98,7 @@ function onPause() {
 	will_notify = true;
 	lastMessageNotifiedTs = lastMessageSeenTs;
 	if(isCordova) {
-		cordova.plugins.backgroundMode.enable();
+		//cordova.plugins.backgroundMode.enable();
 		cordova.plugins.notification.badge.clear();
     }
 }
@@ -108,7 +108,7 @@ function onResume() {
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
 		cordova.plugins.notification.badge.clear();
-		cordova.plugins.backgroundMode.disable();
+		//cordova.plugins.backgroundMode.disable();
 	}
 }
 
@@ -142,10 +142,10 @@ function onLoad() {
 		}); 
 		can_vibrate = true;
 		
-		cordova.plugins.backgroundMode.setDefaults({
-			title: 'MlesTalk in the background',
-			text: 'Notifications active',
-		});
+		//cordova.plugins.backgroundMode.setDefaults({
+		//	title: 'MlesTalk in the background',
+		//	text: 'Notifications active',
+		//});
 		
 		// spawns a thread that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
