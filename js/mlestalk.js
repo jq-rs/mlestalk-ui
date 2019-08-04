@@ -25,6 +25,7 @@ var isTokenChannel = false;
 
 var lastMessageSeenTs = 0;
 var lastMessageNotifiedTs = 0;
+var lastReconnectTs = 0;
 var lastMessage = {};
 
 var weekday = new Array(7);
@@ -276,6 +277,7 @@ webWorker.onmessage = function(e) {
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
 					li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
+					lastReconnectTs = lastMessageSeenTs;
 				}
 				else {
 					if(!isTokenChannel) {
@@ -388,7 +390,7 @@ webWorker.onmessage = function(e) {
 				if(isFull) {
 					idhash[duid] = idhash[duid] + 1;
 					idappend[duid] = false;
-					if(isCordova) {
+					if(isCordova && lastReconnectTs < msgTimestamp) {
 						cordova.plugins.notification.badge.increase();
 					}
 				}
