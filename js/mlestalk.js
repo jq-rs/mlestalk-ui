@@ -25,6 +25,7 @@ var isTokenChannel = false;
 
 var lastMessageSeenTs = 0;
 var lastMessageNotifiedTs = 0;
+var lastReconnectTs = 0;
 var lastMessage = {};
 
 var weekday = new Array(7);
@@ -99,17 +100,21 @@ function onPause() {
 	lastMessageNotifiedTs = lastMessageSeenTs;
 	if(isCordova) {
 		cordova.plugins.backgroundMode.enable();
-	}
+		cordova.plugins.notification.badge.clear();
+		cordova.plugins.notification.local.clearAll();
+    }
 }
 
 function onResume() {
 	will_notify = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.clearAll();
+		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.disable();
 	}
 }
 
+var interval;
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		// Background-fetch handler with JobScheduler.
@@ -117,7 +122,7 @@ function onLoad() {
 
         // Your background-fetch handler.
         var fetchCallback = function() {
-			if('' != myname && '' != mychannel && will_notify == true) {
+			if('' != myname && '' != mychannel) {
 				sync_reconnect(myname, mychannel);
 			}
             // Required: Signal completion of your task to native code
@@ -131,18 +136,21 @@ function onLoad() {
         };
 
         BackgroundFetch.configure(fetchCallback, failureCallback, {
-            minimumFetchInterval: 2
+            minimumFetchInterval: 15
         });
-		
+
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			can_notify = granted;
 		}); 
 		can_vibrate = true;
-
+		
 		cordova.plugins.backgroundMode.setDefaults({
 			title: 'MlesTalk in the background',
 			text: 'Notifications active'
 		});
+		
+		// sets an recurring alarm that keeps things rolling
+		cordova.plugins.backgroundMode.disableWebViewOptimizations();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
@@ -268,6 +276,7 @@ webWorker.onmessage = function(e) {
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
 					li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
+					lastReconnectTs = lastMessageSeenTs;
 				}
 				else {
 					if(!isTokenChannel) {
@@ -380,6 +389,9 @@ webWorker.onmessage = function(e) {
 				if(isFull) {
 					idhash[duid] = idhash[duid] + 1;
 					idappend[duid] = false;
+					if(isCordova && lastReconnectTs < msgTimestamp) {
+						cordova.plugins.notification.badge.increase();
+					}
 				}
 				else if(true == idappend[duid]){		
 					$('#' + duid + '' + idhash[duid]).replaceWith(li);
@@ -391,6 +403,7 @@ webWorker.onmessage = function(e) {
 
 				if(uid != myname && isFull && will_notify &&
 					can_notify && lastMessageNotifiedTs < msgTimestamp) {
+
 					if(true == isImage) {
 						message = "<an image>";
 					}
@@ -460,9 +473,6 @@ async function reconnect(uid, channel) {
 }
 
 function sync_reconnect(uid, channel) {
-	if(initOk) {
-		sendEmptyJoin();
-	}
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
