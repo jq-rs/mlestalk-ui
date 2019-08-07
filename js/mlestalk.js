@@ -88,7 +88,6 @@ function timenow(){
 }
 
 var can_notify = false;
-var can_vibrate = false;
 var will_notify = false;
 var isCordova = false;
 var isReconnect = false;
@@ -142,7 +141,6 @@ function onLoad() {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			can_notify = granted;
 		}); 
-		can_vibrate = true;
 		
 		cordova.plugins.backgroundMode.setDefaults({
 			title: 'MlesTalk in the background',
@@ -449,10 +447,8 @@ async function do_notify(uid, channel, msgTimestamp, message) {
 			text: msg[2],
 			icon: 'file://img/icon.png',
 			foreground: false,
+			trigger: { in: 1, unit: 'second' }
 		});
-		if(can_vibrate) {
-			navigator.vibrate(1000);
-		}
 	}		
 }
 
