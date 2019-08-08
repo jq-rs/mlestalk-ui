@@ -466,7 +466,6 @@ async function reconnect(uid, channel) {
 }
 
 function sync_reconnect(uid, channel) {
-	sendEmptyJoin();
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
