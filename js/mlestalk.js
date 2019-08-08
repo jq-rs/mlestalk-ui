@@ -407,7 +407,6 @@ webWorker.onmessage = function(e) {
 					}
 					do_notify(uid, channel, msgTimestamp, message);
 				}
-
 			}
 			break;
 		case "send":
@@ -431,25 +430,23 @@ webWorker.onmessage = function(e) {
 }
 
 var notifyInProgress = false;
-async function do_notify(uid, channel, msgTimestamp, message) {
+function do_notify(uid, channel, msgTimestamp, message) {
 	lastMessage[channel] = [msgTimestamp, uid, message];
 	if(notifyInProgress) {
 		return;
 	}
 	notifyInProgress = true;
-	await sleep(1000);
 	var msg = lastMessage[channel];
 	lastMessageNotifiedTs = msg[0];
-	notifyInProgress = false;
 	if(isCordova) {
 		cordova.plugins.notification.local.schedule({
 			title: msg[1],
 			text: msg[2],
 			icon: 'file://img/icon.png',
-			foreground: false,
-			trigger: { in: 1, unit: 'second' }
+			foreground: false
 		});
-	}		
+	}
+	notifyInProgress = false;	
 }
 
 function sleep(ms) {
@@ -469,6 +466,7 @@ async function reconnect(uid, channel) {
 }
 
 function sync_reconnect(uid, channel) {
+	sendEmptyJoin();
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
