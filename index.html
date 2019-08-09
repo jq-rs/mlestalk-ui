@@ -22,7 +22,13 @@
 	<script src="js/qrcode.min.js"></script>
 	<script src="js/siphash.js"></script>
 	<script src="cordova.js"></script>
+	
+	<script src="mles-webworker/js/cbor.js"></script>
+	<script src="mles-webworker/js/blake2s.js"></script>
+	<script src="mles-webworker/js/blowfish.js"></script>
+	<script src="mles-webworker/js/webworker.js"></script>
 	<script src="js/mlestalk.js"></script>
+	
 	
 	<body onload="onLoad()">
 		<div class="body_cont">
@@ -59,7 +65,7 @@
 					<ul id="messages">
 					</ul>
 
-				</div>
+					</div>
 
 				<div id="input_message_cont">
 					<form id="form_send_message" method="post" action="#">

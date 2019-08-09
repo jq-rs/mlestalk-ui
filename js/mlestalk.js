@@ -92,7 +92,7 @@ var will_notify = false;
 var isCordova = false;
 var isReconnect = false;
 
-var webWorker = new Worker('mles-webworker/js/webworker.js');
+//var webWorker = new Worker('mles-webworker/js/webworker.js');
 
 function onPause() {
 	will_notify = true;
@@ -210,7 +210,7 @@ function ask_channel() {
 		}
 
 		$('#name_channel_cont').fadeOut(400, function() {
-			webWorker.postMessage(["init", null, myaddr, myport, myname, mychannel, fullkey, isTokenChannel]);
+			webworker_postMessage(["init", null, myaddr, myport, myname, mychannel, fullkey, isTokenChannel]);
 			$('#message_cont').fadeIn();
 		});
 	}
@@ -251,17 +251,56 @@ function initReconnect() {
 	reconn_timeout=RETIMEOUT;
 }
 
+var webSocket;
+function mlesclient_opensocket(myport, myaddr, uid, channel) {
+	if (webSocket !== undefined && webSocket.readyState !== WebSocket.CLOSED) {
+		return;
+	}
+
+	webSocket = new WebSocket("ws://" + myaddr + ":" + myport
+		+ "?myname=" + uid
+		+ "&mychannel=" + channel, "mles-websocket");
+	webSocket.binaryType = "arraybuffer";
+	webSocket.onopen = function(event) {
+		var uid = bfEcb.trimZeros(bfEcb.decrypt(atob(myuid)));
+		var channel = bfEcb.trimZeros(bfEcb.decrypt(atob(mychannel)));	
+		mlesclient_onmessage(["init", uid, channel, myuid, mychannel]);
+	};
+
+	webSocket.onmessage = function(event) {
+		var wake = will_notify;
+		if(event.data) {
+			if(wake && isCordova) {
+				cordova.plugins.backgroundMode.enableWake();
+				console.log("enable wake");
+			}
+			websocket_onmessage(event);
+			if(wake && isCordova) {
+				cordova.plugins.backgroundMode.disableWake();
+				console.log("disable wake");
+			}
+		}
+	}
+	
+	webSocket.onclose = function(event) {
+		webSocket.close();
+		var uid = bfEcb.trimZeros(bfEcb.decrypt(atob(myuid)));
+		var channel = bfEcb.trimZeros(bfEcb.decrypt(atob(mychannel)));	
+		mlesclient_onmessage(["close", uid, channel, myuid, mychannel]);
+	};
+}
+
 var multipart_dict = {};
 var multipart_send_dict = {};
 var multipartContinue = false;
-webWorker.onmessage = function(e) {
-	var cmd = e.data[0];
+function mlesclient_onmessage(data) {
+	var cmd = data[0];
 	switch(cmd) {
 		case "init":
-			var uid = e.data[1];
-			var channel = e.data[2];
-			var myuid = e.data[3];
-			var mychannel = e.data[4];
+			var uid = data[1];
+			var channel = data[2];
+			var myuid = data[3];
+			var mychannel = data[4];
 
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
@@ -305,14 +344,14 @@ webWorker.onmessage = function(e) {
 			}
 			break;
 		case "data":
-			var uid = e.data[1];
-			var channel = e.data[2];
-			var msgTimestamp = e.data[3];
-			var message = e.data[4];
-			var isImage = e.data[5];
-			var isMultipart = e.data[6];
-			var isFirst = e.data[7];
-			var isLast = e.data[8];
+			var uid = data[1];
+			var channel = data[2];
+			var msgTimestamp = data[3];
+			var message = data[4];
+			var isImage = data[5];
+			var isMultipart = data[6];
+			var isFirst = data[7];
+			var isLast = data[8];
 
 			var isFull = false;
 
@@ -410,9 +449,9 @@ webWorker.onmessage = function(e) {
 			}
 			break;
 		case "send":
-			var uid = e.data[1];
-			var channel = e.data[2];
-			var isMultipart = e.data[3];
+			var uid = data[1];
+			var channel = data[2];
+			var isMultipart = data[3];
 			if(isMultipart) {
 				if(multipart_send_dict[uid + channel]) {
 					multipartContinue = true;
@@ -420,10 +459,10 @@ webWorker.onmessage = function(e) {
 			}
 			break;
 		case "close":
-			var uid = e.data[1];
-			var channel = e.data[2];
-			var myuid = e.data[3];
-			var mychannel = e.data[4];
+			var uid = data[1];
+			var channel = data[2];
+			var myuid = data[3];
+			var mychannel = data[4];
 			reconnect(uid, channel);
 			break;
 	}
@@ -462,11 +501,11 @@ async function reconnect(uid, channel) {
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
 	isReconnect = true;
-	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	webWorker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function sync_reconnect(uid, channel) {
-	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	webWorker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function scrollToBottom() {
@@ -478,7 +517,7 @@ function send_data(cmd, uid, channel, data, isImage, isMultipart, isFirst, isLas
 	if(initOk) {
 		var rarray = new Uint32Array(6);
 		window.crypto.getRandomValues(rarray);
-		webWorker.postMessage([cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast]);
+		webworker_postMessage([cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast]);
 	}
 }
 
@@ -619,3 +658,5 @@ function send_image(myname, mychannel, file) {
 function get_token() {
 	return "http://" + addrportinput + "/web?token=" + token;
 }
+
+
