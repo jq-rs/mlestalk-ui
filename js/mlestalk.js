@@ -20,6 +20,7 @@ var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
 var reconn_timeout = RETIMEOUT;
+var webSocket;
 
 var isTokenChannel = false;
 
@@ -251,7 +252,6 @@ function initReconnect() {
 	reconn_timeout=RETIMEOUT;
 }
 
-var webSocket;
 function mlesclient_opensocket(myport, myaddr, uid, channel) {
 	if (webSocket !== undefined && webSocket.readyState !== WebSocket.CLOSED) {
 		return;
@@ -262,9 +262,7 @@ function mlesclient_opensocket(myport, myaddr, uid, channel) {
 		+ "&mychannel=" + channel, "mles-websocket");
 	webSocket.binaryType = "arraybuffer";
 	webSocket.onopen = function(event) {
-		var uid = bfEcb.trimZeros(bfEcb.decrypt(atob(myuid)));
-		var channel = bfEcb.trimZeros(bfEcb.decrypt(atob(mychannel)));	
-		mlesclient_onmessage(["init", uid, channel, myuid, mychannel]);
+		mlesclient_onmessage(["init", myname, mychannel]);
 	};
 
 	webSocket.onmessage = function(event) {
@@ -272,21 +270,19 @@ function mlesclient_opensocket(myport, myaddr, uid, channel) {
 		if(event.data) {
 			if(wake && isCordova) {
 				cordova.plugins.backgroundMode.enableWake();
-				console.log("enable wake");
+				//console.log("enable wake");
 			}
-			websocket_onmessage(event);
+			websocket_onmessage(event.data);
 			if(wake && isCordova) {
 				cordova.plugins.backgroundMode.disableWake();
-				console.log("disable wake");
+				//console.log("disable wake");
 			}
 		}
 	}
 	
 	webSocket.onclose = function(event) {
 		webSocket.close();
-		var uid = bfEcb.trimZeros(bfEcb.decrypt(atob(myuid)));
-		var channel = bfEcb.trimZeros(bfEcb.decrypt(atob(mychannel)));	
-		mlesclient_onmessage(["close", uid, channel, myuid, mychannel]);
+		mlesclient_onmessage(["close", uid, channel]);
 	};
 }
 
@@ -299,8 +295,6 @@ function mlesclient_onmessage(data) {
 		case "init":
 			var uid = data[1];
 			var channel = data[2];
-			var myuid = data[3];
-			var mychannel = data[4];
 
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
@@ -461,8 +455,6 @@ function mlesclient_onmessage(data) {
 		case "close":
 			var uid = data[1];
 			var channel = data[2];
-			var myuid = data[3];
-			var mychannel = data[4];
 			reconnect(uid, channel);
 			break;
 	}
@@ -501,11 +493,12 @@ async function reconnect(uid, channel) {
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
 	isReconnect = true;
-	webWorker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	webworker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function sync_reconnect(uid, channel) {
-	webWorker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	sendEmptyJoin();
+	webworker_postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function scrollToBottom() {
