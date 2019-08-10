@@ -211,6 +211,7 @@ function ask_channel() {
 		}
 
 		$('#name_channel_cont').fadeOut(400, function() {
+			console.log("Connecting..");
 			webworker_postMessage(["init", null, myaddr, myport, myname, mychannel, fullkey, isTokenChannel]);
 			$('#message_cont').fadeIn();
 		});
@@ -219,6 +220,7 @@ function ask_channel() {
 }
 
 function sendEmptyJoin() {
+	console.log("Sending empty join");
 	send_message(myname, mychannel, "", true);
 }
 
