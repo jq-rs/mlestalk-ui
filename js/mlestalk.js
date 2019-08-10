@@ -19,7 +19,9 @@ var idappend = {};
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
+const MAXATTEMPTS = 5;
 var reconn_timeout = RETIMEOUT;
+var reconn_attempts = 0;
 
 var isTokenChannel = false;
 
@@ -249,6 +251,7 @@ function close_socket() {
 
 function initReconnect() {
 	reconn_timeout=RETIMEOUT;
+	reconn_attempts=0;
 }
 
 var multipart_dict = {};
@@ -456,9 +459,13 @@ function sleep(ms) {
 
 async function reconnect(uid, channel) {
 	if(reconn_timeout > MAXTIMEOUT) {
-		reconn_timeout=RETIMEOUT;
-		close_socket();
-		return;
+		reconn_timeout=MAXTIMEOUT;
+		reconn_attempts += 1;
+		if(reconn_attempts > MAXATTEMPTS) {
+			initReconnect();
+			close_socket();
+			return;
+		}
 	}
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
