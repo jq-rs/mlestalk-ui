@@ -20,7 +20,7 @@ var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
 var reconn_timeout = RETIMEOUT;
-var webSocket;
+//var webSocket;
 
 var isTokenChannel = false;
 
@@ -252,14 +252,72 @@ function initReconnect() {
 	reconn_timeout=RETIMEOUT;
 }
 
+var webSocketId;
 function mlesclient_opensocket(myport, myaddr, uid, channel) {
-	if (webSocket !== undefined && webSocket.readyState !== WebSocket.CLOSED) {
-		return;
+	//if (webSocket !== undefined && webSocket.readyState !== WebSocket.CLOSED) {
+	//	return;
+	//}
+	
+	var url = "ws://" + myaddr + ":" + myport
+			+ "?myname=" + uid
+			+ "&mychannel=" + channel;
+
+	var wsOptions = {
+		url: url,
+		timeout: 5000,
+		pingInterval: 15000,
+		headers: {"Sec-Websocket-Protocol": "mles-websocket"},
+		acceptAllCerts: false
 	}
 
+	CordovaWebsocketPlugin.wsConnect(wsOptions,
+		function(recvEvent) {
+                    console.log("Received callback from WebSocket: "+recvEvent["callbackMethod"]);
+					switch(recvEvent["callbackMethod"]) {
+						case "onMessage":
+							var wake = will_notify;
+							if(recvEvent["message"]) {
+								if(wake && isCordova) {
+									cordova.plugins.backgroundMode.enableWake();
+									//console.log("enable wake");
+								}
+								websocket_onmessage(event.data);
+								if(wake && isCordova) {
+									cordova.plugins.backgroundMode.disableWake();
+									//console.log("disable wake");
+								}
+							}
+						break;
+						default:
+						   console.log("Failed to connect to WebSocket: "+
+                                "code: "+recvEvent["code"]+
+                                ", reason: "+recvEvent["reason"]+
+                                ", exception: "+recvEvent["exception"]);
+
+							CordovaWebsocketPlugin.wsClose(webSocketId);
+							mlesclient_onmessage(["close", uid, channel]);
+						break;
+							
+						
+					}
+        },
+                function(success) {
+					webSocketId = success.webSocketId;
+					mlesclient_onmessage(["init", myname, mychannel]);
+                },
+                function(error) {
+                    console.log("Failed to connect to WebSocket: "+
+                                "code: "+error["code"]+
+                                ", reason: "+error["reason"]+
+                                ", exception: "+error["exception"]);
+							CordovaWebsocketPlugin.wsClose(webSocketId);
+							mlesclient_onmessage(["close", uid, channel]);
+
+                }
+            );
+	
+	/*
 	webSocket = new WebSocket("ws://" + myaddr + ":" + myport
-		+ "?myname=" + uid
-		+ "&mychannel=" + channel, "mles-websocket");
 	webSocket.binaryType = "arraybuffer";
 	webSocket.onopen = function(event) {
 		mlesclient_onmessage(["init", myname, mychannel]);
@@ -284,6 +342,7 @@ function mlesclient_opensocket(myport, myaddr, uid, channel) {
 		webSocket.close();
 		mlesclient_onmessage(["close", uid, channel]);
 	};
+	*/
 }
 
 var multipart_dict = {};
