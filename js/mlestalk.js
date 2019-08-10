@@ -476,7 +476,8 @@ function do_notify(uid, channel, msgTimestamp, message) {
 			title: msg[1],
 			text: msg[2],
 			icon: 'file://img/icon.png',
-			foreground: false
+			foreground: false,
+			trigger: { in: 1, unit: 'second' }
 		});
 	}
 	notifyInProgress = false;	
