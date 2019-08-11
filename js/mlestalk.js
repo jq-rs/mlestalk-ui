@@ -500,6 +500,10 @@ function send_message(uid, channel, message, isFull) {
 
 	send_data("send", uid, channel, message, false, false, false, false);
 
+	if(0 == msglen) {
+		return;
+	}
+
 	var dateString = "[" + timenow() + "] ";
 	var now = timenow();
 	//update own view
