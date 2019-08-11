@@ -447,7 +447,8 @@ function do_notify(uid, channel, msgTimestamp, message) {
 		cordova.plugins.notification.local.schedule({
 			title: msg[1],
 			text: msg[2],
-			icon: 'file://img/icon.png',
+			icon: 'file://img/micon.png',
+			smallIcon: 'res://micon.png',
 			foreground: false,
 			trigger: { in: 1, unit: 'second' }
 		});
