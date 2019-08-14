@@ -20,10 +20,15 @@ var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
 const MAXATTEMPTS = 5;
+const MAXQLEN = 20;
+const RESYNC_TIMEOUT = 3000; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
 var isTokenChannel = false;
+var sipkey;
+var sipKeyIsOk = false;
+var isResync = false;
 
 var lastMessageSeenTs = 0;
 var lastMessageNotifiedTs = 0;
@@ -38,6 +43,60 @@ weekday[3] = "Wed";
 weekday[4] = "Thu";
 weekday[5] = "Fri";
 weekday[6] = "Sat";
+
+
+class Queue {
+	
+  constructor(...elements) {
+    this.elements = [...elements];
+	this.qmax = MAXQLEN;
+  }
+  push(...args) {
+	if(this.getLength >= this.maxLength())
+		this.shift();
+    return this.elements.push(...args);
+  }
+  get(val) {
+	  if(val >= 0 && val < this.getLength()) {
+		return this.elements[val];
+	  }
+  }
+  shift() {
+    return this.elements.shift();
+  }
+  unshift() {
+    return this.elements.unshift();
+  }
+  getLength() {
+    return this.elements.length;
+  }
+  maxLength() {
+    return this.qmax;
+  }
+}
+const q = new Queue();
+
+function find_and_match(data) {
+	for(i=0; i<q.getLength(); i++) {
+		var hash = SipHash.hash_hex(sipkey, data);
+		var obj = q.get(i);
+		var tmp = obj[0];
+		if(obj[1] == hash) {
+			obj[2] = true;
+		}
+	}
+}
+function sweep_and_send() {
+	for(i=0; i < q.getLength(); i++) {
+		var obj = q.get(i);
+		var tmp = obj[0];
+		if(false == obj[2]) { //not seen
+			webWorker.postMessage(obj[0]);
+			update_after_send(tmp[1], true);
+		}
+	}
+	isResync = false;
+}
 
 var autolinker = new Autolinker( {
 	urls : {
@@ -183,8 +242,8 @@ function ask_channel() {
 			token = atob(token);
 			var atoken = token.substring(0,16);
 			var bfchannel = token.substr(16);
-			var sipkey=SipHash.string16_to_key(bfchannel);
-			var newtoken = SipHash.hash_hex(sipkey, bfchannel);
+			var skey=SipHash.string16_to_key(bfchannel);
+			var newtoken = SipHash.hash_hex(skey, bfchannel);
 			if(atoken != newtoken) {
 				alert('Invalid token');
 				return;
@@ -254,6 +313,7 @@ function close_socket() {
 function initReconnect() {
 	reconn_timeout=RETIMEOUT;
 	reconn_attempts=0;
+		
 }
 
 var multipart_dict = {};
@@ -295,8 +355,9 @@ webWorker.onmessage = function(e) {
 			if(!isTokenChannel) {
 				//use channel to create 128 bit secret key
 				var bfchannel = atob(mychannel);
-				var key=SipHash.string16_to_key(bfchannel);
-				var atoken = SipHash.hash_hex(key, bfchannel);
+				sipkey=SipHash.string16_to_key(bfchannel);
+				sipKeyIsOk = true;
+				var atoken = SipHash.hash_hex(sipkey, bfchannel);
 				atoken = atoken + bfchannel;
 				token = btoa(atoken);		
 				document.getElementById("qrcode_link").setAttribute("href", get_token());
@@ -403,6 +464,15 @@ webWorker.onmessage = function(e) {
 				if(isFull || $('#input_message').val().length == 0) {
 					scrollToBottom();
 				}
+				
+				if(uid === myname && isFull) {
+					if(!isResync) {
+						console.log("Resyncing");
+						isResync = true;
+						resync();
+					}
+					find_and_match(message);			
+				}
 
 				if(uid != myname && isFull && will_notify &&
 					can_notify && lastMessageNotifiedTs < msgTimestamp) {
@@ -460,6 +530,11 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function resync() {
+	await sleep(RESYNC_TIMEOUT);
+	sweep_and_send();
+}
+
 async function reconnect(uid, channel) {
 	if(reconn_timeout > MAXTIMEOUT) {
 		reconn_timeout=MAXTIMEOUT;
@@ -484,29 +559,20 @@ function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
 
-function send_data(cmd, uid, channel, data, isImage, isMultipart, isFirst, isLast) {
+function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
 
 	if(initOk) {
 		var rarray = new Uint32Array(6);
 		window.crypto.getRandomValues(rarray);
-		webWorker.postMessage([cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast]);
+		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast];
+		if(!isResync)
+			webWorker.postMessage(arr);
+		if(sipKeyIsOk && isFull && data.length > 2)
+			q.push([arr, SipHash.hash_hex(sipkey, data), false]);
 	}
 }
 
-function send_message(uid, channel, message, isFull) {
-	var msglen = message.length;
-
-	if(msglen == 0)
-		message = message + "\n";
-	if(true == isFull)
-		message = message + "\n";
-
-	send_data("send", uid, channel, message, false, false, false, false);
-
-	if(0 == msglen) {
-		return;
-	}
-
+function update_after_send(message, isFull) {
 	var dateString = "[" + timenow() + "] ";
 	var now = timenow();
 	//update own view
@@ -518,6 +584,8 @@ function send_message(uid, channel, message, isFull) {
 
 	var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
 	if(isFull) {
+		if(isResync)
+			$('#messages').append(li);
 		ownid = ownid + 1;
 		ownappend = false;
 	}
@@ -532,8 +600,26 @@ function send_message(uid, channel, message, isFull) {
 
 	scrollToBottom();
 
-	if(isFull && msglen > 0)
+	if(isFull)
 		$('#input_message').val('');
+}
+
+function send_message(uid, channel, message, isFull) {
+	var msglen = message.length;
+
+	if(msglen == 0)
+		message = message + "\n";
+	if(true == isFull)
+		message = message + "\n";
+
+	send_data("send", uid, channel, message, isFull, false, false, false);
+
+	if(0 == msglen) {
+		return;
+	}
+	
+	update_after_send(message, isFull);
+
 }
 
 const MULTIPART_SLICE = 1024*16;
@@ -554,13 +640,13 @@ async function send_dataurl(dataUrl, uid, channel) {
 			else if(i + MULTIPART_SLICE >= dataUrl.length) {
 				isLast = true;
 				var data = dataUrl.slice(i, dataUrl.length);
-				send_data("send", myname, mychannel, data, isImage, isMultipart, isFirst, isLast);
+				send_data("send", myname, mychannel, data, false, isImage, isMultipart, isFirst, isLast);
 				multipart_send_dict[uid + channel] = false;
 				multipartContinue = false;
 				break;
 			}
 			var data = dataUrl.slice(i, i + MULTIPART_SLICE);
-			send_data("send", myname, mychannel, data, isImage, isMultipart, isFirst, isLast);
+			send_data("send", myname, mychannel, data, false, isImage, isMultipart, isFirst, isLast);
 			while(false == multipartContinue) {
 				await sleep(10);
 			}
@@ -568,7 +654,7 @@ async function send_dataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		send_data("send", myname, mychannel, data, isImage, false, false, false); /* is not multipart */
+		send_data("send", myname, mychannel, data, false, isImage, false, false, false); /* is not multipart */
 	}
 
 	var dateString = "[" + timenow() + "] ";
