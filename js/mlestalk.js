@@ -52,7 +52,7 @@ class Queue {
 	this.qmax = MAXQLEN;
   }
   push(...args) {
-	if(this.getLength >= this.maxLength())
+	if(this.getLength() >= this.maxLength())
 		this.shift();
     return this.elements.push(...args);
   }
