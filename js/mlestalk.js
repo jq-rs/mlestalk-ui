@@ -34,6 +34,8 @@ var lastMessageSeenTs = 0;
 var lastMessageNotifiedTs = 0;
 var lastReconnectTs = 0;
 var lastMessage = {};
+var lastMessageHash = 0;
+var lastMessageHashIsSeen = false;
 
 var weekday = new Array(7);
 weekday[0] = "Sun";
@@ -96,6 +98,7 @@ function sweep_and_send() {
 		var tmp = obj[0];
 		if(false == obj[3]) { //not seen
 			webWorker.postMessage(obj[0]);
+			lastMessageHash = hash_message(tmp[2], tmp[1]);
 			update_after_send(tmp[1], true, obj[2]);
 		}
 	}
@@ -317,7 +320,6 @@ function close_socket() {
 function initReconnect() {
 	reconn_timeout=RETIMEOUT;
 	reconn_attempts=0;
-		
 }
 
 var multipart_dict = {};
@@ -342,7 +344,7 @@ webWorker.onmessage = function(e) {
 				
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
-					li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
+					//li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
 					lastReconnectTs = lastMessageSeenTs;
 				}
 				else {
@@ -352,8 +354,9 @@ webWorker.onmessage = function(e) {
 					else {
 						li = '<li class="new"> - <span class="name">' + uid + '</span> - </li>';
 					}
+					$('#messages').append(li);
 				}
-				$('#messages').append(li);
+
 			}
 
 			if(!isTokenChannel) {
@@ -422,14 +425,30 @@ webWorker.onmessage = function(e) {
 				if(!isResync) {
 					console.log("Resyncing");
 					isResync = true;
+					lastMessageHashIsSeen = false;
 					resync();
 				}
 				find_and_match(uid, message);			
 			}
-
-			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {
+			
+			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {			
+				if(!isResync) {
+					lastMessageHash = hash_message(uid, message);
+				}
+				else if(isReconnect && lastMessageSeenTs == msgTimestamp) {
+					var mHash = hash_message(uid, message);
+					if(mHash == lastMessageHash) {
+						lastMessageHashIsSeen = true;
+						console.log("Saw last message: " +mHash);
+						break;
+					}
+					else if(!lastMessageHashIsSeen && lastMessageHash) {
+						console.log("Skipping recent message");
+						break;
+					}
+				}
 				lastMessageSeenTs = msgTimestamp;
-
+				
 				var li;
 				var now = timenow();
 				var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
@@ -572,8 +591,12 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 		var rarray = new Uint32Array(6);
 		window.crypto.getRandomValues(rarray);
 		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast];
-		if(!isResync)
+		if(!isResync) {
+			if(data.length > 2) {
+				lastMessageHash = hash_message(uid, data);
+			}
 			webWorker.postMessage(arr);
+		}
 		if(sipKeyIsOk && isFull && data.length > 2)
 			q.push([arr, hash_message(uid, data), isImage, false]);
 	}
