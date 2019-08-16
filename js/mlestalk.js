@@ -76,9 +76,13 @@ class Queue {
 }
 const q = new Queue();
 
-function find_and_match(data) {
+function hash_message(uid, data) {
+	return SipHash.hash_hex(sipkey, uid+data);
+}
+
+function find_and_match(uid, data) {
 	for(i=0; i<q.getLength(); i++) {
-		var hash = SipHash.hash_hex(sipkey, data);
+		var hash = hash_message(uid, data);
 		var obj = q.get(i);
 		var tmp = obj[0];
 		if(obj[1] == hash) {
@@ -90,9 +94,9 @@ function sweep_and_send() {
 	for(i=0; i < q.getLength(); i++) {
 		var obj = q.get(i);
 		var tmp = obj[0];
-		if(false == obj[2]) { //not seen
+		if(false == obj[3]) { //not seen
 			webWorker.postMessage(obj[0]);
-			update_after_send(tmp[1], true);
+			update_after_send(tmp[1], true, obj[2]);
 		}
 	}
 	isResync = false;
@@ -406,6 +410,15 @@ webWorker.onmessage = function(e) {
 				idhash[duid] = 0;
 				idappend[duid] = false;
 			}
+			
+			if(uid === myname && isFull && message.length > 2) {
+				if(!isResync) {
+					console.log("Resyncing");
+					isResync = true;
+					resync();
+				}
+				find_and_match(message);			
+			}
 
 			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {
 				lastMessageSeenTs = msgTimestamp;
@@ -465,14 +478,6 @@ webWorker.onmessage = function(e) {
 					scrollToBottom();
 				}
 				
-				if(uid === myname && isFull) {
-					if(!isResync) {
-						console.log("Resyncing");
-						isResync = true;
-						resync();
-					}
-					find_and_match(message);			
-				}
 
 				if(uid != myname && isFull && will_notify &&
 					can_notify && lastMessageNotifiedTs < msgTimestamp) {
@@ -568,11 +573,12 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 		if(!isResync)
 			webWorker.postMessage(arr);
 		if(sipKeyIsOk && isFull && data.length > 2)
-			q.push([arr, SipHash.hash_hex(sipkey, data), false]);
+			q.push([arr, hash_message(uid, data), isImage, false]);
 	}
 }
 
-function update_after_send(message, isFull) {
+function update_after_send(message, isFull, isImage) {
+
 	var dateString = "[" + timenow() + "] ";
 	var now = timenow();
 	//update own view
@@ -581,27 +587,37 @@ function update_after_send(message, isFull) {
 		dateString = dateString.slice(16, dateString.length);
 		dateString = "[" + dateString;
 	}
+	
+	if(!isImage) {
+		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
+		if(isFull) {
+			if(isResync)
+				$('#messages').append(li);
+			ownid = ownid + 1;
+			ownappend = false;
+		}
+		else {
+			if(false == ownappend) {
+				$('#messages').append(li);
+				ownappend = true;
+			}
+			else
+				$('#owner' + ownid).replaceWith(li);
+		}
 
-	var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
-	if(isFull) {
-		if(isResync)
-			$('#messages').append(li);
-		ownid = ownid + 1;
-		ownappend = false;
+		scrollToBottom();
+
+		if(isFull)
+			$('#input_message').val('');
 	}
 	else {
-		if(false == ownappend) {
-			$('#messages').append(li);
-			ownappend = true;
-		}
-		else
-			$('#owner' + ownid).replaceWith(li);
+		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString
+		+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>'
+		$('#messages').append(li);
+		ownid = ownid + 1;
+		scrollToBottom();
+		$('#input_file').val('');
 	}
-
-	scrollToBottom();
-
-	if(isFull)
-		$('#input_message').val('');
 }
 
 function send_message(uid, channel, message, isFull) {
@@ -618,14 +634,15 @@ function send_message(uid, channel, message, isFull) {
 		return;
 	}
 	
-	update_after_send(message, isFull);
+	update_after_send(message, isFull, false);
 
 }
 
 const MULTIPART_SLICE = 1024*16;
 async function send_dataurl(dataUrl, uid, channel) {
 	var isImage = true;
-
+	const isFull = true;;
+	
 	if(dataUrl.length > MULTIPART_SLICE) {
 		var isMultipart = true;
 		var isFirst;
@@ -640,13 +657,13 @@ async function send_dataurl(dataUrl, uid, channel) {
 			else if(i + MULTIPART_SLICE >= dataUrl.length) {
 				isLast = true;
 				var data = dataUrl.slice(i, dataUrl.length);
-				send_data("send", myname, mychannel, data, false, isImage, isMultipart, isFirst, isLast);
+				send_data("send", myname, mychannel, data, isFull, isImage, isMultipart, isFirst, isLast);
 				multipart_send_dict[uid + channel] = false;
 				multipartContinue = false;
 				break;
 			}
 			var data = dataUrl.slice(i, i + MULTIPART_SLICE);
-			send_data("send", myname, mychannel, data, false, isImage, isMultipart, isFirst, isLast);
+			send_data("send", myname, mychannel, data, isFull, isImage, isMultipart, isFirst, isLast);
 			while(false == multipartContinue) {
 				await sleep(10);
 			}
@@ -654,24 +671,10 @@ async function send_dataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		send_data("send", myname, mychannel, data, false, isImage, false, false, false); /* is not multipart */
+		send_data("send", myname, mychannel, data, isFull, isImage, false, false, false); /* is not multipart */
 	}
-
-	var dateString = "[" + timenow() + "] ";
-	var now = timenow();
-	//update own view
-	if (dateString.charAt(0) == '[' && dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
-		dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4)) {
-		dateString = dateString.slice(16, dateString.length);
-		dateString = "[" + dateString;
-	}
-
-	var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString
-		+ '<img class="image" src="' + dataUrl + '" height="100px" data-action="zoom" alt=""></li></div>'
-	$('#messages').append(li);
-	ownid = ownid + 1;
-	scrollToBottom();
-	$('#input_file').val('');	
+	
+	update_after_send(dataUrl, isFull, true);
 }
 
 
