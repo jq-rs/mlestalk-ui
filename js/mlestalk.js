@@ -20,7 +20,7 @@ var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
 const MAXATTEMPTS = 5;
-const MAXQLEN = 20;
+const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 3000; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
@@ -86,7 +86,7 @@ function find_and_match(uid, data) {
 		var obj = q.get(i);
 		var tmp = obj[0];
 		if(obj[1] == hash) {
-			obj[2] = true;
+			obj[3] = true;
 		}
 	}
 }
@@ -417,7 +417,7 @@ webWorker.onmessage = function(e) {
 					isResync = true;
 					resync();
 				}
-				find_and_match(message);			
+				find_and_match(uid, message);			
 			}
 
 			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {
