@@ -82,7 +82,7 @@ function hash_message(uid, data) {
 	return SipHash.hash_hex(sipkey, uid+data);
 }
 
-function find_and_match(uid, data) {
+function queue_find_and_match(uid, data) {
 	for(i=0; i<q.getLength(); i++) {
 		var hash = hash_message(uid, data);
 		var obj = q.get(i);
@@ -92,7 +92,7 @@ function find_and_match(uid, data) {
 		}
 	}
 }
-function sweep_and_send() {
+function queue_sweep_and_send() {
 	for(i=0; i < q.getLength(); i++) {
 		var obj = q.get(i);
 		var tmp = obj[0];
@@ -103,6 +103,10 @@ function sweep_and_send() {
 		}
 	}
 	isResync = false;
+}
+
+function queue_postmsg(arr) {
+	q.push(arr);
 }
 
 var autolinker = new Autolinker( {
@@ -428,7 +432,7 @@ webWorker.onmessage = function(e) {
 					lastMessageHashIsSeen = false;
 					resync();
 				}
-				find_and_match(uid, message);			
+				queue_find_and_match(uid, message);			
 			}
 			
 			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {			
@@ -558,7 +562,7 @@ function sleep(ms) {
 
 async function resync() {
 	await sleep(RESYNC_TIMEOUT);
-	sweep_and_send();
+	queue_sweep_and_send();
 }
 
 async function reconnect(uid, channel) {
@@ -598,7 +602,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 			webWorker.postMessage(arr);
 		}
 		if(sipKeyIsOk && isFull && data.length > 2)
-			q.push([arr, hash_message(uid, data), isImage, false]);
+			queue_postmsg([arr, hash_message(uid, data), isImage, false]);
 	}
 }
 
