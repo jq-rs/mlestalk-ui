@@ -411,6 +411,13 @@ webWorker.onmessage = function(e) {
 				idappend[duid] = false;
 			}
 			
+			if(isImage) {
+				isFull = true;
+			}
+			else if (message.charCodeAt(message.length-1) == "\n".charCodeAt(0)) {
+				isFull = true;
+			}
+			
 			if(uid === myname && isFull && message.length > 2) {
 				if(!isResync) {
 					console.log("Resyncing");
@@ -434,7 +441,6 @@ webWorker.onmessage = function(e) {
 
 				/* Check first is it a text or image */
 				if(isImage) {
-					isFull = true;
 					if (uid != myname) {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + dateString 
 							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>'
@@ -445,10 +451,6 @@ webWorker.onmessage = function(e) {
 					}
 				}
 				else {
-					if (message.charCodeAt(message.length-1) == "\n".charCodeAt(0)) {
-						isFull = true;
-					}
-
 					if (uid != myname) {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
 							+ dateString + "" + autolinker.link( message ) + '</li></div>';
