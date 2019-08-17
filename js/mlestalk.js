@@ -29,6 +29,7 @@ var isTokenChannel = false;
 var sipkey;
 var sipKeyIsOk = false;
 var isResync = false;
+var isReconnectSync = false;
 
 var lastMessageSeenTs = 0;
 var lastMessageNotifiedTs = 0;
@@ -99,10 +100,12 @@ function queue_sweep_and_send() {
 		if(false == obj[3]) { //not seen
 			webWorker.postMessage(obj[0]);
 			lastMessageHash = hash_message(tmp[2], tmp[1]);
+			//console.log("Sweeping " + tmp[1]);
 			update_after_send(tmp[1], true, obj[2]);
 		}
 	}
 	isResync = false;
+	isReconnectSync = false;
 }
 
 function queue_postmsg(arr) {
@@ -348,6 +351,7 @@ webWorker.onmessage = function(e) {
 				
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
+					isReconnectSync = true;
 					//li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
 					lastReconnectTs = lastMessageSeenTs;
 				}
@@ -425,33 +429,39 @@ webWorker.onmessage = function(e) {
 				isFull = true;
 			}
 			
-			if(uid === myname && isFull && message.length > 2) {
+			if(uid === myname) {
 				if(!isResync) {
 					console.log("Resyncing");
 					isResync = true;
 					lastMessageHashIsSeen = false;
 					resync();
 				}
-				queue_find_and_match(uid, message);			
+				if(isFull && message.length > 2)
+					queue_find_and_match(uid, message);			
 			}
 			
 			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {			
-				if(!isResync) {
+				if(!isReconnectSync) {
+					//console.log("Not reconnect: " + message);
 					lastMessageHash = hash_message(uid, message);
 				}
-				else if(isReconnect && lastMessageSeenTs == msgTimestamp) {
+				else if(lastMessageSeenTs === msgTimestamp) {
 					var mHash = hash_message(uid, message);
 					if(mHash == lastMessageHash) {
 						lastMessageHashIsSeen = true;
-						console.log("Saw last message: " +mHash);
+						isReconnectSync = false;
+						//console.log("Saw last message: " +mHash +" Message " + message);
 						break;
 					}
 					else if(!lastMessageHashIsSeen && lastMessageHash) {
-						console.log("Skipping recent message");
+						//console.log("Skipping recent message");
 						break;
 					}
 				}
+				//console.log("Message: "  + message + " Hash " + lastMessageHash + " Seen " + lastMessageHashIsSeen + " Msgts " + msgTimestamp + " Last " + lastMessageSeenTs);
+				
 				lastMessageSeenTs = msgTimestamp;
+				
 				
 				var li;
 				var now = timenow();
@@ -501,8 +511,7 @@ webWorker.onmessage = function(e) {
 
 				if(isFull || $('#input_message').val().length == 0) {
 					scrollToBottom();
-				}
-				
+				}		
 
 				if(uid != myname && isFull && will_notify &&
 					can_notify && lastMessageNotifiedTs < msgTimestamp) {
