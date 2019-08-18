@@ -19,7 +19,7 @@ var idappend = {};
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
-const MAXATTEMPTS = 5;
+const MAXATTEMPTS = 12;
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 3000; /* ms */
 var reconn_timeout = RETIMEOUT;
@@ -322,6 +322,9 @@ function close_socket() {
 		$('#name_channel_cont').fadeIn();
 		$('#messages').html('');
 	});
+	if(isCordova) {
+		cordova.plugins.backgroundMode.disable();
+	}
 }
 
 function initReconnect() {
