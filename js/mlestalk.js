@@ -431,7 +431,7 @@ webWorker.onmessage = function(e) {
 			
 			if(uid === myname) {
 				if(!isResync) {
-					console.log("Resyncing");
+					//console.log("Resyncing");
 					isResync = true;
 					lastMessageHashIsSeen = false;
 					resync();
@@ -442,27 +442,22 @@ webWorker.onmessage = function(e) {
 			
 			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {			
 				if(!isReconnectSync) {
-					//console.log("Not reconnect: " + message);
 					lastMessageHash = hash_message(uid, message);
 				}
-				else if(lastMessageSeenTs === msgTimestamp) {
+				else if(msgTimestamp >= lastMessageSeenTs) {
 					var mHash = hash_message(uid, message);
 					if(mHash == lastMessageHash) {
 						lastMessageHashIsSeen = true;
 						isReconnectSync = false;
-						//console.log("Saw last message: " +mHash +" Message " + message);
+						lastMessageSeenTs = msgTimestamp;
 						break;
 					}
 					else if(!lastMessageHashIsSeen && lastMessageHash) {
-						//console.log("Skipping recent message");
 						break;
 					}
 				}
-				//console.log("Message: "  + message + " Hash " + lastMessageHash + " Seen " + lastMessageHashIsSeen + " Msgts " + msgTimestamp + " Last " + lastMessageSeenTs);
-				
 				lastMessageSeenTs = msgTimestamp;
-				
-				
+
 				var li;
 				var now = timenow();
 				var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
