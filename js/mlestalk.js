@@ -70,6 +70,11 @@ class Queue {
   unshift() {
     return this.elements.unshift();
   }
+  drop(val) {
+	  if(val >= 0 && val < this.getLength()) {
+		this.elements.splice(0, val);
+	  }
+  }
   getLength() {
     return this.elements.length;
   }
@@ -84,25 +89,25 @@ function hash_message(uid, data) {
 }
 
 function queue_find_and_match(uid, data) {
-	for(i=0; i<q.getLength(); i++) {
+	var lastSeen = -1;
+	for(var i=0; i<q.getLength(); i++) {
 		var hash = hash_message(uid, data);
 		var obj = q.get(i);
 		var tmp = obj[0];
 		if(obj[1] == hash) {
-			obj[3] = true;
+			lastSeen = i+1;
 		}
+	}
+	if(lastSeen != -1) {
+		q.drop(lastSeen);
 	}
 }
 function queue_sweep_and_send() {
-	for(i=0; i < q.getLength(); i++) {
+	for(var i=0; i < q.getLength(); i++) {
 		var obj = q.get(i);
 		var tmp = obj[0];
-		if(false == obj[3]) { //not seen
-			webWorker.postMessage(obj[0]);
-			lastMessageHash = hash_message(tmp[2], tmp[1]);
-			//console.log("Sweeping " + tmp[1]);
-			update_after_send(tmp[1], true, obj[2]);
-		}
+		webWorker.postMessage(obj[0]);
+		lastMessageHash = hash_message(tmp[2], tmp[1]);
 	}
 	isResync = false;
 	isReconnectSync = false;
@@ -609,7 +614,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 			webWorker.postMessage(arr);
 		}
 		if(sipKeyIsOk && isFull && data.length > 2)
-			queue_postmsg([arr, hash_message(uid, data), isImage, false]);
+			queue_postmsg([arr, hash_message(uid, data), isImage]);
 	}
 }
 
