@@ -71,7 +71,7 @@ class Queue {
     return this.elements.unshift();
   }
   drop(val) {
-	  if(val >= 0 && val < this.getLength()) {
+	  if(val > 0 && val <= this.getLength()) {
 		this.elements.splice(0, val);
 	  }
   }
@@ -93,7 +93,6 @@ function queue_find_and_match(uid, data) {
 	for(var i=0; i<q.getLength(); i++) {
 		var hash = hash_message(uid, data);
 		var obj = q.get(i);
-		var tmp = obj[0];
 		if(obj[1] == hash) {
 			lastSeen = i+1;
 		}
