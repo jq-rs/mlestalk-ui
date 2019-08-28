@@ -17,6 +17,8 @@ var idhash = {};
 var idappend = {};
 var idtimestamp = {};
 var idnotifyts = {};
+var idlastmsghash = {};
+var idreconnsync = {};
 
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
@@ -31,13 +33,10 @@ var isTokenChannel = false;
 var sipkey;
 var sipKeyIsOk = false;
 var isResync = false;
-var isReconnectSync = false;
 
 var lastMessageSeenTs = 0;
 var lastReconnectTs = 0;
 var lastMessage = {};
-var lastMessageHash = 0;
-var lastMessageHashIsSeen = false;
 
 var weekday = new Array(7);
 weekday[0] = "Sun";
@@ -71,7 +70,7 @@ class Queue {
   unshift() {
     return this.elements.unshift();
   }
-  drop(val) {
+  flush(val) {
 	  if(val > 0 && val <= this.getLength()) {
 		this.elements.splice(0, val);
 	  }
@@ -99,7 +98,7 @@ function queue_find_and_match(uid, data) {
 		}
 	}
 	if(lastSeen != -1) {
-		q.drop(lastSeen);
+		q.flush(lastSeen);
 	}
 }
 function queue_sweep_and_send() {
@@ -107,10 +106,12 @@ function queue_sweep_and_send() {
 		var obj = q.get(i);
 		var tmp = obj[0];
 		webWorker.postMessage(obj[0]);
-		lastMessageHash = hash_message(tmp[2], tmp[1]);
+		idlastmsghash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+	}
+	for(var userid in idreconnsync) {
+		idreconnsync[userid] = false;
 	}
 	isResync = false;
-	isReconnectSync = false;
 }
 
 function queue_postmsg(arr) {
@@ -357,8 +358,9 @@ webWorker.onmessage = function(e) {
 				
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
-					isReconnectSync = true;
-					//li = '<li class="new"> - <span class="name">reconnected</span> - </li>';
+					for(var userid in idreconnsync) {
+						idreconnsync[userid] = true;
+					}
 					lastReconnectTs = lastMessageSeenTs;
 				}
 				else {
@@ -426,8 +428,10 @@ webWorker.onmessage = function(e) {
 			if(idhash[duid] == null) {	
 				idhash[duid] = 0;
 				idappend[duid] = false;
-				idtimestamp[duid] = msgTimestamp;
-				idnotifyts[duid] = 0;
+				idtimestamp[uid] = msgTimestamp;
+				idnotifyts[uid] = 0;
+				idlastmsghash[uid] = 0;
+				idreconnsync[uid] = false;
 			}
 			
 			if(isImage) {
@@ -441,30 +445,25 @@ webWorker.onmessage = function(e) {
 				if(!isResync) {
 					//console.log("Resyncing");
 					isResync = true;
-					lastMessageHashIsSeen = false;
 					resync();
 				}
 				if(isFull && message.length > 2)
 					queue_find_and_match(uid, message);			
 			}
 			
-			if(message.length > 2 && idtimestamp[duid] <= msgTimestamp) {
-				if(!isReconnectSync) {
-					lastMessageHash = hash_message(uid, message);
+			if(message.length > 2 && idtimestamp[uid] <= msgTimestamp) {
+				if(!idreconnsync[uid]) {
+					idlastmsghash[uid] = hash_message(uid, message);
 				}
-				else if(msgTimestamp >= idtimestamp[duid]) {
+				else if(msgTimestamp >= idtimestamp[uid]) {
 					var mHash = hash_message(uid, message);
-					if(mHash == lastMessageHash) {
-						lastMessageHashIsSeen = true;
-						isReconnectSync = false;
-						idtimestamp[duid] = msgTimestamp;
-						break;
+					if(mHash == idlastmsghash[uid]) {
+						idreconnsync[uid] = false;
+						idtimestamp[uid] = msgTimestamp;
 					}
-					else if(!lastMessageHashIsSeen && lastMessageHash) {
-						break;
-					}
+					break;
 				}
-				idtimestamp[duid] = msgTimestamp;
+				idtimestamp[uid] = msgTimestamp;
 				if(lastMessageSeenTs < msgTimestamp)
 					lastMessageSeenTs = msgTimestamp;
 
@@ -518,7 +517,7 @@ webWorker.onmessage = function(e) {
 					scrollToBottom();
 				}
 
-				if(uid != myname && isFull && idnotifyts[duid] < msgTimestamp) {
+				if(uid != myname && isFull && idnotifyts[uid] < msgTimestamp) {
 					if(will_notify && can_notify)
 					{
 						if(true == isImage) {
@@ -526,7 +525,7 @@ webWorker.onmessage = function(e) {
 						}
 						do_notify(uid, channel, msgTimestamp, message);
 					}
-					idnotifyts[duid] = msgTimestamp;
+					idnotifyts[uid] = msgTimestamp;
 				}
 			}
 			break;
@@ -606,7 +605,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast];
 		if(!isResync) {
 			if(data.length > 2) {
-				lastMessageHash = hash_message(uid, data);
+				idlastmsghash[uid] = hash_message(uid, data);
 			}
 			webWorker.postMessage(arr);
 		}
