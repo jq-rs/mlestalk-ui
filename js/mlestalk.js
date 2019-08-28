@@ -15,6 +15,7 @@ var ownid = 0;
 var ownappend = false;
 var idhash = {};
 var idappend = {};
+var idtimestamp = {};
 
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
@@ -427,6 +428,7 @@ webWorker.onmessage = function(e) {
 			if(idhash[duid] == null) {	
 				idhash[duid] = 0;
 				idappend[duid] = false;
+				idtimestamp[duid] = msgTimestamp;
 			}
 			
 			if(isImage) {
@@ -447,23 +449,25 @@ webWorker.onmessage = function(e) {
 					queue_find_and_match(uid, message);			
 			}
 			
-			if(message.length > 2 && lastMessageSeenTs <= msgTimestamp) {			
+			if(message.length > 2 && idtimestamp[duid] <= msgTimestamp) {
 				if(!isReconnectSync) {
 					lastMessageHash = hash_message(uid, message);
 				}
-				else if(msgTimestamp >= lastMessageSeenTs) {
+				else if(msgTimestamp >= idtimestamp[duid]) {
 					var mHash = hash_message(uid, message);
 					if(mHash == lastMessageHash) {
 						lastMessageHashIsSeen = true;
 						isReconnectSync = false;
-						lastMessageSeenTs = msgTimestamp;
+						idtimestamp[duid] = msgTimestamp;
 						break;
 					}
 					else if(!lastMessageHashIsSeen && lastMessageHash) {
 						break;
 					}
 				}
-				lastMessageSeenTs = msgTimestamp;
+				idtimestamp[duid] = msgTimestamp;
+				if(lastMessageSeenTs < msgTimestamp)
+					lastMessageSeenTs = msgTimestamp;
 
 				var li;
 				var now = timenow();
@@ -678,10 +682,10 @@ function send_message(uid, channel, message, isFull) {
 
 }
 
-const MULTIPART_SLICE = 1024*16;
+const MULTIPART_SLICE = 1024*8;
 async function send_dataurl(dataUrl, uid, channel) {
 	var isImage = true;
-	const isFull = true;;
+	const isFull = true;
 	
 	if(dataUrl.length > MULTIPART_SLICE) {
 		var isMultipart = true;
