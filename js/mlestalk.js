@@ -16,13 +16,14 @@ var ownappend = false;
 var idhash = {};
 var idappend = {};
 var idtimestamp = {};
+var idnotifyts = {};
 
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
 const MAXATTEMPTS = 12;
 const MAXQLEN = 32;
-const RESYNC_TIMEOUT = 3000; /* ms */
+const RESYNC_TIMEOUT = 5000; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -33,7 +34,6 @@ var isResync = false;
 var isReconnectSync = false;
 
 var lastMessageSeenTs = 0;
-var lastMessageNotifiedTs = 0;
 var lastReconnectTs = 0;
 var lastMessage = {};
 var lastMessageHash = 0;
@@ -176,7 +176,6 @@ var webWorker = new Worker('mles-webworker/js/webworker.js');
 
 function onPause() {
 	will_notify = true;
-	lastMessageNotifiedTs = lastMessageSeenTs;
 	if(isCordova) {
 		cordova.plugins.backgroundMode.enable();
 		cordova.plugins.backgroundMode.toBackground();
@@ -318,7 +317,6 @@ function send(isFull) {
 function close_socket() {
 	initOk = false;
 	lastMessageSeenTs = 0;
-	lastMessageNotifiedTs = 0;
 	isReconnect = false;
 	alert('The connection is lost. Please try again.');
 	if(!isTokenChannel)
@@ -429,6 +427,7 @@ webWorker.onmessage = function(e) {
 				idhash[duid] = 0;
 				idappend[duid] = false;
 				idtimestamp[duid] = msgTimestamp;
+				idnotifyts[duid] = 0;
 			}
 			
 			if(isImage) {
@@ -517,15 +516,17 @@ webWorker.onmessage = function(e) {
 
 				if(isFull || $('#input_message').val().length == 0) {
 					scrollToBottom();
-				}		
+				}
 
-				if(uid != myname && isFull && will_notify &&
-					can_notify && lastMessageNotifiedTs < msgTimestamp) {
-
-					if(true == isImage) {
-						message = "<an image>";
+				if(uid != myname && isFull && idnotifyts[duid] < msgTimestamp) {
+					if(will_notify && can_notify)
+					{
+						if(true == isImage) {
+							message = "<an image>";
+						}
+						do_notify(uid, channel, msgTimestamp, message);
 					}
-					do_notify(uid, channel, msgTimestamp, message);
+					idnotifyts[duid] = msgTimestamp;
 				}
 			}
 			break;
@@ -549,15 +550,9 @@ webWorker.onmessage = function(e) {
 	}
 }
 
-var notifyInProgress = false;
 function do_notify(uid, channel, msgTimestamp, message) {
 	lastMessage[channel] = [msgTimestamp, uid, message];
-	if(notifyInProgress) {
-		return;
-	}
-	notifyInProgress = true;
 	var msg = lastMessage[channel];
-	lastMessageNotifiedTs = msg[0];
 	if(isCordova) {
 		cordova.plugins.notification.local.schedule({
 			title: msg[1],
@@ -568,7 +563,6 @@ function do_notify(uid, channel, msgTimestamp, message) {
 			trigger: { in: 1, unit: 'second' }
 		});
 	}
-	notifyInProgress = false;	
 }
 
 function sleep(ms) {
