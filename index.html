@@ -10,7 +10,7 @@
 -->
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline'; style-src * 'unsafe-inline'; media-src *; img-src 'self' data:; connect-src ws://*;" />
+		<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline'; style-src * 'unsafe-inline'; media-src *; img-src 'self' data:; connect-src ws://*; worker-src filesystem:*" />
 		<title>Mles WebSocket Channels</title>
 		<link href="css/zoom.css" rel="stylesheet">
 		<link href="css/mlestalk.css" rel="stylesheet">
@@ -21,7 +21,7 @@
 	<script src="js/Autolinker.min.js"></script>
 	<script src="js/qrcode.min.js"></script>
 	<script src="js/siphash.js"></script>
-	<script src="cordova.js"></script>
+	<!--<script src="cordova.js"></script>-->
 	<script src="js/mlestalk.js"></script>
 	
 	<body onload="onLoad()">
@@ -70,10 +70,16 @@
 							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
 							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
 							<span><input type="text" id="input_message" oninput="send(false);" autocomplete="off" autofocus /></span>
+							<br />
 						</div>
 					</form>
 				</div>
-			</div>	
+				<div class="field">
+					<form>
+						<input class="exit_button" type="button" value="exit" onclick="chan_exit()" />
+					</form>
+				</div>
+			</div>
 		</div>
 		<script src="js/zoom-vanilla.js"></script>
 	</body>

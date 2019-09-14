@@ -20,10 +20,13 @@ var idnotifyts = {};
 var idlastmsghash = {};
 var idreconnsync = {};
 
+const IMGMAXSIZE = 960; /* px */
+const IMGFRAGSIZE = 512 * 1024;
+
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 12000; /* ms */
-const MAXATTEMPTS = 12;
+const MAXATTEMPTS = 32;
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
 var reconn_timeout = RETIMEOUT;
@@ -315,20 +318,33 @@ function send(isFull) {
 	}
 }
 
-function close_socket() {
+function chan_exit() {
+	close_socket(false);
+}
+
+function close_socket(setAlert) {
+	
+	//guarantee that websocket gets closed
+	if(!setAlert)
+		webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
+	
 	initOk = false;
 	lastMessageSeenTs = 0;
+	for(var userid in idtimestamp) {
+			idtimestamp[userid] = 0;
+	}
 	isReconnect = false;
-	alert('The connection is lost. Please try again.');
+	initReconnect();
+	
+	if(setAlert)
+		alert('The connection is lost. Please try again.');
+	
 	if(!isTokenChannel)
 		$('#qrcode').fadeOut();
 	$('#message_cont').fadeOut(400, function() {
 		$('#name_channel_cont').fadeIn();
 		$('#messages').html('');
 	});
-	if(isCordova) {
-		cordova.plugins.backgroundMode.disable();
-	}
 }
 
 function initReconnect() {
@@ -579,7 +595,7 @@ async function reconnect(uid, channel) {
 		reconn_attempts += 1;
 		if(reconn_attempts > MAXATTEMPTS) {
 			initReconnect();
-			close_socket();
+			close_socket(true);
 			return;
 		}
 	}
@@ -718,7 +734,7 @@ async function send_dataurl(dataUrl, uid, channel) {
 function send_image(myname, mychannel, file) {
 	var fr = new FileReader();
 	fr.onload = function (readerEvent) {
-		if(file.size >= 512 * 1000) {
+		if(file.size >= IMGFRAGSIZE) {
 			var imgtype = 'image/jpeg';
 			if(file.type.match('image/png')) {
 				imgtype = 'image/png';
@@ -727,7 +743,7 @@ function send_image(myname, mychannel, file) {
 			var image = new Image();
 			image.onload = function (imageEvent) {
 				var canvas = document.createElement('canvas'),
-					max_size = 1024,
+					max_size = IMGMAXSIZE,
 					width = image.width,
 					height = image.height;
 				if (width > height) {
