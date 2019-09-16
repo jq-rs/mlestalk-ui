@@ -104,12 +104,19 @@ function queue_find_and_match(uid, data) {
 		q.flush(lastSeen);
 	}
 }
-function queue_sweep_and_send() {
+function queue_sweep_and_send(uid) {
 	for(var i=0; i < q.getLength(); i++) {
 		var obj = q.get(i);
 		var tmp = obj[0];
-		webWorker.postMessage(obj[0]);
-		idlastmsghash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+		if(tmp[2] == uid) {
+			webWorker.postMessage(obj[0]);
+			idlastmsghash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+		}
+		else {
+			//user has changed, flush all
+			q.flush(q.getLength());
+			break;
+		}
 	}
 	for(var userid in idreconnsync) {
 		idreconnsync[userid] = false;
@@ -461,7 +468,7 @@ webWorker.onmessage = function(e) {
 				if(!isResync) {
 					//console.log("Resyncing");
 					isResync = true;
-					resync();
+					resync(myname);
 				}
 				if(isFull && message.length > 2)
 					queue_find_and_match(uid, message);			
@@ -584,9 +591,9 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function resync() {
+async function resync(uid) {
 	await sleep(RESYNC_TIMEOUT);
-	queue_sweep_and_send();
+	queue_sweep_and_send(uid);
 }
 
 async function reconnect(uid, channel) {
