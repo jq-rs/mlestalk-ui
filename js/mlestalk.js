@@ -332,8 +332,10 @@ function chan_exit() {
 function close_socket(setAlert) {
 	
 	//guarantee that websocket gets closed
-	if(!setAlert)
+	if(!setAlert) {
+		initReconnect();
 		webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
+	}
 	
 	initOk = false;
 	lastMessageSeenTs = 0;
@@ -341,7 +343,6 @@ function close_socket(setAlert) {
 			idtimestamp[userid] = 0;
 	}
 	isReconnect = false;
-	initReconnect();
 	
 	if(setAlert)
 		alert('The connection is lost. Please try again.');
@@ -470,11 +471,11 @@ webWorker.onmessage = function(e) {
 					isResync = true;
 					resync(myname);
 				}
-				if(isFull && message.length > 2)
+				if(isFull && message.length > 0)
 					queue_find_and_match(uid, message);			
 			}
 			
-			if(message.length > 2 && idtimestamp[uid] <= msgTimestamp) {
+			if(message.length > 0 && idtimestamp[uid] <= msgTimestamp) {
 				if(!idreconnsync[uid]) {
 					idlastmsghash[uid] = hash_message(uid, message);
 				}
@@ -627,12 +628,12 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 		window.crypto.getRandomValues(rarray);
 		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast];
 		if(!isResync) {
-			if(data.length > 2) {
+			if(data.length > 0) {
 				idlastmsghash[uid] = hash_message(uid, data);
 			}
 			webWorker.postMessage(arr);
 		}
-		if(sipKeyIsOk && isFull && data.length > 2)
+		if(sipKeyIsOk && isFull && data.length > 0)
 			queue_postmsg([arr, hash_message(uid, data), isImage]);
 	}
 }
@@ -683,10 +684,10 @@ function update_after_send(message, isFull, isImage) {
 function send_message(uid, channel, message, isFull) {
 	var msglen = message.length;
 
-	if(msglen == 0)
-		message = message + "\n";
-	if(true == isFull)
-		message = message + "\n";
+	if(msglen > 0 && isFull)
+	{
+		message = message + '\n';
+	}
 
 	send_data("send", uid, channel, message, isFull, false, false, false);
 
