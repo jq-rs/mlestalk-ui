@@ -422,12 +422,11 @@ webWorker.onmessage = function(e) {
 			var channel = e.data[2];
 			var msgTimestamp = e.data[3];
 			var message = e.data[4];
-			var isImage = e.data[5];
-			var isMultipart = e.data[6];
-			var isFirst = e.data[7];
-			var isLast = e.data[8];
-
-			var isFull = false;
+			var isFull = e.data[5];
+			var isImage = e.data[6];
+			var isMultipart = e.data[7];
+			var isFirst = e.data[8];
+			var isLast = e.data[9];
 
 			initReconnect();
 
@@ -456,14 +455,7 @@ webWorker.onmessage = function(e) {
 				idnotifyts[uid] = 0;
 				idlastmsghash[uid] = 0;
 				idreconnsync[uid] = false;
-			}
-			
-			if(isImage) {
-				isFull = true;
-			}
-			else if (message.charCodeAt(message.length-1) == "\n".charCodeAt(0)) {
-				isFull = true;
-			}
+			}			
 			
 			if(uid === myname) {
 				if(!isResync) {
@@ -626,7 +618,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 	if(initOk) {
 		var rarray = new Uint32Array(6);
 		window.crypto.getRandomValues(rarray);
-		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isImage, isMultipart, isFirst, isLast];
+		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast];
 		if(!isResync) {
 			if(data.length > 0) {
 				idlastmsghash[uid] = hash_message(uid, data);
@@ -682,16 +674,9 @@ function update_after_send(message, isFull, isImage) {
 }
 
 function send_message(uid, channel, message, isFull) {
-	var msglen = message.length;
-
-	if(msglen > 0 && isFull)
-	{
-		message = message + '\n';
-	}
-
 	send_data("send", uid, channel, message, isFull, false, false, false);
 
-	if(0 == msglen) {
+	if(0 == message.length) {
 		return;
 	}
 	
