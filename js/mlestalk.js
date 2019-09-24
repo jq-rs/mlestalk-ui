@@ -343,6 +343,9 @@ function close_socket(setAlert) {
 			idtimestamp[userid] = 0;
 	}
 	isReconnect = false;
+
+	myname = '';
+	mychannel = '';
 	
 	if(setAlert)
 		alert('The connection is lost. Please try again.');
