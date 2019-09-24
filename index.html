@@ -28,19 +28,26 @@
 		<div class="body_cont">
 			<div id="name_channel_cont" class="box_with_shadow">
 				<form id="channel_submit" method="post">
-					<p>Your name?</p>
+					<div style="float:right;"><select id="channel_localization" onchange="set_language();">
+						<option value="gb">🇬🇧</option>
+						<option value="es">🇪🇸</option>
+						<option value="de">🇩🇪</option>
+						<option value="fi">🇫🇮</option>
+						<option value="se">🇸🇪</option>
+					</select></div><br />
+					<p id="channel_user_name">Your name?</p>
 					<input type="text" id="input_name" />
-					<p>Channel?</p>
+					<p id="channel_name">Channel?</p>
 					<input type="text" id="input_channel" />
-					<p>Shared key?</p>
+					<p id="channel_key">Shared key?</p>
 					<input type="password" id="input_key" autocomplete="off">
 					<input type="submit" value="&rarr;" id="the_join">
 					<div id="server_cont" class="box_with_shadow">
-						<p>Mles WebSocket server address</p>
-						<input type="text" id="input_addr_port" value="mles.io:80" />
+						<p id="channel_server">Mles WebSocket server address</p>
+						<input type="text" id="input_addr_port" value="" />
 					</div>
 				</form>
-				<a href="http://mles.io/app">app info</a> <a href="http://mles.io/legal">legal</a>
+				<a href="http://mles.io/app" id="app_info">app info</a> <a href="http://mles.io/legal" id="legal">legal</a>
 			</div>
 
 			<div id="message_cont" class="box_with_shadow">
@@ -76,7 +83,7 @@
 				</div>
 				<div class="field">
 					<form>
-						<input class="exit_button" type="button" value="exit" onclick="chan_exit()" />
+						<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chan_exit()" />
 					</form>
 				</div>
 			</div>

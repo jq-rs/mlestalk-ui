@@ -246,6 +246,8 @@ function onLoad() {
 		document.addEventListener("resume", onResume, false);
 		isCordova = true;
 	}, false);
+	
+	get_front();
 }
 
 $(document).ready(function() {
@@ -263,7 +265,26 @@ function ask_channel() {
 	if ($('#input_name').val().trim().length <= 0 ||
 		($('#input_channel').val().trim().length <= 0 && mytoken == null) ||
 		$('#input_key').val().trim().length <= 0 ) {
-		alert('Name, channel and shared key?');
+		
+		var language = $("#channel_localization").val();
+		switch(language) {
+			case "fi":
+				alert('Nimi, kanava ja jaettu avain?');
+				break;
+			case "se":
+				alert('Namn, kanal och delad nyckel?');
+				break;
+			case "es":
+				alert('Nombre, canal y clave compartida?');
+				break;
+			case "de":
+				alert('Name, Kanal und gemeinsamer Schlüssel?');				
+				break;
+			case "gb":
+			default:
+				alert('Name, channel and shared key?');
+				break;
+		}		
 	} else {
 		if(mytoken != null) {
 			var token = mytoken.trim();
@@ -287,6 +308,24 @@ function ask_channel() {
 		myname = $('#input_name').val().trim();
 		var fullkey = $('#input_key').val().trim();
 		addrportinput = $('#input_addr_port').val().trim();
+		var localization = $('#channel_localization').val().trim();
+		
+		//add to local storage
+		if(addrportinput.length > 0) {
+			window.localStorage.setItem('addrportinput', addrportinput);
+		}
+		else {
+			window.localStorage.setItem('addrportinput', "mles.io:80");
+		}
+
+		//add to local storage
+		if(localization.length > 0) {
+			window.localStorage.setItem('localization', localization);
+		}
+		else {
+			window.localStorage.setItem('localization', "gb");
+		}
+		
 		var addrarray = addrportinput.split(":");
 		if (addrarray.length > 0) {
 			myaddr = addrarray[0];
@@ -771,4 +810,83 @@ function send_image(myname, mychannel, file) {
 
 function get_token() {
 	return "http://" + addrportinput + "/web?token=" + token;
+}
+
+function get_front() {
+	$("#channel_localization").val(get_local_language_selection());	
+	set_language();	
+	$("#input_addr_port").val(get_local_addrportinput());
+}
+
+function get_local_addrportinput() {
+	var apinput = window.localStorage.getItem('addrportinput');
+	if(apinput != undefined && apinput != '') {
+		return apinput;
+	}
+	else {
+		return "mles.io:80";
+	}
+}
+
+function get_local_language_selection() {
+	var linput = window.localStorage.getItem('localization');
+	if(linput != undefined && linput != '') {
+		return linput;
+	}
+	else {
+		return "gb";
+	}
+}
+
+function set_language() {
+	var language = $("#channel_localization").val();
+	
+	switch(language) {
+		case "fi":
+			$("#channel_user_name").text("Nimesi?");
+			$("#channel_name").text("Kanava?");
+			$("#channel_key").text("Jaettu avain?");
+			$("#channel_server").text("Mles WebSocket palvelimen osoite");
+			$("#channel_exit").val("poistu");
+			$("#app_info").text("lisätietoja sovelluksesta");
+			$("#legal").text("lakitiedot");
+			break;
+		case "se":
+			$("#channel_user_name").text("Ditt namn?");
+			$("#channel_name").text("Kanal?");
+			$("#channel_key").text("Delad nyckel?");
+			$("#channel_server").text("Mles WebSocket server adress");
+			$("#channel_exit").val("utgång");
+			$("#app_info").text("appinfo");
+			$("#legal").text("rättslig");
+			break;
+		case "es":
+			$("#channel_user_name").text("Su nombre?");
+			$("#channel_name").text("Encanalar?");
+			$("#channel_key").text("Llave compartida?");
+			$("#channel_server").text("Mles WebSocket dirección del servidor");
+			$("#channel_exit").val("salida");
+			$("#app_info").text("info de la app");
+			$("#legal").text("legal");
+			break;
+		case "de":
+			$("#channel_user_name").text("Dein name?");
+			$("#channel_name").text("Kanal?");
+			$("#channel_key").text("Gemeinsamer Schlüssel?");
+			$("#channel_server").text("Mles WebSocket Serveradresse");
+			$("#channel_exit").val("abgehen");
+			$("#app_info").text("app info");
+			$("#legal").text("legal");
+			break;
+		case "gb":
+		default:
+			$("#channel_user_name").text("Your name?");
+			$("#channel_name").text("Channel?");
+			$("#channel_key").text("Shared key?");
+			$("#channel_server").text("Mles WebSocket server address");
+			$("#channel_exit").val("exit");
+			$("#app_info").text("app info");
+			$("#legal").text("legal");
+			break;
+	}
 }
