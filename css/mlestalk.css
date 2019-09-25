@@ -25,6 +25,13 @@ a {
     box-shadow: 0px 0px 2px 1px #e5e5e5;
 }
 
+select {
+	appearance: none;
+    -moz-appearance: none;
+	-webkit-appearance: none;
+	border: 0px solid;
+}
+
 input.exit_button {
 	padding: 1px;
 	cursor: pointer;

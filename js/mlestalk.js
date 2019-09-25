@@ -265,26 +265,10 @@ function ask_channel() {
 	if ($('#input_name').val().trim().length <= 0 ||
 		($('#input_channel').val().trim().length <= 0 && mytoken == null) ||
 		$('#input_key').val().trim().length <= 0 ) {
-		
-		var language = $("#channel_localization").val();
-		switch(language) {
-			case "fi":
-				alert('Nimi, kanava ja jaettu avain?');
-				break;
-			case "se":
-				alert('Namn, kanal och delad nyckel?');
-				break;
-			case "es":
-				alert('Nombre, canal y clave compartida?');
-				break;
-			case "de":
-				alert('Name, Kanal und gemeinsamer Schlüssel?');				
-				break;
-			case "gb":
-			default:
-				alert('Name, channel and shared key?');
-				break;
-		}		
+
+		//not enough input, alert
+		pop_alert();
+
 	} else {
 		if(mytoken != null) {
 			var token = mytoken.trim();
@@ -372,8 +356,10 @@ function close_socket(setAlert) {
 	
 	//guarantee that websocket gets closed
 	if(!setAlert) {
-		initReconnect();
 		webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
+		initReconnect();
+		$("#input_channel").val('');
+		$("#input_key").val('');
 	}
 	
 	initOk = false;
@@ -838,6 +824,7 @@ function get_local_language_selection() {
 	}
 }
 
+/* Language specific functions -- start -- */
 function set_language() {
 	var language = $("#channel_localization").val();
 	
@@ -862,7 +849,7 @@ function set_language() {
 			break;
 		case "es":
 			$("#channel_user_name").text("Su nombre?");
-			$("#channel_name").text("Encanalar?");
+			$("#channel_name").text("Canal?");
 			$("#channel_key").text("Llave compartida?");
 			$("#channel_server").text("Mles WebSocket dirección del servidor");
 			$("#channel_exit").val("salida");
@@ -890,3 +877,27 @@ function set_language() {
 			break;
 	}
 }
+
+function pop_alert() {
+	var language = $("#channel_localization").val();
+	switch(language) {
+		case "fi":
+			alert('Nimi, kanava ja jaettu avain?');
+			break;
+		case "se":
+			alert('Namn, kanal och delad nyckel?');
+			break;
+		case "es":
+			alert('Nombre, canal y clave compartida?');
+			break;
+		case "de":
+			alert('Name, Kanal und gemeinsamer Schlüssel?');
+			break;
+		case "gb":
+		default:
+			alert('Name, channel and shared key?');
+			break;
+	}
+}
+
+/* Language specific functions -- end -- */
