@@ -50,7 +50,6 @@ weekday[4] = "Thu";
 weekday[5] = "Fri";
 weekday[6] = "Sat";
 
-
 class Queue {
 	
   constructor(...elements) {
@@ -516,7 +515,7 @@ webWorker.onmessage = function(e) {
 				var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
 				if (dateString.charAt(0) == '[' && dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
 					dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4)) {
-					dateString = dateString.slice(16, dateString.length);
+					dateString = dateString.slice(13 + weekday[0].length, dateString.length);
 					dateString = "[" + dateString;
 				}
 
@@ -662,10 +661,11 @@ function update_after_send(message, isFull, isImage) {
 
 	var dateString = "[" + timenow() + "] ";
 	var now = timenow();
+	
 	//update own view
 	if (dateString.charAt(0) == '[' && dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
 		dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4)) {
-		dateString = dateString.slice(16, dateString.length);
+		dateString = dateString.slice(13 + weekday[0].length, dateString.length);
 		dateString = "[" + dateString;
 	}
 	
@@ -837,6 +837,13 @@ function set_language() {
 			$("#channel_exit").val("poistu");
 			$("#app_info").text("lisätietoja sovelluksesta");
 			$("#legal").text("lakitiedot");
+			weekday[0] = "su";
+			weekday[1] = "ma";
+			weekday[2] = "ti";
+			weekday[3] = "ke";
+			weekday[4] = "to";
+			weekday[5] = "pe";
+			weekday[6] = "la";
 			break;
 		case "se":
 			$("#channel_user_name").text("Ditt namn?");
@@ -846,6 +853,13 @@ function set_language() {
 			$("#channel_exit").val("utgång");
 			$("#app_info").text("appinfo");
 			$("#legal").text("rättslig");
+			weekday[0] = "sö";
+			weekday[1] = "må";
+			weekday[2] = "ti";
+			weekday[3] = "on";
+			weekday[4] = "to";
+			weekday[5] = "fr";
+			weekday[6] = "lö";
 			break;
 		case "es":
 			$("#channel_user_name").text("Su nombre?");
@@ -855,6 +869,13 @@ function set_language() {
 			$("#channel_exit").val("salida");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
+			weekday[0] = "sö";
+			weekday[1] = "må";
+			weekday[2] = "ti";
+			weekday[3] = "on";
+			weekday[4] = "to";
+			weekday[5] = "fr";
+			weekday[6] = "lö";
 			break;
 		case "de":
 			$("#channel_user_name").text("Dein name?");
@@ -864,6 +885,13 @@ function set_language() {
 			$("#channel_exit").val("abgehen");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
+			weekday[0] = "So";
+			weekday[1] = "Mo";
+			weekday[2] = "Di";
+			weekday[3] = "Mi";
+			weekday[4] = "Do";
+			weekday[5] = "Fr";
+			weekday[6] = "Sa";
 			break;
 		case "fr":
 			$("#channel_user_name").text("Votre nom?");
@@ -873,6 +901,13 @@ function set_language() {
 			$("#channel_exit").val("sortie");
 			$("#app_info").text("info sur l'app");
 			$("#legal").text("légal");
+			weekday[0] = "dim";
+			weekday[1] = "lun";
+			weekday[2] = "mar";
+			weekday[3] = "mer";
+			weekday[4] = "jeu";
+			weekday[5] = "ven";
+			weekday[6] = "sam";
 			break;
 		case "gb":
 		default:
@@ -883,6 +918,13 @@ function set_language() {
 			$("#channel_exit").val("exit");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
+			weekday[0] = "Sun";
+			weekday[1] = "Mon";
+			weekday[2] = "Tue";
+			weekday[3] = "Wed";
+			weekday[4] = "Thu";
+			weekday[5] = "Fri";
+			weekday[6] = "Sat";
 			break;
 	}
 }
