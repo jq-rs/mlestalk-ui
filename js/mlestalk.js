@@ -865,6 +865,15 @@ function set_language() {
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
 			break;
+		case "fr":
+			$("#channel_user_name").text("Votre nom?");
+			$("#channel_name").text("Canal?");
+			$("#channel_key").text("Clé partagée?");
+			$("#channel_server").text("Mles WebSocket adresse du serveur");
+			$("#channel_exit").val("sortie");
+			$("#app_info").text("info sur l'app");
+			$("#legal").text("légal");
+			break;
 		case "gb":
 		default:
 			$("#channel_user_name").text("Your name?");
@@ -892,6 +901,9 @@ function pop_alert() {
 			break;
 		case "de":
 			alert('Name, Kanal und gemeinsamer Schlüssel?');
+			break;
+		case "fr":
+			alert('Nom, canal et clé partagée?');
 			break;
 		case "gb":
 		default:
