@@ -475,7 +475,17 @@ webWorker.onmessage = function(e) {
 				idlastmsghash[uid] = 0;
 				idreconnsync[uid] = false;
 			}			
-			
+
+			var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
+			var now = timenow();
+
+			//for a transition period to new format, drop all messages which are not this year
+			if(dateString.charAt(7) != now.charAt(6) || dateString.charAt(8) != now.charAt(7) ||
+			   dateString.charAt(9) != now.charAt(8) || dateString.charAt(10) != now.charAt(9)) {
+				//console.log("Drop incorrect year " + dateString + "" + dateString.charAt(9) + "" + dateString.charAt(10));
+				break;
+			}
+
 			if(uid == myname) {
 				if(!isResync) {
 					console.log("Resyncing");
@@ -503,13 +513,8 @@ webWorker.onmessage = function(e) {
 					lastMessageSeenTs = msgTimestamp;
 
 				var li;
-				var now = timenow();
-				var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
-				if (dateString.charAt(0) == '[' && dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
-					dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4)) {
-					dateString = dateString.slice(13 + weekday[0].length, dateString.length);
-					dateString = "[" + dateString;
-				}
+
+				dateString = update_datestring(dateString);
 
 				/* Check first is it a text or image */
 				if(isImage) {
@@ -585,6 +590,18 @@ webWorker.onmessage = function(e) {
 	}
 }
 
+function update_datestring(dateString) {
+	var now = timenow();
+	if (dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
+		dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4) &&
+		dateString.charAt(7) == now.charAt(6) && dateString.charAt(8) == now.charAt(7) &&
+		dateString.charAt(9) == now.charAt(8) && dateString.charAt(10) == now.charAt(9)) {
+		dateString = dateString.slice(13 + weekday[0].length, dateString.length);
+		dateString = "[" + dateString;
+	}
+	return dateString;
+}
+
 function do_notify(uid, channel, msgTimestamp, message) {
 	lastMessage[channel] = [msgTimestamp, uid, message];
 	var msg = lastMessage[channel];
@@ -655,15 +672,8 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 function update_after_send(message, isFull, isImage) {
 
 	var dateString = "[" + timenow() + "] ";
-	var now = timenow();
-	
-	//update own view
-	if (dateString.charAt(0) == '[' && dateString.charAt(1) == now.charAt(0) && dateString.charAt(2) == now.charAt(1) &&
-		dateString.charAt(4) == now.charAt(3) && dateString.charAt(5) == now.charAt(4)) {
-		dateString = dateString.slice(13 + weekday[0].length, dateString.length);
-		dateString = "[" + dateString;
-	}
-	
+	dateString = update_datestring(dateString);
+
 	if(!isImage) {
 		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
 		if(isFull) {
