@@ -25,8 +25,7 @@ const IMGFRAGSIZE = 512 * 1024;
 
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
-const MAXTIMEOUT = 12000; /* ms */
-const MAXATTEMPTS = 32;
+const MAXTIMEOUT = 1000*60*15; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
 var reconn_timeout = RETIMEOUT;
@@ -49,6 +48,8 @@ weekday[3] = "Wed";
 weekday[4] = "Thu";
 weekday[5] = "Fri";
 weekday[6] = "Sat";
+var bgTitle = "MlesTalk in the background";
+var bgText = "Notifications active";
 
 class Queue {
 	
@@ -234,8 +235,8 @@ function onLoad() {
 		}); 
 		
 		cordova.plugins.backgroundMode.setDefaults({
-			title: 'MlesTalk in the background',
-			text: 'Notifications active'
+			title: bgTitle,
+			text: bgText
 		});
 		
 		// sets an recurring alarm that keeps things rolling
@@ -332,7 +333,7 @@ function ask_channel() {
 }
 
 function sendEmptyJoin() {
-	send_message(myname, mychannel, "", true);
+	send_message(myname, mychannel, "", false);
 }
 
 function send(isFull) {
@@ -348,32 +349,26 @@ function send(isFull) {
 }
 
 function chan_exit() {
-	close_socket(false);
+	close_socket();
 }
 
-function close_socket(setAlert) {
+function close_socket() {
 	
 	//guarantee that websocket gets closed
-	if(!setAlert) {
-		webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
-		initReconnect();
-		$("#input_channel").val('');
-		$("#input_key").val('');
-	}
+	webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
+	$("#input_channel").val('');
+	$("#input_key").val('');
+	initReconnect();
 	
 	initOk = false;
 	lastMessageSeenTs = 0;
 	for(var userid in idtimestamp) {
 			idtimestamp[userid] = 0;
 	}
-	isReconnect = false;
 
 	myname = '';
 	mychannel = '';
-	
-	if(setAlert)
-		alert('The connection is lost. Please try again.');
-	
+
 	if(!isTokenChannel)
 		$('#qrcode').fadeOut();
 	$('#message_cont').fadeOut(400, function() {
@@ -383,8 +378,9 @@ function close_socket(setAlert) {
 }
 
 function initReconnect() {
-	reconn_timeout=RETIMEOUT;
-	reconn_attempts=0;
+	reconn_timeout = RETIMEOUT;
+	reconn_attempts = 0;
+	isReconnect = false;
 }
 
 var multipart_dict = {};
@@ -402,11 +398,7 @@ webWorker.onmessage = function(e) {
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
 				sendEmptyJoin();
-				
-				//after reconnect, start locally from a new line
-				ownid = ownid + 1;
-				ownappend = false;
-				
+
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
 					for(var userid in idreconnsync) {
@@ -484,9 +476,9 @@ webWorker.onmessage = function(e) {
 				idreconnsync[uid] = false;
 			}			
 			
-			if(uid === myname) {
+			if(uid == myname) {
 				if(!isResync) {
-					//console.log("Resyncing");
+					console.log("Resyncing");
 					isResync = true;
 					resync(myname);
 				}
@@ -496,10 +488,10 @@ webWorker.onmessage = function(e) {
 			
 			if(message.length > 0 && idtimestamp[uid] <= msgTimestamp) {
 				if(!idreconnsync[uid]) {
-					idlastmsghash[uid] = hash_message(uid, message);
+					idlastmsghash[uid] = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				}
 				else if(msgTimestamp >= idtimestamp[uid]) {
-					var mHash = hash_message(uid, message);
+					var mHash = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 					if(mHash == idlastmsghash[uid]) {
 						idreconnsync[uid] = false;
 						idtimestamp[uid] = msgTimestamp;
@@ -587,6 +579,7 @@ webWorker.onmessage = function(e) {
 			var channel = e.data[2];
 			var myuid = e.data[3];
 			var mychannel = e.data[4];
+			isReconnect = false;
 			reconnect(uid, channel);
 			break;
 	}
@@ -617,22 +610,24 @@ async function resync(uid) {
 }
 
 async function reconnect(uid, channel) {
+	if(isReconnect)
+		return;
+
 	if(reconn_timeout > MAXTIMEOUT) {
 		reconn_timeout=MAXTIMEOUT;
 		reconn_attempts += 1;
-		if(reconn_attempts > MAXATTEMPTS) {
-			initReconnect();
-			close_socket(true);
-			return;
-		}
 	}
+
+	isReconnect = true;
 	await sleep(reconn_timeout);
 	reconn_timeout *= 2;
-	isReconnect = true;
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
 function sync_reconnect(uid, channel) {
+	if(isReconnect)
+		return;
+	
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
@@ -646,7 +641,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 		var rarray = new Uint32Array(6);
 		window.crypto.getRandomValues(rarray);
 		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast];
-		if(!isResync) {
+		if(!isResync || data.length == 0) {
 			if(data.length > 0) {
 				idlastmsghash[uid] = hash_message(uid, data);
 			}
@@ -844,6 +839,8 @@ function set_language() {
 			weekday[4] = "to";
 			weekday[5] = "pe";
 			weekday[6] = "la";
+			bgTitle = "MlesTalk taustalla";
+			bgText = "Ilmoitukset aktiivisena";
 			break;
 		case "se":
 			$("#channel_user_name").text("Ditt namn?");
@@ -860,6 +857,8 @@ function set_language() {
 			weekday[4] = "to";
 			weekday[5] = "fr";
 			weekday[6] = "lö";
+			bgTitle = "MlesTalk i bakgrunden";
+			bgText = "Meddelanden aktiva";
 			break;
 		case "es":
 			$("#channel_user_name").text("Su nombre?");
@@ -869,13 +868,15 @@ function set_language() {
 			$("#channel_exit").val("salida");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
-			weekday[0] = "sö";
-			weekday[1] = "må";
-			weekday[2] = "ti";
-			weekday[3] = "on";
-			weekday[4] = "to";
-			weekday[5] = "fr";
-			weekday[6] = "lö";
+			weekday[0] = "D";
+			weekday[1] = "L";
+			weekday[2] = "M";
+			weekday[3] = "X";
+			weekday[4] = "J";
+			weekday[5] = "V";
+			weekday[6] = "S";
+			bgTitle = "MlesTalk en el fondo";
+			bgText = "Notificaciones activas";
 			break;
 		case "de":
 			$("#channel_user_name").text("Dein name?");
@@ -892,6 +893,8 @@ function set_language() {
 			weekday[4] = "Do";
 			weekday[5] = "Fr";
 			weekday[6] = "Sa";
+			bgTitle = "MlesTalk im Hintergrund";
+			bgText = "Benachrichtigungen aktiv";
 			break;
 		case "fr":
 			$("#channel_user_name").text("Votre nom?");
@@ -908,6 +911,8 @@ function set_language() {
 			weekday[4] = "jeu";
 			weekday[5] = "ven";
 			weekday[6] = "sam";
+			bgTitle = "MlesTalk en arrière-plan";
+			bgText = "Notifications actives";
 			break;
 		case "gb":
 		default:
@@ -925,7 +930,16 @@ function set_language() {
 			weekday[4] = "Thu";
 			weekday[5] = "Fri";
 			weekday[6] = "Sat";
+			bgTitle = "MlesTalk in the background";
+			bgText = "Notifications active";
 			break;
+	}
+
+	if(isCordova) {
+		cordova.plugins.backgroundMode.setDefaults({
+			title: bgTitle,
+			text: bgText
+		});
 	}
 }
 
