@@ -25,7 +25,7 @@ const IMGFRAGSIZE = 512 * 1024;
 
 var initOk = false;
 const RETIMEOUT = 1500; /* ms */
-const MAXTIMEOUT = 1000*60*15; /* ms */
+const MAXTIMEOUT = 1000*60*5; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
 var reconn_timeout = RETIMEOUT;
