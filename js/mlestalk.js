@@ -112,11 +112,6 @@ function queue_sweep_and_send(uid) {
 			webWorker.postMessage(obj[0]);
 			idlastmsghash[tmp[2]] = hash_message(tmp[2], tmp[1]);
 		}
-		else {
-			//user has changed, flush all
-			q.flush(q.getLength());
-			break;
-		}
 	}
 	for(var userid in idreconnsync) {
 		idreconnsync[userid] = false;
@@ -353,22 +348,43 @@ function chan_exit() {
 }
 
 function close_socket() {
-	
-	//guarantee that websocket gets closed
-	webWorker.postMessage(["close", null, myname, mychannel, isTokenChannel]);
-	$("#input_channel").val('');
-	$("#input_key").val('');
 	initReconnect();
-	
 	initOk = false;
-	lastMessageSeenTs = 0;
+
+	//init all databases
 	for(var userid in idtimestamp) {
-			idtimestamp[userid] = 0;
+		idtimestamp[userid] = 0;
+	}
+	for(var userid in idreconnsync) {
+		idreconnsync[userid] = false;
+	}
+	for(var userid in idnotifyts) {
+		idnotifyts[userid] = 0;
+	}
+	for(var userid in idlastmsghash) {
+		idlastmsghash[userid] = 0;
+	}
+	for(var duid in idhash) {
+		idhash[duid] = null;
+	}
+	for(var duid in idappend) {
+		idappend[duid] = false;
 	}
 
+	lastMessageSeenTs = 0;
+
+	//empty send queue
+	q.flush(q.getLength());
+
+	//guarantee that websocket gets closed without reconnect
+	var tmpname = myname;
+	var tmpchannel = mychannel;
 	myname = '';
 	mychannel = '';
+	webWorker.postMessage(["close", null, tmpname, tmpchannel, isTokenChannel]);
 
+	$("#input_channel").val('');
+	$("#input_key").val('');
 	if(!isTokenChannel)
 		$('#qrcode').fadeOut();
 	$('#message_cont').fadeOut(400, function() {
@@ -393,7 +409,7 @@ webWorker.onmessage = function(e) {
 			var uid = e.data[1];
 			var channel = e.data[2];
 			var myuid = e.data[3];
-			var mychannel = e.data[4];
+			var mychan = e.data[4];
 
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
@@ -420,7 +436,7 @@ webWorker.onmessage = function(e) {
 
 			if(!isTokenChannel) {
 				//use channel to create 128 bit secret key
-				var bfchannel = atob(mychannel);
+				var bfchannel = atob(mychan);
 				sipkey=SipHash.string16_to_key(bfchannel);
 				sipKeyIsOk = true;
 				var atoken = SipHash.hash_hex(sipkey, bfchannel);
@@ -482,7 +498,7 @@ webWorker.onmessage = function(e) {
 			//for a transition period to new format, drop all messages which are not this year
 			if(dateString.charAt(7) != now.charAt(6) || dateString.charAt(8) != now.charAt(7) ||
 			   dateString.charAt(9) != now.charAt(8) || dateString.charAt(10) != now.charAt(9)) {
-				//console.log("Drop incorrect year " + dateString + "" + dateString.charAt(9) + "" + dateString.charAt(10));
+				console.log("Drop incorrect year " + dateString + "" + dateString.charAt(9) + "" + dateString.charAt(10));
 				break;
 			}
 
@@ -583,9 +599,12 @@ webWorker.onmessage = function(e) {
 			var uid = e.data[1];
 			var channel = e.data[2];
 			var myuid = e.data[3];
-			var mychannel = e.data[4];
+			var mychan = e.data[4];
+
 			isReconnect = false;
-			reconnect(uid, channel);
+			if(uid == myname && channel == mychannel) {
+				reconnect(uid, channel);
+			}
 			break;
 	}
 }
@@ -627,8 +646,9 @@ async function resync(uid) {
 }
 
 async function reconnect(uid, channel) {
-	if(isReconnect)
+	if(isReconnect) {
 		return;
+	}
 
 	if(reconn_timeout > MAXTIMEOUT) {
 		reconn_timeout=MAXTIMEOUT;
