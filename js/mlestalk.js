@@ -258,71 +258,74 @@ $(document).ready(function() {
 
 function ask_channel() {
 	if ($('#input_name').val().trim().length <= 0 ||
-		($('#input_channel').val().trim().length <= 0 && mytoken == null) ||
+		(mytoken == null && $('#input_channel').val().trim().length <= 0) ||
 		$('#input_key').val().trim().length <= 0 ) {
 
 		//not enough input, alert
 		pop_alert();
 
 	} else {
-		if(mytoken != null) {
-			var token = mytoken.trim();
-			token = token.split(' ').join('+');
-			token = atob(token);
-			var atoken = token.substring(0,16);
-			var bfchannel = token.substr(16);
-			var skey=SipHash.string16_to_key(bfchannel);
-			var newtoken = SipHash.hash_hex(skey, bfchannel);
-			if(atoken != newtoken) {
-				alert('Invalid token');
-				return;
+		if(!initOk) {
+			if(mytoken != null) {
+				var token = mytoken.trim();
+				token = token.split(' ').join('+');
+				token = atob(token);
+				var atoken = token.substring(0,16);
+				var bfchannel = token.substr(16);
+				sipkey=SipHash.string16_to_key(bfchannel);
+				var newtoken = SipHash.hash_hex(sipkey, bfchannel);
+				if(atoken != newtoken) {
+					alert('Invalid token');
+					return;
+				}
+				sipKeyIsOk = true;
+				mychannel = btoa(bfchannel);
+				isTokenChannel = true;
 			}
-			mychannel = btoa(bfchannel);
-			isTokenChannel = true;
-		}
-		else {
-			mychannel = $('#input_channel').val().trim();
-		}
+			else {
+				mychannel = $('#input_channel').val().trim();
+			}
 
-		myname = $('#input_name').val().trim();
-		var fullkey = $('#input_key').val().trim();
-		addrportinput = $('#input_addr_port').val().trim();
-		var localization = $('#channel_localization').val().trim();
-		
-		//add to local storage
-		if(addrportinput.length > 0) {
-			window.localStorage.setItem('addrportinput', addrportinput);
-		}
-		else {
-			window.localStorage.setItem('addrportinput', "mles.io:80");
-		}
+			myname = $('#input_name').val().trim();
+			var fullkey = $('#input_key').val().trim();
+			addrportinput = $('#input_addr_port').val().trim();
+			var localization = $('#channel_localization').val().trim();
 
-		//add to local storage
-		if(localization.length > 0) {
-			window.localStorage.setItem('localization', localization);
-		}
-		else {
-			window.localStorage.setItem('localization', "gb");
-		}
-		
-		var addrarray = addrportinput.split(":");
-		if (addrarray.length > 0) {
-			myaddr = addrarray[0];
-		}
-		if (addrarray.length > 1) {
-			myport = addrarray[1];
-		}
-		if(myaddr == '') {
-			myaddr = 'mles.io';
-		}
-		if(myport == '') {
-			myport = '80';
-		}
+			//add to local storage
+			if(addrportinput.length > 0) {
+				window.localStorage.setItem('addrportinput', addrportinput);
+			}
+			else {
+				window.localStorage.setItem('addrportinput', "mles.io:80");
+			}
 
-		$('#name_channel_cont').fadeOut(400, function() {
-			webWorker.postMessage(["init", null, myaddr, myport, myname, mychannel, fullkey, isTokenChannel]);
-			$('#message_cont').fadeIn();
-		});
+			//add to local storage
+			if(localization.length > 0) {
+				window.localStorage.setItem('localization', localization);
+			}
+			else {
+				window.localStorage.setItem('localization', "gb");
+			}
+
+			var addrarray = addrportinput.split(":");
+			if (addrarray.length > 0) {
+				myaddr = addrarray[0];
+			}
+			if (addrarray.length > 1) {
+				myport = addrarray[1];
+			}
+			if(myaddr == '') {
+				myaddr = 'mles.io';
+			}
+			if(myport == '') {
+				myport = '80';
+			}
+
+			$('#name_channel_cont').fadeOut(400, function() {
+				webWorker.postMessage(["init", null, myaddr, myport, myname, mychannel, fullkey, isTokenChannel]);
+				$('#message_cont').fadeIn();
+			});
+		}
 	}
 	return false;
 }
@@ -447,9 +450,6 @@ webWorker.onmessage = function(e) {
 				qrcode.clear(); // clear the code.
 				qrcode.makeCode(get_token()); // make another code.
 				$('#qrcode').fadeIn();
-			}
-			else {
-				$('#qrcode').fadeOut();
 			}
 			break;
 		case "data":
@@ -602,8 +602,8 @@ webWorker.onmessage = function(e) {
 			var mychan = e.data[4];
 
 			isReconnect = false;
-			if(uid == myname && channel == mychannel) {
-				reconnect(uid, channel);
+			if(uid == myname && isTokenChannel ? mychan == mychannel : channel == mychannel) {
+				reconnect(uid, isTokenChannel ? mychan : channel);
 			}
 			break;
 	}
