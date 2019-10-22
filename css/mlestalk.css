@@ -13,6 +13,10 @@ a {
     padding: 0;
 }
 
+.top_section {
+	height: 82vh;
+}
+
 .fuchsia {
     color: #77407b;
 }
@@ -155,11 +159,11 @@ input.exit_button {
 
 #messages li.new,#messages li.exit {
     font-style: italic;
-    color: #bbbbbe;
+    color: #bbbbcf;
 }
 
 #messages li.own {
-    color: #bbbbbf;
+    color: #bbbbce;
 }
 
 #messages li span.name {
