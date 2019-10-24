@@ -28,6 +28,7 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000*60*5; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
+const SCROLL_TIMER = 500; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -638,6 +639,11 @@ function do_notify(uid, channel, msgTimestamp, message) {
 
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function scrollToBottomWithTimer() {
+	await sleep(SCROLL_TIMER);
+	scrollToBottom();
 }
 
 async function resync(uid) {
