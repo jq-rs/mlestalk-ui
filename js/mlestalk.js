@@ -105,6 +105,7 @@ function queue_find_and_match(uid, data) {
 		q.flush(lastSeen);
 	}
 }
+
 function queue_sweep_and_send(uid) {
 	for(var i=0; i < q.getLength(); i++) {
 		var obj = q.get(i);
@@ -629,8 +630,8 @@ function do_notify(uid, channel, msgTimestamp, message) {
 		cordova.plugins.notification.local.schedule({
 			title: msg[1],
 			text: msg[2],
-			icon: 'file://img/micon.png',
-			smallIcon: 'res://micon.png',
+			icon: 'res://large_micon.png',
+			smallIcon: 'res://icon.png',
 			foreground: false,
 			trigger: { in: 1, unit: 'second' }
 		});
