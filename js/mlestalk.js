@@ -185,7 +185,9 @@ var webWorker = new Worker('mles-webworker/js/webworker.js');
 function onPause() {
 	will_notify = true;
 	if(isCordova) {
-		cordova.plugins.backgroundMode.enable();
+		if(!cordova.plugins.backgroundMode.isActive()) {
+			cordova.plugins.backgroundMode.enable();
+		}
 		cordova.plugins.backgroundMode.toBackground();
 		cordova.plugins.notification.badge.clear();
 		cordova.plugins.notification.local.clearAll();
@@ -198,7 +200,6 @@ function onResume() {
 		cordova.plugins.notification.local.clearAll();
 		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.fromBackground();
-		cordova.plugins.backgroundMode.disable();
 	}
 }
 
@@ -238,9 +239,11 @@ function onLoad() {
 		
 		// sets an recurring alarm that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
+		cordova.plugins.backgroundMode.enable();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
+
 		isCordova = true;
 	}, false);
 	
@@ -538,11 +541,15 @@ webWorker.onmessage = function(e) {
 				if(isImage) {
 					if (uid != myname) {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + dateString 
-							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>'
-					}
+							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
+							+ '<a href="' + message + '" download="img">&#8681;</a></li></div>';
+
+						}
 					else {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="own"> ' + dateString
-							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>'
+							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
+							+ '<a href="' + message + '" download="img">&#8681;</a></li></div>';
+
 					}
 				}
 				else {
