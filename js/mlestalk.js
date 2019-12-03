@@ -28,7 +28,7 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000*60*5; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
-const SCROLL_TIMER = 500; /* ms */
+const SCROLL_TIMER = 600; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -206,28 +206,6 @@ function onResume() {
 var interval;
 function onLoad() {
 	document.addEventListener("deviceready", function () {
-		// Background-fetch handler with JobScheduler.
-        var BackgroundFetch = window.BackgroundFetch;
-
-        // Your background-fetch handler.
-        var fetchCallback = function() {
-			if('' != myname && '' != mychannel) {
-				sync_reconnect(myname, mychannel);
-			}
-            // Required: Signal completion of your task to native code
-			// If you fail to do this, the OS can terminate your app
-            // or assign battery-blame for consuming too much background-time
-			BackgroundFetch.finish();
-        };
-
-        var failureCallback = function(error) {
-            console.log('Background fetch failed', error);
-        };
-
-        BackgroundFetch.configure(fetchCallback, failureCallback, {
-            minimumFetchInterval: 15
-        });
-
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			can_notify = granted;
 		}); 
@@ -542,13 +520,13 @@ webWorker.onmessage = function(e) {
 					if (uid != myname) {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + dateString 
 							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
-							+ '<a href="' + message + '" download="img">&#8681;</a></li></div>';
+							+ '<a href="' + message + '" download>&#8681;</a></li></div>';
 
 						}
 					else {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="own"> ' + dateString
 							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
-							+ '<a href="' + message + '" download="img">&#8681;</a></li></div>';
+							+ '<a href="' + message + '" download>&#8681;</a></li></div>';
 
 					}
 				}
@@ -675,11 +653,13 @@ async function reconnect(uid, channel) {
 	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
 }
 
-function sync_reconnect(uid, channel) {
+function sync_reconnect() {
 	if(isReconnect)
 		return;
 	
-	webWorker.postMessage(["reconnect", null, uid, channel, isTokenChannel]);
+	if('' != myname && '' != mychannel) {
+		webWorker.postMessage(["reconnect", null, myname, mychannel, isTokenChannel]);
+	}
 }
 
 function scrollToBottom() {
