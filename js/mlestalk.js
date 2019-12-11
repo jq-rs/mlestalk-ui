@@ -28,7 +28,6 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000*60*5; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
-const SCROLL_TIMER = 600; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -478,13 +477,6 @@ webWorker.onmessage = function(e) {
 			var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
 			var now = timenow();
 
-			//for a transition period to new format, drop all messages which are not this year
-			if(dateString.charAt(7) != now.charAt(6) || dateString.charAt(8) != now.charAt(7) ||
-			   dateString.charAt(9) != now.charAt(8) || dateString.charAt(10) != now.charAt(9)) {
-				console.log("Drop incorrect year " + dateString + "" + dateString.charAt(9) + "" + dateString.charAt(10));
-				break;
-			}
-
 			if(uid == myname) {
 				if(!isResync) {
 					console.log("Resyncing");
@@ -519,16 +511,16 @@ webWorker.onmessage = function(e) {
 				if(isImage) {
 					if (uid != myname) {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + dateString 
-							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
-							+ '<a href="' + message + '" download>&#8681;</a></li></div>';
+							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 						}
 					else {
 						li = '<div id="' + duid + '' + idhash[duid] + '"><li class="own"> ' + dateString
-							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">'
-							+ '<a href="' + message + '" download>&#8681;</a></li></div>';
+							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 					}
+					//li += '<a href="' + message + '">&#8681;</a>
+					li += '</li></div>';
 				}
 				else {
 					if (uid != myname) {
@@ -627,8 +619,8 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function scrollToBottomWithTimer() {
-	await sleep(SCROLL_TIMER);
+async function scrollToBottomWithTimer(value_in_ms) {
+	await sleep(value_in_ms);
 	scrollToBottom();
 }
 
@@ -710,7 +702,9 @@ function update_after_send(message, isFull, isImage) {
 	}
 	else {
 		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString
-		+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>'
+				 + '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+		//li += '<a href="' + message + '" target="_blank" ref="noopener noreferrer" download>&#8681;</a>
+		li + '</li></div>';
 		$('#messages').append(li);
 		ownid = ownid + 1;
 		scrollToBottom();
