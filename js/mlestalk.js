@@ -28,6 +28,9 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000*60*5; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 5000; /* ms */
+const LED_ON_TIME = 500; /* ms */
+const LED_OFF_TIME = 2500; /* ms */
+const SCROLL_TIME = 500; /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -212,6 +215,11 @@ function onLoad() {
 		cordova.plugins.backgroundMode.setDefaults({
 			title: bgTitle,
 			text: bgText
+		});
+		
+		cordova.plugins.notification.local.setDefaults({
+			led: { color: '#77407B', on: LED_ON_TIME, off: LED_OFF_TIME },
+			vibrate: true
 		});
 		
 		// sets an recurring alarm that keeps things rolling
@@ -619,8 +627,11 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function scrollToBottomWithTimer(value_in_ms) {
-	await sleep(value_in_ms);
+async function scrollToBottomWithTimer() {
+	await sleep(SCROLL_TIME);
+	scrollToBottom();
+	/* Scroll twice if me miss the first one in UI */
+	await sleep(SCROLL_TIME);
 	scrollToBottom();
 }
 

@@ -18,8 +18,8 @@
 		<meta name="viewport" content="user-scalable=yes, initial-scale=1, maximum-scale=2, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
 	</head>
 	<script src="js/jquery-3.4.1.min.js"></script>
-	<script src="js/Autolinker.min.js"></script>
-	<script src="js/qrcode.min.js"></script>
+	<script src="js/Autolinker.js"></script>
+	<script src="js/qrcode.js"></script>
 	<script src="js/siphash.js"></script>
 	<script src="cordova.js"></script>
 	<script src="js/mlestalk.js"></script>
@@ -74,7 +74,7 @@
 							</label>
 							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
 							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
-							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer(500);scrollToBottomWithTimer(1000);" autocomplete="off" autofocus /></span>
+							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer();" autocomplete="off" autofocus /></span>
 							<br />
 						</div>
 					</form>
