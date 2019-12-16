@@ -8,4 +8,4 @@ Supports Cordova Android notifications while staying background without addition
 
 Uses [MlesTalk WebWorker](https://github.com/jq-rs/mles-webworker) to handle all data traffic.
 
-Please see more details at http://mles.io/app.
+Please see more details at http://mles.io/app and check Reddit [/r/mles](https://www.reddit.com/r/mles/) channel for everything new, like future planned features.
