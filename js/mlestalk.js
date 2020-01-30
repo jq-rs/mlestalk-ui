@@ -308,7 +308,7 @@ function ask_channel() {
 				myaddr = 'mles.io';
 			}
 			if(myport == '') {
-				myport = '80';
+				myport = '443';
 			}
 
 			$('#name_channel_cont').fadeOut(400, function() {
