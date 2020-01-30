@@ -828,7 +828,7 @@ function get_front() {
 
 function get_local_addrportinput() {
 	var apinput = window.localStorage.getItem('addrportinput');
-	if(apinput != undefined && apinput != '' && appinput != 'mles.io:80') {
+	if(apinput != undefined && apinput != '' && apinput != 'mles.io:80') {
 		return apinput;
 	}
 	else {
