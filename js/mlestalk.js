@@ -817,7 +817,7 @@ function send_image(myname, mychannel, file) {
 }
 
 function get_token() {
-	return "https://" + addrportinput + "/web?token=" + token;
+	return "https://" + addrportinput + "/mles-websocket-token.html?token=" + token;
 }
 
 function get_front() {
