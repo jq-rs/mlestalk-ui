@@ -31,6 +31,7 @@ const RESYNC_TIMEOUT = 15000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
+const ASYNC_SLEEP = 3 /* ms */
 var reconn_timeout = RETIMEOUT;
 var reconn_attempts = 0;
 
@@ -53,6 +54,7 @@ weekday[5] = "Fri";
 weekday[6] = "Sat";
 var bgTitle = "MlesTalk in the background";
 var bgText = "Notifications active";
+var imagestr = "<an image>";
 
 class Queue {
 	
@@ -96,11 +98,12 @@ function hash_message(uid, data) {
 
 function queue_find_and_match(uid, data) {
 	var lastSeen = -1;
+	var hash = hash_message(uid, data);
 	for(var i=0; i<q.getLength(); i++) {
-		var hash = hash_message(uid, data);
 		var obj = q.get(i);
 		if(obj[1] == hash) {
 			lastSeen = i+1;
+			break;
 		}
 	}
 	if(lastSeen != -1) {
@@ -455,22 +458,6 @@ webWorker.onmessage = function(e) {
 
 			initReconnect();
 
-			if(isMultipart) {
-				if(!multipart_dict[uid + channel]) {
-					if(!isFirst) {
-						//invalid frame
-						return;
-					}
-					multipart_dict[uid + channel] = "";
-				}
-				multipart_dict[uid + channel] += message;
-				if(!isLast) {
-					return;
-				}
-				message = multipart_dict[uid + channel];
-				multipart_dict[uid + channel] = null;
-			}
-
 			//update hash
 			var duid = uid.split(' ').join('_');
 			if(idhash[duid] == null) {	
@@ -495,6 +482,22 @@ webWorker.onmessage = function(e) {
 					queue_find_and_match(uid, message);			
 			}
 			
+			if(isMultipart) {
+				if(!multipart_dict[uid + channel]) {
+					if(!isFirst) {
+						//invalid frame
+						return;
+					}
+					multipart_dict[uid + channel] = "";
+				}
+				multipart_dict[uid + channel] += message;
+				if(!isLast) {
+					return;
+				}
+				message = multipart_dict[uid + channel];
+				multipart_dict[uid + channel] = null;
+			}
+
 			if(message.length > 0 && idtimestamp[uid] <= msgTimestamp) {
 				if(!idreconnsync[uid]) {
 					idlastmsghash[uid] = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
@@ -564,7 +567,7 @@ webWorker.onmessage = function(e) {
 					if(will_notify && can_notify)
 					{
 						if(true == isImage) {
-							message = "<an image>";
+							message = imagestr;
 						}
 						do_notify(uid, channel, msgTimestamp, message);
 					}
@@ -761,7 +764,7 @@ async function send_dataurl(dataUrl, uid, channel) {
 			var data = dataUrl.slice(i, i + MULTIPART_SLICE);
 			send_data("send", myname, mychannel, data, isFull, isImage, isMultipart, isFirst, isLast);
 			while(false == multipartContinue) {
-				await sleep(10);
+				await sleep(ASYNC_SLEEP);
 			}
 			multipartContinue = false;
 		}
@@ -868,6 +871,7 @@ function set_language() {
 			weekday[6] = "la";
 			bgTitle = "MlesTalk taustalla";
 			bgText = "Ilmoitukset aktiivisena";
+			imagestr = "<kuva>";
 			break;
 		case "se":
 			$("#channel_user_name").text("Ditt namn?");
@@ -886,6 +890,7 @@ function set_language() {
 			weekday[6] = "lö";
 			bgTitle = "MlesTalk i bakgrunden";
 			bgText = "Meddelanden aktiva";
+			imagestr = "<en bild>";
 			break;
 		case "es":
 			$("#channel_user_name").text("Su nombre?");
@@ -904,6 +909,7 @@ function set_language() {
 			weekday[6] = "S";
 			bgTitle = "MlesTalk en el fondo";
 			bgText = "Notificaciones activas";
+			imagestr = "<una imagen>";
 			break;
 		case "de":
 			$("#channel_user_name").text("Dein name?");
@@ -922,6 +928,7 @@ function set_language() {
 			weekday[6] = "Sa";
 			bgTitle = "MlesTalk im Hintergrund";
 			bgText = "Benachrichtigungen aktiv";
+			imagestr = "<ein Bild>";
 			break;
 		case "fr":
 			$("#channel_user_name").text("Votre nom?");
@@ -940,6 +947,7 @@ function set_language() {
 			weekday[6] = "sam";
 			bgTitle = "MlesTalk en arrière-plan";
 			bgText = "Notifications actives";
+			imagestr = "<une image>";
 			break;
 		case "gb":
 		default:
@@ -959,6 +967,7 @@ function set_language() {
 			weekday[6] = "Sat";
 			bgTitle = "MlesTalk in the background";
 			bgText = "Notifications active";
+			imagestr = "<an image>";
 			break;
 	}
 
