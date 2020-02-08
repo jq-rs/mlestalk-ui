@@ -39,6 +39,7 @@ var isTokenChannel = false;
 var sipkey;
 var sipKeyIsOk = false;
 var isResync = false;
+var lastWrittenMsg = "";
 
 var lastMessageSeenTs = 0;
 var lastReconnectTs = 0;
@@ -208,6 +209,11 @@ function onResume() {
 	}
 }
 
+function onBackKeyDown() {
+  //do nothing
+}
+
+
 var interval;
 function onLoad() {
 	document.addEventListener("deviceready", function () {
@@ -224,13 +230,14 @@ function onLoad() {
 			led: { color: '#77407B', on: LED_ON_TIME, off: LED_OFF_TIME },
 			vibrate: true
 		});
-		
+
 		// sets an recurring alarm that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
 		cordova.plugins.backgroundMode.enable();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
+		document.addEventListener("backbutton", onBackKeyDown, false);
 
 		isCordova = true;
 	}, false);
@@ -470,7 +477,8 @@ webWorker.onmessage = function(e) {
 			}			
 
 			var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
-			var now = timenow();
+
+			//begin presence time per user (now)
 
 			if(uid == myname) {
 				if(!isResync) {
@@ -480,6 +488,15 @@ webWorker.onmessage = function(e) {
 				}
 				if(isFull && message.length > 0)
 					queue_find_and_match(uid, message);			
+			}
+			else if(message.length >= 0 && lastWrittenMsg.length > 0) {
+				var end = "</li></div>";
+				//console.log("Got presence update from " + uid);
+				lastWrittenMsg = lastWrittenMsg.substring(0, lastWrittenMsg.length-end.length);
+				lastWrittenMsg += " &#x2713;" + end;
+				$('#owner' + (ownid-1)).replaceWith(lastWrittenMsg);
+				lastWrittenMsg = "";
+				//update presence if current time per user is larger than begin presence
 			}
 			
 			if(isMultipart) {
@@ -530,7 +547,6 @@ webWorker.onmessage = function(e) {
 							+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 					}
-					//li += '<a href="' + message + '">&#8681;</a>
 					li += '</li></div>';
 				}
 				else {
@@ -555,7 +571,7 @@ webWorker.onmessage = function(e) {
 						cordova.plugins.notification.badge.increase();
 					}
 				}
-				else if(true == idappend[duid]){		
+				else if(true == idappend[duid]){
 					$('#' + duid + '' + idhash[duid]).replaceWith(li);
 				}
 
@@ -665,6 +681,7 @@ function sync_reconnect() {
 	
 	if('' != myname && '' != mychannel) {
 		webWorker.postMessage(["reconnect", null, myname, mychannel, isTokenChannel]);
+		sendEmptyJoin();
 	}
 }
 
@@ -693,37 +710,36 @@ function update_after_send(message, isFull, isImage) {
 
 	var dateString = "[" + timenow() + "] ";
 	dateString = update_datestring(dateString);
+	var li;
 
 	if(!isImage) {
-		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
-		if(isFull) {
-			ownid = ownid + 1;
-			ownappend = false;
-		}
-		else {
-			if(false == ownappend) {
-				$('#messages').append(li);
-				ownappend = true;
-			}
-			else
-				$('#owner' + ownid).replaceWith(li);
-		}
-
-		scrollToBottom();
-
-		if(isFull)
-			$('#input_message').val('');
+		li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString + "" + autolinker.link( message ) + '</li></div>';
 	}
 	else {
-		var li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString
-				 + '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
-		//li += '<a href="' + message + '" target="_blank" ref="noopener noreferrer" download>&#8681;</a>
-		li + '</li></div>';
-		$('#messages').append(li);
-		ownid = ownid + 1;
-		scrollToBottom();
-		$('#input_file').val('');
+		li = '<div id="owner' + ownid + '"><li class="own"> ' + dateString
+			 + '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
 	}
+
+	if(isFull) {
+		ownid = ownid + 1;
+		ownappend = false;
+		lastWrittenMsg = li;
+		if(isImage) {
+			$('#messages').append(li);
+		}
+	}
+	else {
+		lastWrittenMsg = "";
+		if(false == ownappend) {
+			$('#messages').append(li);
+			ownappend = true;
+		}
+		else
+			$('#owner' + ownid).replaceWith(li);
+	}
+	scrollToBottom();
+	if(isFull)
+		$('#input_message').val('');
 }
 
 function send_message(uid, channel, message, isFull) {
