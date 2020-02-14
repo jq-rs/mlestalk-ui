@@ -340,6 +340,7 @@ function send(isFull) {
 
 	if(file) {
 		send_image(myname, mychannel, file);
+		document.getElementById("input_file").value = "";
 	}
 	else {
 		send_message(myname, mychannel, message, isFull);
@@ -724,9 +725,9 @@ function update_after_send(message, isFull, isImage) {
 		if(isImage) {
 			$('#messages').append(li);
 		}
+		lastWrittenMsg = li;
 		ownid = ownid + 1;
 		ownappend = false;
-		lastWrittenMsg = li;
 	}
 	else {
 		lastWrittenMsg = "";
@@ -755,7 +756,7 @@ function send_message(uid, channel, message, isFull) {
 
 const MULTIPART_SLICE = 1024*8;
 async function send_dataurl(dataUrl, uid, channel) {
-	var isImage = true;
+	const isImage = true;
 	const isFull = true;
 	
 	if(dataUrl.length > MULTIPART_SLICE) {
@@ -789,7 +790,7 @@ async function send_dataurl(dataUrl, uid, channel) {
 		send_data("send", myname, mychannel, data, isFull, isImage, false, false, false); /* is not multipart */
 	}
 	
-	update_after_send(dataUrl, isFull, true);
+	update_after_send(dataUrl, isFull, isImage);
 }
 
 
