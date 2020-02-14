@@ -721,12 +721,12 @@ function update_after_send(message, isFull, isImage) {
 	}
 
 	if(isFull) {
-		ownid = ownid + 1;
-		ownappend = false;
-		lastWrittenMsg = li;
 		if(isImage) {
 			$('#messages').append(li);
 		}
+		ownid = ownid + 1;
+		ownappend = false;
+		lastWrittenMsg = li;
 	}
 	else {
 		lastWrittenMsg = "";
