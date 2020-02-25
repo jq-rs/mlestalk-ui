@@ -475,7 +475,7 @@ webWorker.onmessage = function(e) {
 				idnotifyts[uid] = 0;
 				idlastmsghash[uid] = 0;
 				idreconnsync[uid] = false;
-			}			
+			}
 
 			var dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
 
@@ -490,7 +490,7 @@ webWorker.onmessage = function(e) {
 				if(isFull && message.length > 0)
 					queue_find_and_match(uid, message);			
 			}
-			else if(message.length >= 0 && lastWrittenMsg.length > 0) {
+			else if(ownid > 0 && message.length >= 0 && lastWrittenMsg.length > 0) {
 				var end = "</li></div>";
 				//console.log("Got presence update from " + uid);
 				lastWrittenMsg = lastWrittenMsg.substring(0, lastWrittenMsg.length-end.length);
@@ -572,7 +572,7 @@ webWorker.onmessage = function(e) {
 						cordova.plugins.notification.badge.increase();
 					}
 				}
-				else if(true == idappend[duid]){
+				else if(true == idappend[duid]) {
 					$('#' + duid + '' + idhash[duid]).replaceWith(li);
 				}
 
@@ -693,7 +693,7 @@ function scrollToBottom() {
 function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
 
 	if(initOk) {
-		var rarray = new Uint32Array(6);
+		var rarray = new Uint32Array(8);
 		window.crypto.getRandomValues(rarray);
 		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast];
 		if(!isResync || data.length == 0) {
