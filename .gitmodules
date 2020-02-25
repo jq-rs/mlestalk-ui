@@ -1,3 +1,3 @@
-[submodule "mles-webworker"]
-	path = mles-webworker
-	url = https://github.com/jq-rs/mles-webworker
+[submodule "mlestalk-webworker"]
+	path = mlestalk-webworker
+	url = https://github.com/jq-rs/mlestalk-webworker.git
