@@ -695,7 +695,7 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 	if(initOk) {
 		var rarray = new Uint32Array(8);
 		window.crypto.getRandomValues(rarray);
-		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast];
+		var arr = [cmd, data, uid, channel, isTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast, Date.now()];
 		if(!isResync || data.length == 0) {
 			if(data.length > 0) {
 				idlastmsghash[uid] = hash_message(uid, data);
