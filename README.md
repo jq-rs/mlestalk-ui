@@ -6,6 +6,6 @@ MlesTalk UI is Node.js/JavaScript based open source reference client user interf
 
 Supports Cordova Android notifications while staying background without additional dependencies to external servers (e.g. Google Firebase).
 
-Uses [MlesTalk WebWorker](https://github.com/jq-rs/mles-webworker) to handle all data traffic (sent over TLS).
+Uses [MlesTalk WebWorker](https://github.com/jq-rs/mlestalk-webworker) to handle all data traffic (sent over TLS).
 
-Please see more details at https://mles.io/app and check Reddit [/r/mles](https://www.reddit.com/r/mles/) channel for everything new, like future planned features.
+Please see more details at https://mles.io/app.html and check Reddit [/r/mles](https://www.reddit.com/r/mles/) channel for everything new, like future planned features.
