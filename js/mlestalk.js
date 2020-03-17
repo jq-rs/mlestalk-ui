@@ -516,7 +516,7 @@ webWorker.onmessage = function(e) {
 				multipart_dict[uid + channel] = null;
 			}
 
-			if(message.length > 0 && idtimestamp[uid] <= msgTimestamp) {
+			if(idtimestamp[uid] <= msgTimestamp) {
 				if(!idreconnsync[uid]) {
 					idlastmsghash[uid] = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				}
@@ -531,6 +531,9 @@ webWorker.onmessage = function(e) {
 				idtimestamp[uid] = msgTimestamp;
 				if(lastMessageSeenTs < msgTimestamp)
 					lastMessageSeenTs = msgTimestamp;
+
+				if(0 == message.length)
+					break;
 
 				var li;
 
