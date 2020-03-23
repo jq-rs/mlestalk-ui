@@ -334,6 +334,10 @@ function sendEmptyJoin() {
 	send_message(myname, mychannel, "", false);
 }
 
+function sendInitJoin() {
+	send_message(myname, mychannel, "", true);
+}
+
 function send(isFull) {
 	var message = $('#input_message').val();
 	var file = document.getElementById("input_file").files[0];
@@ -417,7 +421,7 @@ webWorker.onmessage = function(e) {
 
 			if(uid.length > 0 && channel.length > 0) {
 				initOk = true;
-				sendEmptyJoin();
+				sendInitJoin();
 
 				var li;
 				if(isReconnect && lastMessageSeenTs > 0) {
@@ -517,6 +521,9 @@ webWorker.onmessage = function(e) {
 			}
 
 			if(idtimestamp[uid] <= msgTimestamp) {
+				if(isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
+					break;
+				
 				if(!idreconnsync[uid]) {
 					idlastmsghash[uid] = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				}
@@ -685,7 +692,7 @@ function sync_reconnect() {
 	
 	if('' != myname && '' != mychannel) {
 		webWorker.postMessage(["reconnect", null, myname, mychannel, isTokenChannel]);
-		sendEmptyJoin();
+		sendInitJoin();
 	}
 }
 
