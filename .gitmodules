@@ -1,3 +1,0 @@
-[submodule "mlestalk-webworker"]
-	path = mlestalk-webworker
-	url = ssh://git@github.com/jq-rs/mlestalk-webworker.git
