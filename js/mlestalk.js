@@ -179,7 +179,7 @@ var will_notify = false;
 var isCordova = false;
 var isReconnect = false;
 
-var webWorker = new Worker('mlestalk-webworker/js/webworker.js');
+var webWorker = new Worker('webworker/js/webworker.js');
 
 function onPause() {
 	will_notify = true;

@@ -1,0 +1,3 @@
+[submodule "webworker"]
+	path = webworker
+	url = https://github.com/jq-rs/mlestalk-webworker.git
