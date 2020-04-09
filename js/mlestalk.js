@@ -48,6 +48,11 @@ let gLastReconnectTs = 0;
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = "";
 
+let gCanNotify = false;
+let gWillNotify = false;
+let isCordova = false;
+let gIsReconnect = false;
+
 let gWeekday = new Array(7);
 gWeekday[0] = "Sun";
 gWeekday[1] = "Mon";
@@ -61,7 +66,6 @@ let gBgText = "Notifications active";
 let gImageStr = "<an image>";
 
 class Queue {
-
 	constructor(...elements) {
 		this.elements = [...elements];
 		this.qmax = MAXQLEN;
@@ -100,7 +104,7 @@ function hash_message(uid, data) {
 	return SipHash.hash_hex(gSipKey, uid + data);
 }
 
-function queue_find_and_match(uid, data) {
+function queueFindAndMatch(uid, data) {
 	let lastSeen = -1;
 	let hash = hash_message(uid, data);
 	for (let i = 0; i < q.getLength(); i++) {
@@ -115,12 +119,12 @@ function queue_find_and_match(uid, data) {
 	}
 }
 
-function queue_sweep_and_send(uid) {
+function queueSweepAndSend(uid) {
 	for (let i = 0; i < q.getLength(); i++) {
 		let obj = q.get(i);
 		let tmp = obj[0];
 		if (tmp[2] == uid) {
-			webWorker.postMessage(obj[0]);
+			gWebWorker.postMessage(obj[0]);
 			gIdLastMsgHash[tmp[2]] = hash_message(tmp[2], tmp[1]);
 		}
 	}
@@ -130,7 +134,7 @@ function queue_sweep_and_send(uid) {
 	gIsResync = false;
 }
 
-function queue_postmsg(arr) {
+function queuePostMsg(arr) {
 	q.push(arr);
 }
 
@@ -157,7 +161,7 @@ let autolinker = new Autolinker({
 	className: ''
 });
 
-function stamptime(msgdate) {
+function stampTime(msgdate) {
 	let dd = msgdate.getDate(),
 		mm = msgdate.getMonth() + 1,
 		yyyy = msgdate.getFullYear(),
@@ -170,19 +174,14 @@ function stamptime(msgdate) {
 	return day + ' ' + dd + '.' + mm + '.' + yyyy + ' ' + h + ':' + m;
 }
 
-function timenow() {
-	return stamptime(new Date());
+function timeNow() {
+	return stampTime(new Date());
 }
 
-let can_notify = false;
-let will_notify = false;
-let isCordova = false;
-let gIsReconnect = false;
-
-let webWorker = new Worker('webworker/js/webworker.js');
+let gWebWorker = new Worker('webworker/js/webworker.js');
 
 function onPause() {
-	will_notify = true;
+	gWillNotify = true;
 	if (isCordova) {
 		if (!cordova.plugins.backgroundMode.isActive()) {
 			cordova.plugins.backgroundMode.enable();
@@ -194,7 +193,7 @@ function onPause() {
 }
 
 function onResume() {
-	will_notify = false;
+	gWillNotify = false;
 	if (isCordova) {
 		cordova.plugins.notification.local.clearAll();
 		cordova.plugins.notification.badge.clear();
@@ -211,7 +210,7 @@ let interval;
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
-			can_notify = granted;
+			gCanNotify = granted;
 		});
 
 		cordova.plugins.backgroundMode.setDefaults({
@@ -235,7 +234,7 @@ function onLoad() {
 		isCordova = true;
 	}, false);
 
-	get_front();
+	getFront();
 }
 
 $(document).ready(function () {
@@ -244,18 +243,18 @@ $(document).ready(function () {
 	gMyToken = url.searchParams.get("token");
 	$("#channel_submit, #form_send_message").submit(function (e) {
 		e.preventDefault();
-		ask_channel();
+		askChannel();
 	});
 });
 
 
-function ask_channel() {
+function askChannel() {
 	if ($('#input_name').val().trim().length <= 0 ||
 		(gMyToken == null && $('#input_channel').val().trim().length <= 0) ||
 		$('#input_key').val().trim().length <= 0) {
 
 		//not enough input, alert
-		pop_alert();
+		popAlert();
 
 	} else {
 		if (!gInitOk) {
@@ -315,7 +314,7 @@ function ask_channel() {
 			}
 
 			$('#name_channel_cont').fadeOut(400, function () {
-				webWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel]);
+				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel]);
 				$('#message_cont').fadeIn();
 			});
 		}
@@ -324,11 +323,11 @@ function ask_channel() {
 }
 
 function sendEmptyJoin() {
-	send_message("", false);
+	sendMessage("", false);
 }
 
 function sendInitJoin() {
-	send_message("", true);
+	sendMessage("", true);
 }
 
 function send(isFull) {
@@ -336,19 +335,19 @@ function send(isFull) {
 	let file = document.getElementById("input_file").files[0];
 
 	if (file) {
-		send_image(file);
+		sendImage(file);
 		document.getElementById("input_file").value = "";
 	}
 	else {
-		send_message(message, isFull);
+		sendMessage(message, isFull);
 	}
 }
 
-function chan_exit() {
-	close_socket();
+function chanExit() {
+	closeSocket();
 }
 
-function close_socket() {
+function closeSocket() {
 	initReconnect();
 	gInitOk = false;
 
@@ -382,7 +381,7 @@ function close_socket() {
 	let tmpchannel = gMyChannel;
 	gMyName = '';
 	gMyChannel = '';
-	webWorker.postMessage(["close", null, tmpname, tmpchannel, gIsTokenChannel]);
+	gWebWorker.postMessage(["close", null, tmpname, tmpchannel, gIsTokenChannel]);
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
@@ -430,9 +429,9 @@ function processInit(uid, channel, myuid, mychan) {
 			let atoken = SipHash.hash_hex(gSipKey, bfchannel);
 			atoken = atoken + bfchannel;
 			token = btoa(atoken);
-			document.getElementById("qrcode_link").setAttribute("href", get_token());
+			document.getElementById("qrcode_link").setAttribute("href", getToken());
 			qrcode.clear(); // clear the code.
-			qrcode.makeCode(get_token()); // make another code.
+			qrcode.makeCode(getToken()); // make another code.
 			$('#qrcode').fadeIn();
 		}
 		return 0;
@@ -455,7 +454,7 @@ function processData(uid, channel, msgTimestamp,
 		gIdReconnSync[uid] = false;
 	}
 
-	let dateString = "[" + stamptime(new Date(msgTimestamp)) + "] ";
+	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
 	//begin presence time per user (now)
 
@@ -466,7 +465,7 @@ function processData(uid, channel, msgTimestamp,
 			resync(gMyName);
 		}
 		if (isFull && message.length > 0)
-			queue_find_and_match(uid, message);
+			queueFindAndMatch(uid, message);
 	}
 	else if (gOwnId > 0 && message.length >= 0 && gLastWrittenMsg.length > 0) {
 		let end = "</li></div>";
@@ -479,19 +478,19 @@ function processData(uid, channel, msgTimestamp,
 	}
 
 	if (isMultipart) {
-		if (!multipart_dict[uid + channel]) {
+		if (!gMultipartDict[uid + channel]) {
 			if (!isFirst) {
 				//invalid frame
 				return 0;
 			}
-			multipart_dict[uid + channel] = "";
+			gMultipartDict[uid + channel] = "";
 		}
-		multipart_dict[uid + channel] += message;
+		gMultipartDict[uid + channel] += message;
 		if (!isLast) {
 			return 0;
 		}
-		message = multipart_dict[uid + channel];
-		multipart_dict[uid + channel] = null;
+		message = gMultipartDict[uid + channel];
+		gMultipartDict[uid + channel] = null;
 	}
 
 	if (gIdTimestamp[uid] <= msgTimestamp) {
@@ -573,7 +572,7 @@ function processData(uid, channel, msgTimestamp,
 		}
 
 		if (uid != gMyName && isFull && gIdNotifyTs[uid] < msgTimestamp) {
-			if (will_notify && can_notify) {
+			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
 					message = gImageStr;
 				}
@@ -587,7 +586,7 @@ function processData(uid, channel, msgTimestamp,
 
 function processSend(isMultipart) {
 	if (isMultipart) {
-		if (multipart_send_dict[uid + channel]) {
+		if (gMultipartSendDict[uid + channel]) {
 			multipartContinue = true;
 		}
 	}
@@ -601,10 +600,10 @@ function processClose(uid, channel, mychan) {
 	}
 }
 
-let multipart_dict = {};
-let multipart_send_dict = {};
+let gMultipartDict = {};
+let gMultipartSendDict = {};
 let multipartContinue = false;
-webWorker.onmessage = function (e) {
+gWebWorker.onmessage = function (e) {
 	let cmd = e.data[0];
 	switch (cmd) {
 		case "init":
@@ -719,7 +718,7 @@ async function scrollToBottomWithTimer() {
 
 async function resync(uid) {
 	await sleep(RESYNC_TIMEOUT);
-	queue_sweep_and_send(uid);
+	queueSweepAndSend(uid);
 }
 
 async function reconnect(uid, channel) {
@@ -735,15 +734,15 @@ async function reconnect(uid, channel) {
 	gIsReconnect = true;
 	await sleep(gReconnTimeout);
 	gReconnTimeout *= 2;
-	webWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel]);
+	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel]);
 }
 
-function sync_reconnect() {
+function syncReconnect() {
 	if (gIsReconnect)
 		return;
 
 	if ('' != gMyName && '' != gMyChannel) {
-		webWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
+		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
 		sendInitJoin();
 	}
 }
@@ -752,7 +751,7 @@ function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
 
-function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
+function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
 
 	if (gInitOk) {
 		let rarray = new Uint32Array(8);
@@ -762,15 +761,15 @@ function send_data(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirs
 			if (data.length > 0) {
 				gIdLastMsgHash[uid] = hash_message(uid, data);
 			}
-			webWorker.postMessage(arr);
+			gWebWorker.postMessage(arr);
 		}
 		if (gSipKeyIsOk && isFull && data.length > 0)
-			queue_postmsg([arr, hash_message(uid, data), isImage]);
+			queuePostMsg([arr, hash_message(uid, data), isImage]);
 	}
 }
 
-function update_after_send(message, isFull, isImage) {
-	let dateString = "[" + timenow() + "] ";
+function updateAfterSend(message, isFull, isImage) {
+	let dateString = "[" + timeNow() + "] ";
 	let date = update_dateval(dateString);
 	let time = update_time(dateString);
 	let li;
@@ -811,19 +810,19 @@ function update_after_send(message, isFull, isImage) {
 		$('#input_message').val('');
 }
 
-function send_message(message, isFull) {
-	send_data("send", gMyName, gMyChannel, message, isFull, false, false, false);
+function sendMessage(message, isFull) {
+	sendData("send", gMyName, gMyChannel, message, isFull, false, false, false);
 
 	if (0 == message.length) {
 		return;
 	}
 
-	update_after_send(message, isFull, false);
+	updateAfterSend(message, isFull, false);
 
 }
 
 const MULTIPART_SLICE = 1024 * 8;
-async function send_dataurl(dataUrl, uid, channel) {
+async function sendDataurl(dataUrl, uid, channel) {
 	const isImage = true;
 	const isFull = true;
 
@@ -831,7 +830,7 @@ async function send_dataurl(dataUrl, uid, channel) {
 		let isMultipart = true;
 		let isFirst;
 		let isLast;
-		multipart_send_dict[uid + channel] = true;
+		gMultipartSendDict[uid + channel] = true;
 		for (let i = 0; i < dataUrl.length; i += MULTIPART_SLICE) {
 			isFirst = false;
 			isLast = false;
@@ -841,13 +840,13 @@ async function send_dataurl(dataUrl, uid, channel) {
 			else if (i + MULTIPART_SLICE >= dataUrl.length) {
 				isLast = true;
 				let data = dataUrl.slice(i, dataUrl.length);
-				send_data("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
-				multipart_send_dict[uid + channel] = false;
+				sendData("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
+				gMultipartSendDict[uid + channel] = false;
 				multipartContinue = false;
 				break;
 			}
 			let data = dataUrl.slice(i, i + MULTIPART_SLICE);
-			send_data("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
+			sendData("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
 			while (false == multipartContinue) {
 				await sleep(ASYNC_SLEEP);
 			}
@@ -855,14 +854,14 @@ async function send_dataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		send_data("send", gMyName, gMyChannel, data, isFull, isImage, false, false, false); /* is not multipart */
+		sendData("send", gMyName, gMyChannel, data, isFull, isImage, false, false, false); /* is not multipart */
 	}
 
-	update_after_send(dataUrl, isFull, isImage);
+	updateAfterSend(dataUrl, isFull, isImage);
 }
 
 
-function send_image(file) {
+function sendImage(file) {
 	let fr = new FileReader();
 	fr.onload = function (readerEvent) {
 		if (file.size >= IMGFRAGSIZE) {
@@ -892,29 +891,29 @@ function send_image(file) {
 				canvas.height = height;
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
-				send_dataurl(dataUrl, gMyName, gMyChannel);
+				sendDataurl(dataUrl, gMyName, gMyChannel);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
-			send_dataurl(fr.result, gMyName, gMyChannel);
+			sendDataurl(fr.result, gMyName, gMyChannel);
 		}
 	}
 	fr.readAsDataURL(file);
 }
 
-function get_token() {
+function getToken() {
 	return "https://" + gAddrPortInput + "/mlestalk-web.html?token=" + token;
 }
 
-function get_front() {
-	$("#channel_localization").val(get_local_language_selection());
-	set_language();
-	$("#input_addr_port").val(get_local_gAddrPortInput());
+function getFront() {
+	$("#channel_localization").val(getLocalLanguageSelection());
+	setLanguage();
+	$("#input_addr_port").val(getLocalAddrPortInput());
 }
 
-function get_local_gAddrPortInput() {
+function getLocalAddrPortInput() {
 	let apinput = window.localStorage.getItem('gAddrPortInput');
 	if (apinput != undefined && apinput != '' && apinput != 'mles.io:80') {
 		return apinput;
@@ -924,7 +923,7 @@ function get_local_gAddrPortInput() {
 	}
 }
 
-function get_local_language_selection() {
+function getLocalLanguageSelection() {
 	let linput = window.localStorage.getItem('localization');
 	if (linput != undefined && linput != '') {
 		return linput;
@@ -935,7 +934,7 @@ function get_local_language_selection() {
 }
 
 /* Language specific functions -- start -- */
-function set_language() {
+function setLanguage() {
 	let language = $("#channel_localization").val();
 
 	switch (language) {
@@ -1064,7 +1063,7 @@ function set_language() {
 	}
 }
 
-function pop_alert() {
+function popAlert() {
 	let language = $("#channel_localization").val();
 	switch (language) {
 		case "fi":

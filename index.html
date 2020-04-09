@@ -74,14 +74,14 @@
 							</label>
 							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
 							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
-							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer();" autocomplete="off" autofocus /></span>
+							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer()" autocomplete="off" autofocus /></span>
 							<br />
 						</div>
 					</form>
 				</div>
 				<div class="field">
 					<form>
-						<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chan_exit()" />
+						<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
 					</form>
 				</div>
 			</div>
