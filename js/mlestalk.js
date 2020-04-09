@@ -519,7 +519,7 @@ function processData(uid, channel, msgTimestamp,
 			gLastMessageSeenTs = msgTimestamp;
 
 		if (0 == message.length)
-			return 0;
+			return 1;
 
 		date = updateDateval(dateString);
 		if (date) {
@@ -578,7 +578,7 @@ function processData(uid, channel, msgTimestamp,
 				if (true == isImage) {
 					message = gImageStr;
 				}
-				do_notify(uid, channel, msgTimestamp, message);
+				doNotify(uid, channel, msgTimestamp, message);
 			}
 			gIdNotifyTs[uid] = msgTimestamp;
 		}
@@ -692,7 +692,7 @@ function updateTime(dateString) {
 	return time;
 }
 
-function do_notify(uid, channel, msgTimestamp, message) {
+function doNotify(uid, channel, msgTimestamp, message) {
 	gLastMessage[channel] = [msgTimestamp, uid, message];
 	let msg = gLastMessage[channel];
 	if (isCordova) {
@@ -1105,6 +1105,7 @@ function initTests() {
 	gMyName = "unittest";
 	gMyChannel = "unittest";
 	gSipKey = SipHash.string16_to_key(atob(gMyChannel));
+	gSipKeyIsOk = true;
 }
 
 function deinitTests() {
@@ -1112,6 +1113,7 @@ function deinitTests() {
 	gMyName = undefined;
 	gMyChannel = undefined;
 	gSipKey = undefined;
+	gSipKeyIsOk = false;
 }
 
 function timestampTest() {
@@ -1121,15 +1123,9 @@ function timestampTest() {
 	if(ret != 1)
 		console.log("First message failed! " + ret);
 
-	/* Receive second message with time + 1*/
-	ret = processData("tester", "unittest", time + 1, "Second test message", true, false, false, false, false);
+	/* Receive presence message with time + 1 */
+	ret = processData("tester", "unittest", time+1, "", false, false, false, false, false);
 	if(ret != 1)
-		console.log("Second message failed! " + ret)
-	/* TODO:  Check last message received */
-
-	/* Receive presence message with time - 1 */
-	ret = processData("tester", "unittest", time - 1, "", false, false, false, false, false);
-	if(ret != 0)
 		console.log("Presence message failed! " + ret)
 
 	ret = processData("tester", "unittest", time, "First test message", false, false, false, false, false);
