@@ -20,6 +20,8 @@ let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
 let gIdReconnSync = {};
 
+let gUidQueue = {};
+
 const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
@@ -98,44 +100,68 @@ class Queue {
 		return this.qmax;
 	}
 }
-const q = new Queue();
 
 function hash_message(uid, data) {
 	return SipHash.hash_hex(gSipKey, uid + data);
 }
 
-function queueFindAndMatch(uid, data) {
-	let lastSeen = -1;
-	let hash = hash_message(uid, data);
-	for (let i = 0; i < q.getLength(); i++) {
-		let obj = q.get(i);
-		if (obj[1] == hash) {
-			lastSeen = i + 1;
-			break;
+function uidQueueGet(uid) {
+	return gUidQueue[uid];
+}
+
+function queueFindAndMatch(msgTimestamp, uid, data) {
+	let q = uidQueueGet(uid);
+	if (q) {
+		let lastSeen = -1;
+		for (let i = 0; i < q.getLength(); i++) {
+			let obj = q.get(i);
+			if (obj[0] < msgTimestamp) {
+				lastSeen = i + 1;
+				continue;
+			}
+			let hash = hash_message(uid, data);
+			if (obj[2] == hash) {
+				lastSeen = i + 1;
+				break;
+			}
 		}
-	}
-	if (lastSeen != -1) {
-		q.flush(lastSeen);
+		if (lastSeen != -1) {
+			q.flush(lastSeen);
+		}
 	}
 }
 
 function queueSweepAndSend(uid) {
-	for (let i = 0; i < q.getLength(); i++) {
-		let obj = q.get(i);
-		let tmp = obj[0];
-		if (tmp[2] == uid) {
-			gWebWorker.postMessage(obj[0]);
-			gIdLastMsgHash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+	let q = uidQueueGet(uid);
+	let cnt = 0;
+	if (q) {
+		for (let i = 0; i < q.getLength(); i++) {
+			let obj = q.get(i);
+			let tmp = obj[1];
+			if (tmp[2] == uid) {
+				gWebWorker.postMessage(tmp);
+				cnt++;
+				gIdLastMsgHash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+			}
+		}
+		for (let userid in gIdReconnSync) {
+			gIdReconnSync[userid] = false;
 		}
 	}
-	for (let userid in gIdReconnSync) {
-		gIdReconnSync[userid] = false;
-	}
 	gIsResync = false;
+	console.log("Resync complete: swept " + cnt + " msgs.");
 }
 
-function queuePostMsg(arr) {
+function uidQueuePush(uid, arr) {
+	if (!gUidQueue[uid]) {
+		gUidQueue[uid] = new Queue();
+	}
+	let q = gUidQueue[uid];
 	q.push(arr);
+}
+
+function queuePostMsg(uid, arr) {
+	uidQueuePush(uid, arr);
 }
 
 let autolinker = new Autolinker({
@@ -464,8 +490,8 @@ function processData(uid, channel, msgTimestamp,
 			gIsResync = true;
 			resync(gMyName);
 		}
-		if (isFull && message.length > 0)
-			queueFindAndMatch(uid, message);
+		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Full or presence message */
+			queueFindAndMatch(msgTimestamp, uid, message);
 	}
 	else if (gOwnId > 0 && message.length >= 0 && gLastWrittenMsg.length > 0) {
 		let end = "</li></div>";
@@ -584,7 +610,7 @@ function processData(uid, channel, msgTimestamp,
 	return 0;
 }
 
-function processSend(isMultipart) {
+function processSend(uid, channel, isMultipart) {
 	if (isMultipart) {
 		if (gMultipartSendDict[uid + channel]) {
 			multipartContinue = true;
@@ -643,11 +669,11 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "send":
 			{
-				//let uid = e.data[1];
-				//let channel = e.data[2];
+				let uid = e.data[1];
+				let channel = e.data[2];
 				let isMultipart = e.data[3];
 
-				let ret = processSend(isMultipart);
+				let ret = processSend(uid, channel, isMultipart);
 				if (ret < 0) {
 					console.log("Process send failed: " + ret);
 				}
@@ -754,17 +780,17 @@ function scrollToBottom() {
 function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
 
 	if (gInitOk) {
+		let date = Date.now();
 		let rarray = new Uint32Array(8);
 		window.crypto.getRandomValues(rarray);
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast, Date.now()];
-		if (!gIsResync || data.length == 0) {
-			if (data.length > 0) {
-				gIdLastMsgHash[uid] = hash_message(uid, data);
-			}
-			gWebWorker.postMessage(arr);
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast, date];
+
+		if (data.length > 0) {
+			gIdLastMsgHash[uid] = hash_message(uid, data);
 		}
+		gWebWorker.postMessage(arr);
 		if (gSipKeyIsOk && isFull && data.length > 0)
-			queuePostMsg([arr, hash_message(uid, data), isImage]);
+			queuePostMsg(uid, [date, arr, hash_message(uid, data), isImage]);
 	}
 }
 
@@ -1117,21 +1143,21 @@ function timestampTest() {
 	let time = Date.now();
 	/* Receive message with time */
 	let ret = processData("tester", "unittest", time, "First test message", true, false, false, false, false);
-	if(ret != 1)
+	if (ret != 1)
 		console.log("First message failed! " + ret);
 
 	/* Receive presence message with time + 1 */
-	ret = processData("tester", "unittest", time+1, "", false, false, false, false, false);
-	if(ret != 1)
+	ret = processData("tester", "unittest", time + 1, "", false, false, false, false, false);
+	if (ret != 1)
 		console.log("Presence message failed! " + ret)
 
 	ret = processData("tester", "unittest", time, "First test message", false, false, false, false, false);
-	if(ret != 0)
+	if (ret != 0)
 		console.log("Resend message failed! " + ret)
 
 	ret = processData("tester", "unittest", time, "First test message", true, false, false, false, false);
-	if(ret != 0)
+	if (ret != 0)
 		console.log("Resend full message failed! " + ret)
 	/* => Check that it is not shown */
 }
-	
+
