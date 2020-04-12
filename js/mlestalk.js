@@ -109,8 +109,8 @@ function uidQueueGet(uid) {
 	return gUidQueue[uid];
 }
 
-function queueFindAndMatch(msgTimestamp, uid, data) {
-	let q = uidQueueGet(uid);
+function queueFindAndMatch(msgTimestamp, uid, channel, message) {
+	let q = uidQueueGet(uid, channel);
 	if (q) {
 		let lastSeen = -1;
 		for (let i = 0; i < q.getLength(); i++) {
@@ -119,10 +119,12 @@ function queueFindAndMatch(msgTimestamp, uid, data) {
 				lastSeen = i + 1;
 				continue;
 			}
-			let hash = hash_message(uid, data);
-			if (obj[2] == hash) {
-				lastSeen = i + 1;
-				break;
+			if(message.length > 0) {
+				let hash = hash_message(uid, message);
+				if (obj[2] == hash) {
+					lastSeen = i + 1;
+					break;
+				}
 			}
 		}
 		if (lastSeen != -1) {
@@ -131,8 +133,8 @@ function queueFindAndMatch(msgTimestamp, uid, data) {
 	}
 }
 
-function queueSweepAndSend(uid) {
-	let q = uidQueueGet(uid);
+function queueSweepAndSend(uid, channel) {
+	let q = uidQueueGet(uid, channel);
 	let cnt = 0;
 	if (q) {
 		for (let i = 0; i < q.getLength(); i++) {
@@ -152,16 +154,16 @@ function queueSweepAndSend(uid) {
 	console.log("Resync complete: swept " + cnt + " msgs.");
 }
 
-function uidQueuePush(uid, arr) {
-	if (!gUidQueue[uid]) {
-		gUidQueue[uid] = new Queue();
+function uidQueuePush(uid, channel, arr) {
+	if (!gUidQueue[uid+channel]) {
+		gUidQueue[uid+channel] = new Queue();
 	}
-	let q = gUidQueue[uid];
+	let q = gUidQueue[uid+channel];
 	q.push(arr);
 }
 
-function queuePostMsg(uid, arr) {
-	uidQueuePush(uid, arr);
+function queuePostMsg(uid, channel, arr) {
+	uidQueuePush(uid, channel, arr);
 }
 
 let autolinker = new Autolinker({
@@ -399,12 +401,8 @@ function closeSocket() {
 
 	gLastMessageSeenTs = 0;
 
-	let q = uidQueueGet(gMyName);
-	if (q) {
-		//empty send queue
-		q.flush(q.getLength());
-	}
-
+	queueSweepAndSend(gMyName, gMyChannel);
+	
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;
 	let tmpchannel = gMyChannel;
@@ -470,8 +468,8 @@ function processInit(uid, channel, myuid, mychan) {
 
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isImage,
-	isMultipart, isFirst, isLast) {
-
+	isMultipart, isFirst, isLast)
+{
 	//update hash
 	let duid = uid.split(' ').join('_');
 	if (gIdHash[duid] == null) {
@@ -491,10 +489,10 @@ function processData(uid, channel, msgTimestamp,
 		if (!gIsResync) {
 			console.log("Resyncing");
 			gIsResync = true;
-			resync(gMyName);
+			resync(uid, channel);
 		}
 		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Full or presence message */
-			queueFindAndMatch(msgTimestamp, uid, message);
+			queueFindAndMatch(msgTimestamp, uid, channel, message);
 	}
 	else if (gOwnId > 0 && message.length >= 0 && gLastWrittenMsg.length > 0) {
 		let end = "</li></div>";
@@ -745,9 +743,9 @@ async function scrollToBottomWithTimer() {
 	scrollToBottom();
 }
 
-async function resync(uid) {
+async function resync(uid, channel) {
 	await sleep(RESYNC_TIMEOUT);
-	queueSweepAndSend(uid);
+	queueSweepAndSend(uid, channel);
 }
 
 async function reconnect(uid, channel) {
@@ -788,10 +786,12 @@ function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst
 		window.crypto.getRandomValues(rarray);
 		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast, date];
 
-		if (data.length > 0) {
-			gIdLastMsgHash[uid] = hash_message(uid, data);
+		if (!gIsResync || data.length == 0) {
+			if (data.length > 0) {
+				gIdLastMsgHash[uid] = hash_message(uid, data);
+			}
+			gWebWorker.postMessage(arr);
 		}
-		gWebWorker.postMessage(arr);
 		if (gSipKeyIsOk && isFull && data.length > 0)
 			queuePostMsg(uid, [date, arr, hash_message(uid, data), isImage]);
 	}
