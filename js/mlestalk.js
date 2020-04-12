@@ -402,7 +402,7 @@ function closeSocket() {
 	gLastMessageSeenTs = 0;
 
 	queueSweepAndSend(gMyName, gMyChannel);
-	
+
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;
 	let tmpchannel = gMyChannel;
