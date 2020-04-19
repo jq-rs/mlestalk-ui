@@ -1083,7 +1083,7 @@ function setLanguage() {
 			break;
 		case "ru":
 			$("#channel_user_name").text("Твое имя?");
-			$("#channel_name").text("канал?");
+			$("#channel_name").text("Канал?");
 			$("#channel_key").text("Общий ключ?");
 			$("#channel_server").text("Адрес сервера Mles Websocket");
 			$("#channel_exit").val("выход");
