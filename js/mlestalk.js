@@ -1006,10 +1006,10 @@ function setLanguage() {
 			gImageStr = "<en bild>";
 			break;
 		case "es":
-			$("#channel_user_name").text("Su nombre?");
-			$("#channel_name").text("Canal?");
-			$("#channel_key").text("Llave compartida?");
-			$("#channel_server").text("Mles WebSocket dirección del servidor");
+			$("#channel_user_name").text("¿Su nombre?");
+			$("#channel_name").text("¿Canal?");
+			$("#channel_key").text("¿Llave compartida?");
+			$("#channel_server").text("Dirección del servidor Mles Websocket");
 			$("#channel_exit").val("salida");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
@@ -1061,6 +1061,44 @@ function setLanguage() {
 			gBgTitle = "MlesTalk en arrière-plan";
 			gBgText = "Notifications actives";
 			gImageStr = "<une image>";
+			break;
+		case "pt":
+			$("#channel_user_name").text("Seu nome?");
+			$("#channel_name").text("Canal?");
+			$("#channel_key").text("Chave compartilhada?");
+			$("#channel_server").text("Endereço do servidor Mles Websocket");
+			$("#channel_exit").val("saída");
+			$("#app_info").text("informação da aplicação");
+			$("#legal").text("legal");
+			gWeekday[0] = "Dom.";
+			gWeekday[1] = "Seg.";
+			gWeekday[2] = "Ter.";
+			gWeekday[3] = "Qua.";
+			gWeekday[4] = "Qui.";
+			gWeekday[5] = "Sex.";
+			gWeekday[6] = "Sáb.";
+			gBgTitle = "MlesTalk correndo em segundo plano";
+			gBgText = "Notificações ativas";
+			gImageStr = "<uma imagem>";
+			break;
+		case "ru":
+			$("#channel_user_name").text("Твое имя?");
+			$("#channel_name").text("Ла-Манш?");
+			$("#channel_key").text("Общий ключ?");
+			$("#channel_server").text("Адрес сервера Mles Websocket");
+			$("#channel_exit").val("выход");
+			$("#app_info").text("информация о приложении");
+			$("#legal").text("правовой");
+			gWeekday[0] = "ВСК";
+			gWeekday[1] = "ПНД";
+			gWeekday[2] = "ВТР";
+			gWeekday[3] = "СРД";
+			gWeekday[4] = "ЧТВ";
+			gWeekday[5] = "ПТН";
+			gWeekday[6] = "СБТ";
+			gBgTitle = "MlesTalk в фоновом режиме";
+			gBgText = "Уведомления активны";
+			gImageStr = "<изображение>";
 			break;
 		case "gb":
 		default:
