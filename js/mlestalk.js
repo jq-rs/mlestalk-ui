@@ -105,8 +105,8 @@ function hash_message(uid, data) {
 	return SipHash.hash_hex(gSipKey, uid + data);
 }
 
-function uidQueueGet(uid) {
-	return gUidQueue[uid];
+function uidQueueGet(uid, channel) {
+	return gUidQueue[uid + channel];
 }
 
 function queueFindAndMatch(msgTimestamp, uid, channel, message) {
@@ -155,10 +155,11 @@ function queueSweepAndSend(uid, channel) {
 }
 
 function uidQueuePush(uid, channel, arr) {
-	if (!gUidQueue[uid+channel]) {
-		gUidQueue[uid+channel] = new Queue();
+	let q = uidQueueGet(uid, channel);
+	if (!q) {
+		gUidQueue[uid + channel] = new Queue();
+		q = uidQueueGet(uid, channel);
 	}
-	let q = gUidQueue[uid+channel];
 	q.push(arr);
 }
 
@@ -793,7 +794,7 @@ function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst
 			gWebWorker.postMessage(arr);
 		}
 		if (gSipKeyIsOk && isFull && data.length > 0)
-			queuePostMsg(uid, [date, arr, hash_message(uid, data), isImage]);
+			queuePostMsg(uid, channel, [date, arr, hash_message(uid, data), isImage]);
 	}
 }
 
