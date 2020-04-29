@@ -101,7 +101,7 @@ class Queue {
 	}
 }
 
-function hash_message(uid, data) {
+function hashMessage(uid, data) {
 	return SipHash.hash_hex(gSipKey, uid + data);
 }
 
@@ -120,7 +120,7 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message) {
 				continue;
 			}
 			if(message.length > 0) {
-				let hash = hash_message(uid, message);
+				let hash = hashMessage(uid, message);
 				if (obj[2] == hash) {
 					lastSeen = i + 1;
 					break;
@@ -143,7 +143,7 @@ function queueSweepAndSend(uid, channel) {
 			if (tmp[2] == uid) {
 				gWebWorker.postMessage(tmp);
 				cnt++;
-				gIdLastMsgHash[tmp[2]] = hash_message(tmp[2], tmp[1]);
+				gIdLastMsgHash[tmp[2]] = hashMessage(tmp[2], tmp[1]);
 			}
 		}
 		for (let userid in gIdReconnSync) {
@@ -351,10 +351,12 @@ function askChannel() {
 	return false;
 }
 
-function sendEmptyJoin() {
+/* Presence */
+function sendEmptyJoin() { 
 	sendMessage("", false);
 }
 
+/* Join after disconnect */
 function sendInitJoin() {
 	sendMessage("", true);
 }
@@ -530,10 +532,10 @@ function processData(uid, channel, msgTimestamp,
 			return 0;
 
 		if (!gIdReconnSync[uid]) {
-			gIdLastMsgHash[uid] = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+			gIdLastMsgHash[uid] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 		}
 		else if (msgTimestamp >= gIdTimestamp[uid]) {
-			let mHash = hash_message(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+			let mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 			if (mHash == gIdLastMsgHash[uid]) {
 				gIdReconnSync[uid] = false;
 				gIdTimestamp[uid] = msgTimestamp;
@@ -547,13 +549,13 @@ function processData(uid, channel, msgTimestamp,
 		if (0 == message.length)
 			return 1;
 
-		date = update_dateval(dateString);
+		date = updateDateval(dateString);
 		if (date) {
 			/* Update new date header */
 			li = '<li class="new"> - <span class="name">' + date + '</span> - </li>';
 			$('#messages').append(li);
 		}
-		time = update_time(dateString);
+		time = updateTime(dateString);
 
 		/* Check first is it a text or image */
 		if (isImage) {
@@ -697,7 +699,7 @@ gWebWorker.onmessage = function (e) {
 	}
 }
 
-function update_dateval(dateString) {
+function updateDateval(dateString) {
 	let lastDate = gLastMessageSendOrRcvdDate;
 	const begin = gWeekday[0].length + 2;
 	const end = DATELEN + 1;
@@ -712,7 +714,7 @@ function update_dateval(dateString) {
 	}
 }
 
-function update_time(dateString) {
+function updateTime(dateString) {
 	let time = "[" + dateString.slice(DATELEN + gWeekday[0].length, dateString.length);
 	return time;
 }
@@ -771,7 +773,7 @@ function syncReconnect() {
 
 	if ('' != gMyName && '' != gMyChannel) {
 		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
-		sendInitJoin();
+		sendEmptyJoin();
 	}
 }
 
@@ -789,19 +791,19 @@ function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst
 
 		if (!gIsResync || data.length == 0) {
 			if (data.length > 0) {
-				gIdLastMsgHash[uid] = hash_message(uid, data);
+				gIdLastMsgHash[uid] = hashMessage(uid, data);
 			}
 			gWebWorker.postMessage(arr);
 		}
 		if (gSipKeyIsOk && isFull && data.length > 0)
-			queuePostMsg(uid, channel, [date, arr, hash_message(uid, data), isImage]);
+			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), isImage]);
 	}
 }
 
 function updateAfterSend(message, isFull, isImage) {
 	let dateString = "[" + timeNow() + "] ";
-	let date = update_dateval(dateString);
-	let time = update_time(dateString);
+	let date = updateDateval(dateString);
+	let time = updateTime(dateString);
 	let li;
 
 	if (date) {
