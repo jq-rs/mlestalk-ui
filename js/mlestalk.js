@@ -18,7 +18,16 @@ let gIdAppend = {};
 let gIdTimestamp = {};
 let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
+let gIdLastMsgLen = {};
 let gIdReconnSync = {};
+
+/* Msg type flags */
+const MSGISFULL =       0x1;
+const MSGISPRESENCE =  (0x1 << 1);
+const MSGISIMAGE =     (0x1 << 2);
+const MSGISMULTIPART = (0x1 << 3);
+const MSGISFIRST =     (0x1 << 4);
+const MSGISLAST =      (0x1 << 5);
 
 let gUidQueue = {};
 
@@ -106,7 +115,7 @@ function hashMessage(uid, data) {
 }
 
 function uidQueueGet(uid, channel) {
-	return gUidQueue[uid + channel];
+	return gUidQueue[get_uniq(uid, channel)];
 }
 
 function queueFindAndMatch(msgTimestamp, uid, channel, message) {
@@ -157,7 +166,7 @@ function queueSweepAndSend(uid, channel) {
 function uidQueuePush(uid, channel, arr) {
 	let q = uidQueueGet(uid, channel);
 	if (!q) {
-		gUidQueue[uid + channel] = new Queue();
+		gUidQueue[get_uniq(uid, channel)] = new Queue();
 		q = uidQueueGet(uid, channel);
 	}
 	q.push(arr);
@@ -205,6 +214,10 @@ function stampTime(msgdate) {
 
 function timeNow() {
 	return stampTime(new Date());
+}
+
+function get_uniq(uid, channel) {
+	return uid + "|" + channel;
 }
 
 let gWebWorker = new Worker('webworker/js/webworker.js');
@@ -353,12 +366,12 @@ function askChannel() {
 
 /* Presence */
 function sendEmptyJoin() { 
-	sendMessage("", false);
+	sendMessage("", false, true);
 }
 
 /* Join after disconnect */
 function sendInitJoin() {
-	sendMessage("", true);
+	sendMessage("", true, false);
 }
 
 function send(isFull) {
@@ -370,7 +383,8 @@ function send(isFull) {
 		document.getElementById("input_file").value = "";
 	}
 	else {
-		sendMessage(message, isFull);
+		sendMessage(message, isFull, false);
+		updateAfterSend(message, isFull, false);
 	}
 }
 
@@ -470,7 +484,7 @@ function processInit(uid, channel, myuid, mychan) {
 }
 
 function processData(uid, channel, msgTimestamp,
-	message, isFull, isImage,
+	message, isFull, isPresence, isImage,
 	isMultipart, isFirst, isLast)
 {
 	//update hash
@@ -478,10 +492,10 @@ function processData(uid, channel, msgTimestamp,
 	if (gIdHash[duid] == null) {
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
-		gIdTimestamp[uid] = msgTimestamp;
-		gIdNotifyTs[uid] = 0;
-		gIdLastMsgHash[uid] = 0;
-		gIdReconnSync[uid] = false;
+		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
+		gIdNotifyTs[get_uniq(uid, channel)] = 0;
+		gIdLastMsgHash[get_uniq(uid, channel)] = 0;
+		gIdReconnSync[get_uniq(uid, channel)] = false;
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
@@ -508,45 +522,47 @@ function processData(uid, channel, msgTimestamp,
 	}
 
 	if (isMultipart) {
-		if (!gMultipartDict[uid + channel]) {
+		if (!gMultipartDict[get_uniq(uid, channel)]) {
 			if (!isFirst) {
 				//invalid frame
 				return 0;
 			}
-			gMultipartDict[uid + channel] = "";
+			gMultipartDict[get_uniq(uid, channel)] = "";
 		}
-		gMultipartDict[uid + channel] += message;
+		gMultipartDict[get_uniq(uid, channel)] += message;
 		if (!isLast) {
 			return 0;
 		}
-		message = gMultipartDict[uid + channel];
-		gMultipartDict[uid + channel] = null;
+		message = gMultipartDict[get_uniq(uid, channel)];
+		gMultipartDict[get_uniq(uid, channel)] = null;
 	}
 
-	if (gIdTimestamp[uid] <= msgTimestamp) {
-		let li;
+	if (gIdTimestamp[get_uniq(uid, channel)] <= msgTimestamp) {
 		let date;
 		let time;
+		let li;
+
 
 		if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 			return 0;
 
-		if (!gIdReconnSync[uid]) {
-			gIdLastMsgHash[uid] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+		if (!gIdReconnSync[get_uniq(uid, channel)]) {
+			gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 		}
-		else if (msgTimestamp >= gIdTimestamp[uid]) {
+		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)]) {
 			let mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-			if (mHash == gIdLastMsgHash[uid]) {
-				gIdReconnSync[uid] = false;
-				gIdTimestamp[uid] = msgTimestamp;
+			if (mHash == gIdLastMsgHash[get_uniq(uid, channel)]) {
+				gIdReconnSync[get_uniq(uid, channel)] = false;
+				gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 			}
 			return 0;
 		}
-		gIdTimestamp[uid] = msgTimestamp;
+		
+		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 
-		if (0 == message.length)
+		if (isPresence)
 			return 1;
 
 		date = updateDateval(dateString);
@@ -601,14 +617,14 @@ function processData(uid, channel, msgTimestamp,
 			scrollToBottom();
 		}
 
-		if (uid != gMyName && isFull && gIdNotifyTs[uid] < msgTimestamp) {
+		if (uid != gMyName && isFull && gIdNotifyTs[get_uniq(uid, channel)] < msgTimestamp) {
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
 					message = gImageStr;
 				}
 				doNotify(uid, channel, msgTimestamp, message);
 			}
-			gIdNotifyTs[uid] = msgTimestamp;
+			gIdNotifyTs[get_uniq(uid, channel)] = msgTimestamp;
 		}
 	}
 	return 0;
@@ -616,7 +632,7 @@ function processData(uid, channel, msgTimestamp,
 
 function processSend(uid, channel, isMultipart) {
 	if (isMultipart) {
-		if (gMultipartSendDict[uid + channel]) {
+		if (gMultipartSendDict[get_uniq(uid, channel)]) {
 			multipartContinue = true;
 		}
 	}
@@ -655,17 +671,13 @@ gWebWorker.onmessage = function (e) {
 				let channel = e.data[2];
 				let msgTimestamp = e.data[3];
 				let message = e.data[4];
-				let isFull = e.data[5];
-				let isImage = e.data[6];
-				let isMultipart = e.data[7];
-				let isFirst = e.data[8];
-				let isLast = e.data[9];
+				let msgtype = e.data[5];
 
 				initReconnect();
 
 				let ret = processData(uid, channel, msgTimestamp,
-					message, isFull, isImage,
-					isMultipart, isFirst, isLast);
+					message, msgtype & MSGISFULL ? true : false, msgtype & MSGISPRESENCE ? true : false, msgtype & MSGISIMAGE ? true : false,
+					msgtype & MSGISMULTIPART ? true : false, msgtype & MSGISFIRST ? true : false, msgtype & MSGISLAST ? true : false);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
 				}
@@ -781,22 +793,21 @@ function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
 
-function sendData(cmd, uid, channel, data, isFull, isImage, isMultipart, isFirst, isLast) {
-
+function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
 		let date = Date.now();
 		let rarray = new Uint32Array(8);
 		window.crypto.getRandomValues(rarray);
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, isFull, isImage, isMultipart, isFirst, isLast, date];
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, msgtype, date];
 
 		if (!gIsResync || data.length == 0) {
 			if (data.length > 0) {
-				gIdLastMsgHash[uid] = hashMessage(uid, data);
+				gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, data);
 			}
 			gWebWorker.postMessage(arr);
 		}
-		if (gSipKeyIsOk && isFull && data.length > 0)
-			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), isImage]);
+		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0)
+			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), msgtype & MSGISIMAGE ? true : false]);
 	}
 }
 
@@ -842,43 +853,33 @@ function updateAfterSend(message, isFull, isImage) {
 		$('#input_message').val('');
 }
 
-function sendMessage(message, isFull) {
-	sendData("send", gMyName, gMyChannel, message, isFull, false, false, false);
-
-	if (0 == message.length) {
-		return;
-	}
-
-	updateAfterSend(message, isFull, false);
-
+function sendMessage(message, isFull, isPresence) {
+	let msgtype = (isFull ? MSGISFULL : 0);
+	msgtype |= (isPresence ? MSGISPRESENCE : 0)
+	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
 const MULTIPART_SLICE = 1024 * 8;
 async function sendDataurl(dataUrl, uid, channel) {
-	const isImage = true;
-	const isFull = true;
+	let msgtype = MSGISFULL|MSGISIMAGE;
 
 	if (dataUrl.length > MULTIPART_SLICE) {
-		let isMultipart = true;
-		let isFirst;
-		let isLast;
-		gMultipartSendDict[uid + channel] = true;
+		msgtype |= MSGISMULTIPART;
+		gMultipartSendDict[get_uniq(uid, channel)] = true;
 		for (let i = 0; i < dataUrl.length; i += MULTIPART_SLICE) {
-			isFirst = false;
-			isLast = false;
 			if (0 == i) {
-				isFirst = true;
+				msgtype |= MSGISFIRST;
 			}
 			else if (i + MULTIPART_SLICE >= dataUrl.length) {
-				isLast = true;
+				msgtype |= MSGISLAST;
 				let data = dataUrl.slice(i, dataUrl.length);
-				sendData("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
-				gMultipartSendDict[uid + channel] = false;
+				sendData("send", gMyName, gMyChannel, data, msgtype);
+				gMultipartSendDict[get_uniq(uid, channel)] = false;
 				multipartContinue = false;
 				break;
 			}
 			let data = dataUrl.slice(i, i + MULTIPART_SLICE);
-			sendData("send", gMyName, gMyChannel, data, isFull, isImage, isMultipart, isFirst, isLast);
+			sendData("send", gMyName, gMyChannel, data, msgtype);
 			while (false == multipartContinue) {
 				await sleep(ASYNC_SLEEP);
 			}
@@ -886,10 +887,10 @@ async function sendDataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		sendData("send", gMyName, gMyChannel, data, isFull, isImage, false, false, false); /* is not multipart */
+		sendData("send", gMyName, gMyChannel, data, msgtype); /* is not multipart */
 	}
 
-	updateAfterSend(dataUrl, isFull, isImage);
+	updateAfterSend(dataUrl, true, true);
 }
 
 
