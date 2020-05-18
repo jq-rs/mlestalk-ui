@@ -118,7 +118,7 @@ input.exit_button {
     display: inline-block;
     float: rigth;
     width: 100px;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 #message_cont {
@@ -153,7 +153,7 @@ input.exit_button {
 #messages li {
     list-style: none;
     font-family: sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     padding: 1px 4px;
 }
 
