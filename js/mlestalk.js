@@ -28,6 +28,7 @@ const MSGISIMAGE =     (0x1 << 2);
 const MSGISMULTIPART = (0x1 << 3);
 const MSGISFIRST =     (0x1 << 4);
 const MSGISLAST =      (0x1 << 5);
+const BEGIN = new Date(Date.UTC(2018, 0, 1, 0, 0, 0));
 
 let gUidQueue = {};
 
@@ -406,15 +407,16 @@ function chanExit() {
 
 function presenceShow() {
 	let date = Date.now();
+
 	for (let userid in gIdTimestamp) {
 		let userpres = userid.split('|');
 		if(userpres[0] == gMyName)
 			continue;
-		console.log("Timestamp" + gIdTimestamp[userid][1].valueOf() + " Saved timestamp " + date.valueOf())
-		if(gIdTimestamp[userid][1].valueOf() + PRESENCETIME >= date.valueOf())
-			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> &#128994;</li>';
+		//console.log("Timestamp" + gIdTimestamp[userid].valueOf() + " Saved timestamp " + date.valueOf())
+		if(gIdTimestamp[userid].valueOf() + PRESENCETIME >= date.valueOf())
+			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
 		else
-			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> &#9711;</li>';
+			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
 		$('#presence_avail').append(li);
 	}
 	$('#message_cont').fadeOut(400, function () {
@@ -435,7 +437,7 @@ function closeSocket() {
 
 	//init all databases
 	for (let userid in gIdTimestamp) {
-		gIdTimestamp[userid] = [0,0];
+		gIdTimestamp[userid] = 0;
 	}
 	for (let userid in gIdReconnSync) {
 		gIdReconnSync[userid] = false;
@@ -534,7 +536,7 @@ function processData(uid, channel, msgTimestamp,
 	if (gIdHash[duid] == null) {
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
-		gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
+		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 		gIdNotifyTs[get_uniq(uid, channel)] = 0;
 		gIdLastMsgHash[get_uniq(uid, channel)] = 0;
 		gIdReconnSync[get_uniq(uid, channel)] = false;
@@ -579,7 +581,7 @@ function processData(uid, channel, msgTimestamp,
 		gMultipartDict[get_uniq(uid, channel)] = null;
 	}
 
-	if (gIdTimestamp[get_uniq(uid, channel)][0] <= msgTimestamp) {
+	if (gIdTimestamp[get_uniq(uid, channel)] <= msgTimestamp) {
 		let date;
 		let time;
 		let li;
@@ -591,16 +593,16 @@ function processData(uid, channel, msgTimestamp,
 		if (!gIdReconnSync[get_uniq(uid, channel)]) {
 			gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 		}
-		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)][0]) {
+		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)]) {
 			let mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 			if (mHash == gIdLastMsgHash[get_uniq(uid, channel)]) {
 				gIdReconnSync[get_uniq(uid, channel)] = false;
-				gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
+				gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 			}
 			return 0;
 		}
 		
-		gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
+		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 
