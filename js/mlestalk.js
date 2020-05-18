@@ -16,6 +16,7 @@ let gOwnAppend = false;
 let gIdHash = {};
 let gIdAppend = {};
 let gIdTimestamp = {};
+let gPresenceTs = {};
 let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
 let gIdLastMsgLen = {};
@@ -408,12 +409,12 @@ function chanExit() {
 function presenceShow() {
 	let date = Date.now();
 
-	for (let userid in gIdTimestamp) {
+	for (let userid in gPresenceTs) {
 		let userpres = userid.split('|');
 		if(userpres[0] == gMyName)
 			continue;
-		//console.log("Timestamp" + gIdTimestamp[userid].valueOf() + " Saved timestamp " + date.valueOf())
-		if(gIdTimestamp[userid].valueOf() + PRESENCETIME >= date.valueOf())
+		console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
+		if(gPresenceTs[userid].valueOf() + PRESENCETIME >= date.valueOf())
 			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
 		else
 			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
@@ -438,6 +439,9 @@ function closeSocket() {
 	//init all databases
 	for (let userid in gIdTimestamp) {
 		gIdTimestamp[userid] = 0;
+	}
+	for (let userid in gPresenceTs) {
+		gPresenceTs[userid] = 0;
 	}
 	for (let userid in gIdReconnSync) {
 		gIdReconnSync[userid] = false;
@@ -537,6 +541,7 @@ function processData(uid, channel, msgTimestamp,
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
 		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
+		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
 		gIdNotifyTs[get_uniq(uid, channel)] = 0;
 		gIdLastMsgHash[get_uniq(uid, channel)] = 0;
 		gIdReconnSync[get_uniq(uid, channel)] = false;
@@ -586,6 +591,7 @@ function processData(uid, channel, msgTimestamp,
 		let time;
 		let li;
 
+		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
 
 		if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 			return 0;
