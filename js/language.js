@@ -17,8 +17,8 @@ function setLanguage() {
 			$("#channel_user_name").text("Nimesi?");
 			$("#channel_name").text("Kanava?");
 			$("#channel_key").text("Jaettu avain?");
-			$("#channel_server").text("Mles WebSocket palvelimen osoite");
-			$("#channel_exit").val("poistu");
+            $("#channel_server").text("Mles WebSocket palvelimen osoite");
+            $("#channel_exit").val("poistu");
 			$("#app_info").text("lisätietoja sovelluksesta");
 			$("#legal").text("lakitiedot");
 			gWeekday[0] = "su";
@@ -36,8 +36,8 @@ function setLanguage() {
 			$("#channel_user_name").text("Ditt namn?");
 			$("#channel_name").text("Kanal?");
 			$("#channel_key").text("Delad nyckel?");
-			$("#channel_server").text("Mles WebSocket server adress");
-			$("#channel_exit").val("utgång");
+            $("#channel_server").text("Mles WebSocket server adress");
+            $("#channel_exit").val("utgång");
 			$("#app_info").text("appinfo");
 			$("#legal").text("rättslig");
 			gWeekday[0] = "sö";

@@ -35,6 +35,7 @@ const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
+const PRESENCETIME = 121 * 1000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
@@ -243,8 +244,19 @@ function onResume() {
 	}
 }
 
+let gIsPresenceView = false;
 function onBackKeyDown() {
-	//do nothing
+	if(!gInitOk)
+		return;
+	/* Open presence info */
+	if(!gIsPresenceView) {
+		presenceShow();
+		gIsPresenceView = true;
+	}
+	else {
+		presenceExit();
+		gIsPresenceView = false;
+	}
 }
 
 
@@ -392,13 +404,38 @@ function chanExit() {
 	closeSocket();
 }
 
+function presenceShow() {
+	let date = Date.now();
+	for (let userid in gIdTimestamp) {
+		let userpres = userid.split('|');
+		if(userpres[0] == gMyName)
+			continue;
+		console.log("Timestamp" + gIdTimestamp[userid][1].valueOf() + " Saved timestamp " + date.valueOf())
+		if(gIdTimestamp[userid][1].valueOf() + PRESENCETIME >= date.valueOf())
+			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> &#128994;</li>';
+		else
+			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> &#9711;</li>';
+		$('#presence_avail').append(li);
+	}
+	$('#message_cont').fadeOut(400, function () {
+		$('#presence_cont').fadeIn();
+	});
+}
+
+function presenceExit() {
+	$('#presence_cont').fadeOut(400, function () {
+		$('#message_cont').fadeIn();
+	});
+	$('#presence_avail').html('');
+}
+
 function closeSocket() {
 	initReconnect();
 	gInitOk = false;
 
 	//init all databases
 	for (let userid in gIdTimestamp) {
-		gIdTimestamp[userid] = 0;
+		gIdTimestamp[userid] = [0,0];
 	}
 	for (let userid in gIdReconnSync) {
 		gIdReconnSync[userid] = false;
@@ -431,6 +468,7 @@ function closeSocket() {
 	$("#input_key").val('');
 	if (!gIsTokenChannel)
 		$('#qrcode').fadeOut();
+	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
 		$('#messages').html('');
@@ -483,16 +521,20 @@ function processInit(uid, channel, myuid, mychan) {
 	return -1;
 }
 
+function get_duid(uid, channel) {
+	return uid.split(' ').join('_') + channel.split(' ').join('_');
+}
+
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isImage,
 	isMultipart, isFirst, isLast)
 {
 	//update hash
-	let duid = uid.split(' ').join('_');
+	let duid = get_duid(uid, channel);
 	if (gIdHash[duid] == null) {
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
-		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
+		gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
 		gIdNotifyTs[get_uniq(uid, channel)] = 0;
 		gIdLastMsgHash[get_uniq(uid, channel)] = 0;
 		gIdReconnSync[get_uniq(uid, channel)] = false;
@@ -537,7 +579,7 @@ function processData(uid, channel, msgTimestamp,
 		gMultipartDict[get_uniq(uid, channel)] = null;
 	}
 
-	if (gIdTimestamp[get_uniq(uid, channel)] <= msgTimestamp) {
+	if (gIdTimestamp[get_uniq(uid, channel)][0] <= msgTimestamp) {
 		let date;
 		let time;
 		let li;
@@ -549,16 +591,16 @@ function processData(uid, channel, msgTimestamp,
 		if (!gIdReconnSync[get_uniq(uid, channel)]) {
 			gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 		}
-		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)]) {
+		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)][0]) {
 			let mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 			if (mHash == gIdLastMsgHash[get_uniq(uid, channel)]) {
 				gIdReconnSync[get_uniq(uid, channel)] = false;
-				gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
+				gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
 			}
 			return 0;
 		}
 		
-		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
+		gIdTimestamp[get_uniq(uid, channel)] = [ msgTimestamp, Date.now() ];
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 

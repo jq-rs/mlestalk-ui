@@ -84,8 +84,15 @@
 				</div>
 				<div class="field">
 					<form>
+						<input id="presence_show" class="exit_button" type="button" value="presence" onclick="presenceShow()" />
 						<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
 					</form>
+				</div>
+			</div>
+			<div id="presence_cont" class="box_with_shadow">
+				<div id="presence_list" class="top_section">
+					<ul id="presence_avail">
+					</ul>
 				</div>
 			</div>
 		</div>
