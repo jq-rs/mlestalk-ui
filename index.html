@@ -17,12 +17,13 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="user-scalable=yes, initial-scale=1, maximum-scale=2, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
 	</head>
-	<script src="js/jquery-3.4.1.min.js"></script>
+	<script src="js/jquery-3.5.1.min.js"></script>
 	<script src="js/Autolinker.js"></script>
 	<script src="js/qrcode.js"></script>
 	<script src="js/siphash.js"></script>
 	<script src="cordova.js"></script>
 	<script src="js/mlestalk.js"></script>
+	<script src="js/language.js"></script>
 	
 	<body onload="onLoad()">
 		<div class="body_cont">
@@ -30,13 +31,13 @@
 				<form id="channel_submit" method="post">
 					<div style="float:right;"><select id="channel_localization" onchange="setLanguage()">
 						<option value="gb">🇬🇧</option>
+						<option value="fi">🇫🇮</option>
 						<option value="es">🇪🇸</option>
 						<option value="pt">🇵🇹</option>
 						<option value="de">🇩🇪</option>
 						<option value="fr">🇫🇷</option>
 						<option value="ru">🇷🇺</option>
 						<option value="se">🇸🇪</option>
-						<option value="fi">🇫🇮</option>
 					</select></div><br />
 					<p id="channel_user_name">Your name?</p>
 					<input type="text" id="input_name" />
