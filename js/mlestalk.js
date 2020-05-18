@@ -29,7 +29,6 @@ const MSGISIMAGE =     (0x1 << 2);
 const MSGISMULTIPART = (0x1 << 3);
 const MSGISFIRST =     (0x1 << 4);
 const MSGISLAST =      (0x1 << 5);
-const BEGIN = new Date(Date.UTC(2018, 0, 1, 0, 0, 0));
 
 let gUidQueue = {};
 
@@ -37,7 +36,7 @@ const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
-const PRESENCETIME = 121 * 1000; /* ms */
+const PRESENCETIME = 181 * 1000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
