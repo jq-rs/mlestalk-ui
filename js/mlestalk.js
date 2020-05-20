@@ -36,7 +36,9 @@ const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
-const PRESENCETIME = 181 * 1000; /* ms */
+const PRESENCETIME = (3 * 60 + 1) * 1000 ; /* ms */
+const IDLETIME = (10 * 60 + 1) * 1000; /* ms */
+const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
@@ -251,8 +253,8 @@ function onBackKeyDown() {
 		return;
 	/* Open presence info */
 	if(!gIsPresenceView) {
-		presenceShow();
 		gIsPresenceView = true;
+		presenceShow();
 	}
 	else {
 		presenceExit();
@@ -405,16 +407,18 @@ function chanExit() {
 	closeSocket();
 }
 
-function presenceShow() {
+function outputPresenceList() {
 	let date = Date.now();
 
 	for (let userid in gPresenceTs) {
 		let userpres = userid.split('|');
 		if(userpres[0] == gMyName)
 			continue;
-		console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
+		//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
 		if(gPresenceTs[userid].valueOf() + PRESENCETIME >= date.valueOf())
 			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
+		else if(gPresenceTs[userid].valueOf() + IDLETIME >= date.valueOf())
+			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
 		else
 			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
 		$('#presence_avail').append(li);
@@ -422,6 +426,15 @@ function presenceShow() {
 	$('#message_cont').fadeOut(400, function () {
 		$('#presence_cont').fadeIn();
 	});
+}
+
+async function presenceShow() {
+	while(gIsPresenceView) {
+		//console.log("Building presence list..");
+		$('#presence_avail').html('');
+		outputPresenceList();
+		await sleep(PRESENCE_SHOW_TIMER);
+	}
 }
 
 function presenceExit() {
@@ -548,8 +561,6 @@ function processData(uid, channel, msgTimestamp,
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
-	//begin presence time per user (now)
-
 	if (uid == gMyName) {
 		if (!gIsResync) {
 			console.log("Resyncing");
@@ -611,8 +622,10 @@ function processData(uid, channel, msgTimestamp,
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 
-		if (isPresence)
+		if (isPresence) {
+			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			return 1;
+		}
 
 		date = updateDateval(dateString);
 		if (date) {
