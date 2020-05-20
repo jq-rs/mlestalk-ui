@@ -37,7 +37,7 @@ const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
 const PRESENCETIME = (3 * 60 + 1) * 1000 ; /* ms */
-const IDLETIME = (10 * 60 + 1) * 1000; /* ms */
+const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
