@@ -146,6 +146,11 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message) {
 	}
 }
 
+function queueFlush(uid, channel) {
+	let q = uidQueueGet(uid, channel);
+	q.flush(q.getLength());
+}
+
 function queueSweepAndSend(uid, channel) {
 	let q = uidQueueGet(uid, channel);
 	let cnt = 0;
@@ -473,7 +478,7 @@ function closeSocket() {
 
 	gLastMessageSeenTs = 0;
 
-	queueSweepAndSend(gMyName, gMyChannel);
+	queueFlush(gMyName, gMyChannel);
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;

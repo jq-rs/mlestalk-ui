@@ -17,6 +17,10 @@ a {
 	height: 82vh;
 }
 
+.full_section {
+	height: 92vh;
+}
+
 .fuchsia {
     color: #77407b;
 }
