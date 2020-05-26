@@ -148,7 +148,9 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message) {
 
 function queueFlush(uid, channel) {
 	let q = uidQueueGet(uid, channel);
-	q.flush(q.getLength());
+	if (q) {
+		q.flush(q.getLength());
+	}
 }
 
 function queueSweepAndSend(uid, channel) {
