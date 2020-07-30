@@ -670,16 +670,15 @@ function processData(uid, channel, msgTimestamp,
 			$('#messages').append(li);
 			gIdAppend[duid] = true;
 		}
+		else
+			$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
 
 		if (isFull) {
-			gIdHash[duid] = gIdHash[duid] + 1;
+			gIdHash[duid] += 1;
 			gIdAppend[duid] = false;
 			if (isCordova && gLastReconnectTs < msgTimestamp) {
 				cordova.plugins.notification.badge.increase();
 			}
-		}
-		else if (true == gIdAppend[duid]) {
-			$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
 		}
 
 		if (isFull || $('#input_message').val().length == 0) {
