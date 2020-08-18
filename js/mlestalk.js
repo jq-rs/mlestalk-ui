@@ -864,9 +864,7 @@ function scrollToBottom() {
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
 		let date = Date.now();
-		let rarray = new Uint32Array(8);
-		window.crypto.getRandomValues(rarray);
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, msgtype, date];
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
 
 		if (!gIsResync || data.length == 0) {
 			if (data.length > 0) {
