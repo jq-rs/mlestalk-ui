@@ -406,6 +406,7 @@ function send(isFull) {
 	}
 	else {
 		sendMessage(message, isFull, false);
+		sendEmptyJoin(); //temp, remove this!
 		updateAfterSend(message, isFull, false);
 	}
 }
@@ -510,6 +511,7 @@ function processInit(uid, channel, myuid, mychan) {
 	if (uid.length > 0 && channel.length > 0) {
 		gInitOk = true;
 		sendInitJoin();
+		sendEmptyJoin(); //update presence immediately 
 
 		let li;
 		if (gIsReconnect && gLastMessageSeenTs > 0) {
