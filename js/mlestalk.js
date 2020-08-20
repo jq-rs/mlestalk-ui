@@ -29,6 +29,7 @@ const MSGISIMAGE =     (0x1 << 2);
 const MSGISMULTIPART = (0x1 << 3);
 const MSGISFIRST =     (0x1 << 4);
 const MSGISLAST =      (0x1 << 5);
+const MSGPRESACKREQ =  (0x1 << 6);
 
 let gUidQueue = {};
 
@@ -553,7 +554,7 @@ function get_duid(uid, channel) {
 }
 
 function processData(uid, channel, msgTimestamp,
-	message, isFull, isPresence, isImage,
+	message, isFull, isPresence, presAckRequired, isImage,
 	isMultipart, isFirst, isLast)
 {
 	//update hash
@@ -632,6 +633,10 @@ function processData(uid, channel, msgTimestamp,
 			gLastMessageSeenTs = msgTimestamp;
 
 		if (isPresence) {
+			if(presAckRequired) {
+				sendEmptyJoin();
+				//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
+			}
 			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			return 1;
 		}
@@ -746,8 +751,13 @@ gWebWorker.onmessage = function (e) {
 				initReconnect();
 
 				let ret = processData(uid, channel, msgTimestamp,
-					message, msgtype & MSGISFULL ? true : false, msgtype & MSGISPRESENCE ? true : false, msgtype & MSGISIMAGE ? true : false,
-					msgtype & MSGISMULTIPART ? true : false, msgtype & MSGISFIRST ? true : false, msgtype & MSGISLAST ? true : false);
+					message, msgtype & MSGISFULL ? true : false,
+					msgtype & MSGISPRESENCE ? true : false,
+					msgtype & MSGPRESACKREQ ? true : false,
+					msgtype & MSGISIMAGE ? true : false,
+					msgtype & MSGISMULTIPART ? true : false,
+					msgtype & MSGISFIRST ? true : false,
+					msgtype & MSGISLAST ? true : false);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
 				}
@@ -855,6 +865,7 @@ function syncReconnect() {
 
 	if ('' != gMyName && '' != gMyChannel) {
 		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
+		sendInitJoin();
 		sendEmptyJoin();
 	}
 }
