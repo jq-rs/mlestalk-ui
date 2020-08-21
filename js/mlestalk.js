@@ -23,13 +23,14 @@ let gIdLastMsgLen = {};
 let gIdReconnSync = {};
 
 /* Msg type flags */
-const MSGISFULL =       0x1;
-const MSGISPRESENCE =  (0x1 << 1);
-const MSGISIMAGE =     (0x1 << 2);
-const MSGISMULTIPART = (0x1 << 3);
-const MSGISFIRST =     (0x1 << 4);
-const MSGISLAST =      (0x1 << 5);
-const MSGPRESACKREQ =  (0x1 << 6);
+const MSGISFULL =         0x1;
+const MSGISPRESENCE =    (0x1 << 1);
+const MSGISIMAGE =       (0x1 << 2);
+const MSGISMULTIPART =   (0x1 << 3);
+const MSGISFIRST =       (0x1 << 4);
+const MSGISLAST =        (0x1 << 5);
+const MSGISPRESENCEACK = (0x1 << 6);
+const MSGPRESACKREQ =    (0x1 << 7);
 
 let gUidQueue = {};
 
@@ -392,6 +393,10 @@ function sendEmptyJoin() {
 	sendMessage("", false, true);
 }
 
+function sendPresAck() { 
+	sendMessage("", false, true, true);
+}
+
 /* Join after disconnect */
 function sendInitJoin() {
 	sendMessage("", true, false);
@@ -554,7 +559,7 @@ function get_duid(uid, channel) {
 }
 
 function processData(uid, channel, msgTimestamp,
-	message, isFull, isPresence, presAckRequired, isImage,
+	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast)
 {
 	//update hash
@@ -634,8 +639,8 @@ function processData(uid, channel, msgTimestamp,
 
 		if (isPresence) {
 			if(presAckRequired) {
-				sendEmptyJoin();
-				//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
+				sendPresAck();
+				console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			}
 			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			return 1;
@@ -753,6 +758,7 @@ gWebWorker.onmessage = function (e) {
 				let ret = processData(uid, channel, msgTimestamp,
 					message, msgtype & MSGISFULL ? true : false,
 					msgtype & MSGISPRESENCE ? true : false,
+					msgtype & MSGISPRESENCEACK ? true : false,
 					msgtype & MSGPRESACKREQ ? true : false,
 					msgtype & MSGISIMAGE ? true : false,
 					msgtype & MSGISMULTIPART ? true : false,
@@ -932,9 +938,10 @@ function updateAfterSend(message, isFull, isImage) {
 		$('#input_message').val('');
 }
 
-function sendMessage(message, isFull, isPresence) {
+function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	let msgtype = (isFull ? MSGISFULL : 0);
 	msgtype |= (isPresence ? MSGISPRESENCE : 0)
+	msgtype |= (isPresenceAck ? MSGISPRESENCEACK : 0)
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
