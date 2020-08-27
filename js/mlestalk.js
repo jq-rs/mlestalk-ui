@@ -569,6 +569,11 @@ function processForwardSecrecy(prevBdChannelKey, prevBdMsgCrypt) {
 	gForwardSecrecy = true;
 }
 
+function processForwardSecrecyOff() {
+	/* Update info about forward secrecy */
+	gForwardSecrecy = false;
+}
+
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast, fsEnabled)
@@ -834,6 +839,20 @@ gWebWorker.onmessage = function (e) {
 					}
 				}
 				break;
+		case "forwardsecrecyoff":
+			{
+				let uid = e.data[1];
+				let channel = e.data[2];
+				//let myuid = e.data[3];
+				//let mychan = e.data[4];
+
+				let ret = processForwardSecrecyOff(uid, channel);
+				console.log("Got forward secrecy off!")
+				if (ret < 0) {
+					console.log("Process close failed: " + ret);
+				}
+			}
+			break;
 	}
 }
 
