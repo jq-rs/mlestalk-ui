@@ -654,7 +654,7 @@ function processData(uid, channel, msgTimestamp,
 			gLastMessageSeenTs = msgTimestamp;
 
 		if (isPresence) {
-			if(presAckRequired) {
+			if(!gIsResync && presAckRequired) {
 				sendPresAck();
 				console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			}
@@ -697,10 +697,10 @@ function processData(uid, channel, msgTimestamp,
 			else {
 				if (uid != gMyName) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-						+ time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+						+ time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
 				}
 			}
 		}
@@ -972,7 +972,7 @@ function updateAfterSend(message, isFull, isImage) {
 			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
 		}
 		else {
-			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
 		}
 	}
 	else {
