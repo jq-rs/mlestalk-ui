@@ -21,6 +21,9 @@ let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
 let gIdLastMsgLen = {};
 let gIdReconnSync = {};
+let gPrevBdChannelKey = null;
+let gPrevBdMsgCrypt = null;
+let gForwardSecrecy = false;
 
 /* Msg type flags */
 const MSGISFULL =         0x1;
@@ -81,6 +84,7 @@ gWeekday[6] = "Sat";
 let gBgTitle = "MlesTalk in the background";
 let gBgText = "Notifications active";
 let gImageStr = "<an image>";
+let gForwardSecrecyStr = "Forward Secrecy";
 
 class Queue {
 	constructor(...elements) {
@@ -380,7 +384,7 @@ function askChannel() {
 			}
 
 			$('#name_channel_cont').fadeOut(400, function () {
-				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel]);
+				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel, gPrevBdChannelKey, gPrevBdMsgCrypt]);
 				$('#message_cont').fadeIn();
 			});
 		}
@@ -558,9 +562,16 @@ function get_duid(uid, channel) {
 	return uid.split(' ').join('_') + channel.split(' ').join('_');
 }
 
+function processForwardSecrecy(prevBdChannelKey, prevBdMsgCrypt) {
+	gPrevBdChannelKey = prevBdChannelKey;
+	gPrevBdMsgCrypt = prevBdMsgCrypt;
+	/* Update info about forward secrecy */
+	gForwardSecrecy = true;
+}
+
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
-	isMultipart, isFirst, isLast)
+	isMultipart, isFirst, isLast, fsEnabled)
 {
 	//update hash
 	let duid = get_duid(uid, channel);
@@ -669,12 +680,23 @@ function processData(uid, channel, msgTimestamp,
 			li += '</li></div>';
 		}
 		else {
-			if (uid != gMyName) {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-					+ time + "" + autolinker.link(message) + '</li></div>';
+			if(!fsEnabled) {
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+						+ time + "" + autolinker.link(message) + '</li></div>';
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+				}
 			}
 			else {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+						+ time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+				}
 			}
 		}
 
@@ -752,6 +774,7 @@ gWebWorker.onmessage = function (e) {
 				let msgTimestamp = e.data[3];
 				let message = e.data[4];
 				let msgtype = e.data[5];
+				let fsEnabled = e.data[6];
 
 				initReconnect();
 
@@ -763,7 +786,8 @@ gWebWorker.onmessage = function (e) {
 					msgtype & MSGISIMAGE ? true : false,
 					msgtype & MSGISMULTIPART ? true : false,
 					msgtype & MSGISFIRST ? true : false,
-					msgtype & MSGISLAST ? true : false);
+					msgtype & MSGISLAST ? true : false, 
+					fsEnabled);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
 				}
@@ -794,6 +818,22 @@ gWebWorker.onmessage = function (e) {
 				}
 			}
 			break;
+		case "forwardsecrecy":
+				{
+					let uid = e.data[1];
+					let channel = e.data[2];
+					//let myuid = e.data[3];
+					//let mychan = e.data[4];
+					let prevBdChannelKey = e.data[5];
+					let prevBdMsgCrypt = e.data[5];
+	
+					let ret = processForwardSecrecy(uid, channel, prevBdChannelKey, prevBdMsgCrypt);
+					console.log("Got forward secrecy!")
+					if (ret < 0) {
+						console.log("Process close failed: " + ret);
+					}
+				}
+				break;
 	}
 }
 
@@ -909,11 +949,17 @@ function updateAfterSend(message, isFull, isImage) {
 	}
 
 	if (!isImage) {
-		li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+		if (!gForwardSecrecy) {
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+		}
+		else {
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "<font color='#8ED2FF'>" + autolinker.link(message) + '</font></li></div>';
+		}
 	}
 	else {
-		li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
-			+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
+				+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+
 	}
 
 	if (isFull) {
