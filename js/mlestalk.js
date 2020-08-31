@@ -21,8 +21,7 @@ let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
 let gIdLastMsgLen = {};
 let gIdReconnSync = {};
-let gPrevBdChannelKey = null;
-let gPrevBdMsgCrypt = null;
+let gPrevBdKey = null;
 let gForwardSecrecy = false;
 
 /* Msg type flags */
@@ -384,7 +383,9 @@ function askChannel() {
 			}
 
 			$('#name_channel_cont').fadeOut(400, function () {
-				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel, gPrevBdChannelKey, gPrevBdMsgCrypt]);
+				/* Load keys from local storage */
+				getLocalBdKey();
+				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel, gPrevBdKey]);
 				$('#message_cont').fadeIn();
 			});
 		}
@@ -492,6 +493,7 @@ function closeSocket() {
 	gLastMessageSeenTs = 0;
 
 	queueFlush(gMyName, gMyChannel);
+	clearLocalBdKey();
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;
@@ -499,6 +501,7 @@ function closeSocket() {
 	gMyName = '';
 	gMyChannel = '';
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel, gIsTokenChannel]);
+
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
@@ -562,9 +565,10 @@ function get_duid(uid, channel) {
 	return uid.split(' ').join('_') + channel.split(' ').join('_');
 }
 
-function processForwardSecrecy(prevBdChannelKey, prevBdMsgCrypt) {
-	gPrevBdChannelKey = prevBdChannelKey;
-	gPrevBdMsgCrypt = prevBdMsgCrypt;
+function processForwardSecrecy(uid, channel, prevBdKey) {
+	gPrevBdKey = prevBdKey;
+	/* Save to local storage */
+	setLocalBdKey(prevBdKey);
 	/* Update info about forward secrecy */
 	gForwardSecrecy = true;
 }
@@ -829,10 +833,9 @@ gWebWorker.onmessage = function (e) {
 					let channel = e.data[2];
 					//let myuid = e.data[3];
 					//let mychan = e.data[4];
-					let prevBdChannelKey = e.data[5];
-					let prevBdMsgCrypt = e.data[5];
-	
-					let ret = processForwardSecrecy(uid, channel, prevBdChannelKey, prevBdMsgCrypt);
+					const prevBdKey = e.data[5];
+
+					let ret = processForwardSecrecy(uid, channel, prevBdKey);
 					console.log("Got forward secrecy!")
 					if (ret < 0) {
 						console.log("Process close failed: " + ret);
@@ -1105,6 +1108,26 @@ function getLocalAddrPortInput() {
 	else {
 		return "mles.io:443";
 	}
+}
+
+function getLocalBdKey() {
+	const bdKey = window.localStorage.getItem('gPrevBdKey');
+
+	if(bdKey) {
+		gPrevBdKey = bdKey;
+		console.log("Loading key from local storage!");
+	}
+}
+
+function setLocalBdKey(bdKey) {
+	if(bdKey) {
+		window.localStorage.setItem('gPrevBdKey', bdKey);
+		console.log("Saving keys to local storage!");
+	}
+}
+
+function clearLocalBdKey() {
+	window.localStorage.removeItem('gPrevBdKey');
 }
 
 /* Unit tests */
