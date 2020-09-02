@@ -1010,7 +1010,7 @@ function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
-const MULTIPART_SLICE = 1024 * 8;
+const MULTIPART_SLICE = 768; //kB
 async function sendDataurl(dataUrl, uid, channel) {
 	let msgtype = MSGISFULL|MSGISIMAGE;
 
