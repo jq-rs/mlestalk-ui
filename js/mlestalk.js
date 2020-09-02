@@ -417,7 +417,6 @@ function send(isFull) {
 	}
 	else {
 		sendMessage(message, isFull, false);
-		sendEmptyJoin(); //temp, remove this!
 		updateAfterSend(message, isFull, false);
 	}
 }
@@ -524,7 +523,6 @@ function processInit(uid, channel, myuid, mychan) {
 	if (uid.length > 0 && channel.length > 0) {
 		gInitOk = true;
 		sendInitJoin();
-		sendEmptyJoin(); //update presence immediately 
 
 		let li;
 		if (gIsReconnect && gLastMessageSeenTs > 0) {
@@ -836,7 +834,7 @@ gWebWorker.onmessage = function (e) {
 					const prevBdKey = e.data[5];
 
 					let ret = processForwardSecrecy(uid, channel, prevBdKey);
-					console.log("Got forward secrecy!")
+					//console.log("Got forward secrecy!")
 					if (ret < 0) {
 						console.log("Process close failed: " + ret);
 					}
@@ -850,7 +848,7 @@ gWebWorker.onmessage = function (e) {
 				//let mychan = e.data[4];
 
 				let ret = processForwardSecrecyOff(uid, channel);
-				console.log("Got forward secrecy off!")
+				//console.log("Got forward secrecy off!")
 				if (ret < 0) {
 					console.log("Process close failed: " + ret);
 				}
@@ -934,7 +932,6 @@ function syncReconnect() {
 	if ('' != gMyName && '' != gMyChannel) {
 		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
 		sendInitJoin();
-		sendEmptyJoin();
 	}
 }
 
@@ -1041,7 +1038,7 @@ async function sendDataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		sendData("send", gMyName, gMyChannel, data, msgtype); /* is not multipart */
+		sendData("send", gMyName, gMyChannel, dataUrl, msgtype); /* is not multipart */
 	}
 
 	updateAfterSend(dataUrl, true, true);
@@ -1115,14 +1112,14 @@ function getLocalBdKey() {
 
 	if(bdKey) {
 		gPrevBdKey = bdKey;
-		console.log("Loading key from local storage!");
+		//console.log("Loading key from local storage!");
 	}
 }
 
 function setLocalBdKey(bdKey) {
 	if(bdKey) {
 		window.localStorage.setItem('gPrevBdKey', bdKey);
-		console.log("Saving keys to local storage!");
+		//console.log("Saving keys to local storage!");
 	}
 }
 
