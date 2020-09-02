@@ -21,14 +21,18 @@ let gIdNotifyTs = {};
 let gIdLastMsgHash = {};
 let gIdLastMsgLen = {};
 let gIdReconnSync = {};
+let gPrevBdKey = null;
+let gForwardSecrecy = false;
 
 /* Msg type flags */
-const MSGISFULL =       0x1;
-const MSGISPRESENCE =  (0x1 << 1);
-const MSGISIMAGE =     (0x1 << 2);
-const MSGISMULTIPART = (0x1 << 3);
-const MSGISFIRST =     (0x1 << 4);
-const MSGISLAST =      (0x1 << 5);
+const MSGISFULL =         0x1;
+const MSGISPRESENCE =    (0x1 << 1);
+const MSGISIMAGE =       (0x1 << 2);
+const MSGISMULTIPART =   (0x1 << 3);
+const MSGISFIRST =       (0x1 << 4);
+const MSGISLAST =        (0x1 << 5);
+const MSGISPRESENCEACK = (0x1 << 6);
+const MSGPRESACKREQ =    (0x1 << 7);
 
 let gUidQueue = {};
 
@@ -79,6 +83,7 @@ gWeekday[6] = "Sat";
 let gBgTitle = "MlesTalk in the background";
 let gBgText = "Notifications active";
 let gImageStr = "<an image>";
+let gForwardSecrecyStr = "Forward Secrecy";
 
 class Queue {
 	constructor(...elements) {
@@ -378,7 +383,9 @@ function askChannel() {
 			}
 
 			$('#name_channel_cont').fadeOut(400, function () {
-				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel]);
+				/* Load keys from local storage */
+				getLocalBdKey();
+				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel, gPrevBdKey]);
 				$('#message_cont').fadeIn();
 			});
 		}
@@ -389,6 +396,10 @@ function askChannel() {
 /* Presence */
 function sendEmptyJoin() { 
 	sendMessage("", false, true);
+}
+
+function sendPresAck() { 
+	sendMessage("", false, true, true);
 }
 
 /* Join after disconnect */
@@ -481,6 +492,7 @@ function closeSocket() {
 	gLastMessageSeenTs = 0;
 
 	queueFlush(gMyName, gMyChannel);
+	clearLocalBdKey();
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;
@@ -488,6 +500,7 @@ function closeSocket() {
 	gMyName = '';
 	gMyChannel = '';
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel, gIsTokenChannel]);
+
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
@@ -550,9 +563,22 @@ function get_duid(uid, channel) {
 	return uid.split(' ').join('_') + channel.split(' ').join('_');
 }
 
+function processForwardSecrecy(uid, channel, prevBdKey) {
+	gPrevBdKey = prevBdKey;
+	/* Save to local storage */
+	setLocalBdKey(prevBdKey);
+	/* Update info about forward secrecy */
+	gForwardSecrecy = true;
+}
+
+function processForwardSecrecyOff() {
+	/* Update info about forward secrecy */
+	gForwardSecrecy = false;
+}
+
 function processData(uid, channel, msgTimestamp,
-	message, isFull, isPresence, isImage,
-	isMultipart, isFirst, isLast)
+	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
+	isMultipart, isFirst, isLast, fsEnabled)
 {
 	//update hash
 	let duid = get_duid(uid, channel);
@@ -630,6 +656,10 @@ function processData(uid, channel, msgTimestamp,
 			gLastMessageSeenTs = msgTimestamp;
 
 		if (isPresence) {
+			if(!gIsResync && presAckRequired) {
+				sendPresAck();
+				console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
+			}
 			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			return 1;
 		}
@@ -657,12 +687,23 @@ function processData(uid, channel, msgTimestamp,
 			li += '</li></div>';
 		}
 		else {
-			if (uid != gMyName) {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-					+ time + "" + autolinker.link(message) + '</li></div>';
+			if(!fsEnabled) {
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+						+ time + "" + autolinker.link(message) + '</li></div>';
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+				}
 			}
 			else {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+						+ time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
+				}
 			}
 		}
 
@@ -740,12 +781,20 @@ gWebWorker.onmessage = function (e) {
 				let msgTimestamp = e.data[3];
 				let message = e.data[4];
 				let msgtype = e.data[5];
+				let fsEnabled = e.data[6];
 
 				initReconnect();
 
 				let ret = processData(uid, channel, msgTimestamp,
-					message, msgtype & MSGISFULL ? true : false, msgtype & MSGISPRESENCE ? true : false, msgtype & MSGISIMAGE ? true : false,
-					msgtype & MSGISMULTIPART ? true : false, msgtype & MSGISFIRST ? true : false, msgtype & MSGISLAST ? true : false);
+					message, msgtype & MSGISFULL ? true : false,
+					msgtype & MSGISPRESENCE ? true : false,
+					msgtype & MSGISPRESENCEACK ? true : false,
+					msgtype & MSGPRESACKREQ ? true : false,
+					msgtype & MSGISIMAGE ? true : false,
+					msgtype & MSGISMULTIPART ? true : false,
+					msgtype & MSGISFIRST ? true : false,
+					msgtype & MSGISLAST ? true : false, 
+					fsEnabled);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
 				}
@@ -771,6 +820,35 @@ gWebWorker.onmessage = function (e) {
 				let mychan = e.data[4];
 
 				let ret = processClose(uid, channel, mychan);
+				if (ret < 0) {
+					console.log("Process close failed: " + ret);
+				}
+			}
+			break;
+		case "forwardsecrecy":
+				{
+					let uid = e.data[1];
+					let channel = e.data[2];
+					//let myuid = e.data[3];
+					//let mychan = e.data[4];
+					const prevBdKey = e.data[5];
+
+					let ret = processForwardSecrecy(uid, channel, prevBdKey);
+					//console.log("Got forward secrecy!")
+					if (ret < 0) {
+						console.log("Process close failed: " + ret);
+					}
+				}
+				break;
+		case "forwardsecrecyoff":
+			{
+				let uid = e.data[1];
+				let channel = e.data[2];
+				//let myuid = e.data[3];
+				//let mychan = e.data[4];
+
+				let ret = processForwardSecrecyOff(uid, channel);
+				//console.log("Got forward secrecy off!")
 				if (ret < 0) {
 					console.log("Process close failed: " + ret);
 				}
@@ -853,7 +931,7 @@ function syncReconnect() {
 
 	if ('' != gMyName && '' != gMyChannel) {
 		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
-		sendEmptyJoin();
+		sendInitJoin();
 	}
 }
 
@@ -864,9 +942,7 @@ function scrollToBottom() {
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
 		let date = Date.now();
-		let rarray = new Uint32Array(8);
-		window.crypto.getRandomValues(rarray);
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, rarray, msgtype, date];
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
 
 		if (!gIsResync || data.length == 0) {
 			if (data.length > 0) {
@@ -892,11 +968,17 @@ function updateAfterSend(message, isFull, isImage) {
 	}
 
 	if (!isImage) {
-		li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+		if (!gForwardSecrecy) {
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+		}
+		else {
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "<font color='#84C7FF'>" + autolinker.link(message) + '</font></li></div>';
+		}
 	}
 	else {
-		li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
-			+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
+				+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+
 	}
 
 	if (isFull) {
@@ -921,13 +1003,14 @@ function updateAfterSend(message, isFull, isImage) {
 		$('#input_message').val('');
 }
 
-function sendMessage(message, isFull, isPresence) {
+function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	let msgtype = (isFull ? MSGISFULL : 0);
 	msgtype |= (isPresence ? MSGISPRESENCE : 0)
+	msgtype |= (isPresenceAck ? MSGISPRESENCEACK : 0)
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
-const MULTIPART_SLICE = 1024 * 8;
+const MULTIPART_SLICE = 768; //kB
 async function sendDataurl(dataUrl, uid, channel) {
 	let msgtype = MSGISFULL|MSGISIMAGE;
 
@@ -955,7 +1038,7 @@ async function sendDataurl(dataUrl, uid, channel) {
 		}
 	}
 	else {
-		sendData("send", gMyName, gMyChannel, data, msgtype); /* is not multipart */
+		sendData("send", gMyName, gMyChannel, dataUrl, msgtype); /* is not multipart */
 	}
 
 	updateAfterSend(dataUrl, true, true);
@@ -1022,6 +1105,26 @@ function getLocalAddrPortInput() {
 	else {
 		return "mles.io:443";
 	}
+}
+
+function getLocalBdKey() {
+	const bdKey = window.localStorage.getItem('gPrevBdKey');
+
+	if(bdKey) {
+		gPrevBdKey = bdKey;
+		//console.log("Loading key from local storage!");
+	}
+}
+
+function setLocalBdKey(bdKey) {
+	if(bdKey) {
+		window.localStorage.setItem('gPrevBdKey', bdKey);
+		//console.log("Saving keys to local storage!");
+	}
+}
+
+function clearLocalBdKey() {
+	window.localStorage.removeItem('gPrevBdKey');
 }
 
 /* Unit tests */
