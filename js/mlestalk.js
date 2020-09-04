@@ -495,6 +495,7 @@ function closeSocket() {
 	queueFlush(gMyName, gMyChannel);
 	clearLocalBdKey();
 	gForwardSecrecy = false;
+	gPrevBdKey = null;
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName;
