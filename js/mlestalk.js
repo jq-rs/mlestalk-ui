@@ -46,11 +46,11 @@ const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
-const RESYNC_TIMEOUT = 15000; /* ms */
+const RESYNC_TIMEOUT = 20000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
-const ASYNC_SLEEP = 3 /* ms */
+const ASYNC_SLEEP = 1 /* ms */
 let gReconnTimeout = RETIMEOUT;
 let gReconnAttempts = 0;
 
@@ -112,6 +112,11 @@ class Queue {
 			this.elements.splice(0, val);
 		}
 	}
+	remove(val) {
+		if (val > 0 && val <= this.getLength()) {
+			this.elements.splice(val, 1);
+		}
+	}
 	getLength() {
 		return this.elements.length;
 	}
@@ -167,9 +172,16 @@ function queueSweepAndSend(uid, channel) {
 			let obj = q.get(i);
 			let tmp = obj[1];
 			if (tmp[2] == uid) {
+				const fs = obj[4];
+				if(fs) {
+					tmp[0] = "resend_prev";
+				}
 				gWebWorker.postMessage(tmp);
 				cnt++;
 				gIdLastMsgHash[tmp[2]] = hashMessage(tmp[2], tmp[1]);
+				if(fs) {
+					q.remove(i);
+				}
 			}
 		}
 		for (let userid in gIdReconnSync) {
@@ -408,7 +420,7 @@ function sendInitJoin() {
 	sendMessage("", true, false);
 }
 
-function send(isFull) {
+async function send(isFull) {
 	let message = $('#input_message').val();
 	let file = document.getElementById("input_file").files[0];
 
@@ -418,6 +430,7 @@ function send(isFull) {
 	}
 	else {
 		sendMessage(message, isFull, false);
+		await sleep(ASYNC_SLEEP); //in case fs state changes, wait a while
 		updateAfterSend(message, isFull, false);
 	}
 }
@@ -955,7 +968,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 			gWebWorker.postMessage(arr);
 		}
 		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0)
-			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), msgtype & MSGISIMAGE ? true : false]);
+			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
 	}
 }
 
@@ -1014,7 +1027,7 @@ function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
-const MULTIPART_SLICE = 768; //kB
+const MULTIPART_SLICE = 768; //B
 async function sendDataurl(dataUrl, uid, channel) {
 	let msgtype = MSGISFULL|MSGISIMAGE;
 
