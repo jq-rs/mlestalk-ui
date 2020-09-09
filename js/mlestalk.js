@@ -18,9 +18,7 @@ let gIdAppend = {};
 let gIdTimestamp = {};
 let gPresenceTs = {};
 let gIdNotifyTs = {};
-let gIdLastMsgHash = {};
 let gIdLastMsgLen = {};
-let gIdReconnSync = {};
 let gPrevBdKey = null;
 let gForwardSecrecy = false;
 
@@ -46,7 +44,7 @@ const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
-const RESYNC_TIMEOUT = 20000; /* ms */
+const RESYNC_TIMEOUT = 15000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
@@ -176,16 +174,13 @@ function queueSweepAndSend(uid, channel) {
 				if(fs) {
 					tmp[0] = "resend_prev";
 				}
-				gWebWorker.postMessage(tmp);
 				cnt++;
-				gIdLastMsgHash[tmp[2]] = hashMessage(tmp[2], tmp[1]);
+				gWebWorker.postMessage(tmp);
 				if(fs) {
 					q.remove(i);
+					i -= 1;
 				}
 			}
-		}
-		for (let userid in gIdReconnSync) {
-			gIdReconnSync[userid] = false;
 		}
 	}
 	gIsResync = false;
@@ -482,19 +477,13 @@ function closeSocket() {
 
 	//init all databases
 	for (let userid in gIdTimestamp) {
-		gIdTimestamp[userid] = 0;
+		gIdTimestamp = {};
 	}
 	for (let userid in gPresenceTs) {
 		gPresenceTs[userid] = 0;
 	}
-	for (let userid in gIdReconnSync) {
-		gIdReconnSync[userid] = false;
-	}
 	for (let userid in gIdNotifyTs) {
 		gIdNotifyTs[userid] = 0;
-	}
-	for (let userid in gIdLastMsgHash) {
-		gIdLastMsgHash[userid] = 0;
 	}
 	for (let duid in gIdHash) {
 		gIdHash[duid] = null;
@@ -542,9 +531,6 @@ function processInit(uid, channel, myuid, mychan) {
 
 		let li;
 		if (gIsReconnect && gLastMessageSeenTs > 0) {
-			for (let userid in gIdReconnSync) {
-				gIdReconnSync[userid] = true;
-			}
 			gLastReconnectTs = gLastMessageSeenTs;
 		}
 		else {
@@ -592,6 +578,26 @@ function processForwardSecrecyOff() {
 	gForwardSecrecy = false;
 }
 
+function msgHashHandle(uid, channel, msgTimestamp, mhash) {
+	let timedict = gIdTimestamp[get_uniq(uid, channel)];
+	if(!timedict) {
+		gIdTimestamp[get_uniq(uid, channel)] = {};
+		timedict = gIdTimestamp[get_uniq(uid, channel)];
+	}
+	let arr = timedict[msgTimestamp];
+	if(!arr) {
+		timedict[msgTimestamp] = [mhash];
+		return true;
+	}
+	for (const hash of arr) {
+		if(hash == mhash) {
+			return false;
+		}
+	}
+	arr.push(mhash);
+	return true;
+}
+
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast, fsEnabled)
@@ -601,11 +607,8 @@ function processData(uid, channel, msgTimestamp,
 	if (gIdHash[duid] == null) {
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
-		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
 		gIdNotifyTs[get_uniq(uid, channel)] = 0;
-		gIdLastMsgHash[get_uniq(uid, channel)] = 0;
-		gIdReconnSync[get_uniq(uid, channel)] = false;
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
@@ -645,29 +648,17 @@ function processData(uid, channel, msgTimestamp,
 		gMultipartDict[get_uniq(uid, channel)] = null;
 	}
 
-	if (gIdTimestamp[get_uniq(uid, channel)] <= msgTimestamp) {
+	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
+		return 0;
+
+	const mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+	if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		let date;
 		let time;
 		let li;
 
 		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
 
-		if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
-			return 0;
-
-		if (!gIdReconnSync[get_uniq(uid, channel)]) {
-			gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-		}
-		else if (msgTimestamp >= gIdTimestamp[get_uniq(uid, channel)]) {
-			let mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-			if (mHash == gIdLastMsgHash[get_uniq(uid, channel)]) {
-				gIdReconnSync[get_uniq(uid, channel)] = false;
-				gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
-			}
-			return 0;
-		}
-		
-		gIdTimestamp[get_uniq(uid, channel)] = msgTimestamp;
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 
@@ -947,7 +938,7 @@ function syncReconnect() {
 		return;
 
 	if ('' != gMyName && '' != gMyChannel) {
-		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel]);
+		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel, gPrevBdKey]);
 		sendInitJoin();
 	}
 }
@@ -956,19 +947,48 @@ function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
 
+const BEGIN = new Date(Date.UTC(2018, 0, 1, 0, 0, 0));
+function createTimestamp(valueofdate, weekstamp) {
+	let begin = BEGIN;
+	let this_week = new Date(begin.valueOf() + weekstamp * 1000 * 60 * 60 * 24 * 7);
+	let timestamp = parseInt((valueofdate - this_week) / 1000 / 60);
+	return timestamp;
+}
+
+function createWeekstamp(valueofdate) {
+	let begin = BEGIN;
+	let now = new Date(valueofdate);
+	let weekstamp = parseInt((now - begin) / 1000 / 60 / 60 / 24 / 7);
+	return weekstamp;
+}
+
+function readTimestamp(timestamp, weekstamp) {
+	let begin = BEGIN;
+	let weeks = new Date(begin.valueOf() + weekstamp * 1000 * 60 * 60 * 24 * 7);
+	let extension = timestamp * 1000 * 60;
+	let time = new Date(weeks.valueOf() + extension);
+	return time;
+}
+
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
-		let date = Date.now();
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
+		const date = Date.now();
+		const weekstamp = createWeekstamp(date);
+		const timestamp = createTimestamp(date, weekstamp);
+		const msgDate = readTimestamp(timestamp, weekstamp);
+		let mHash;
 
-		if (!gIsResync || data.length == 0) {
-			if (data.length > 0) {
-				gIdLastMsgHash[get_uniq(uid, channel)] = hashMessage(uid, data);
-			}
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
+		if(data.length > 0) {
+			mHash = hashMessage(uid, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
+			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
+		}
+		if (!gIsResync) {
 			gWebWorker.postMessage(arr);
 		}
-		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0)
-			queuePostMsg(uid, channel, [date, arr, hashMessage(uid, data), msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
+		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0) {
+			queuePostMsg(uid, channel, [date, arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
+		}
 	}
 }
 
