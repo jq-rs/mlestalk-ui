@@ -166,7 +166,8 @@ function queueSweepAndSend(uid, channel) {
 	let q = uidQueueGet(uid, channel);
 	let cnt = 0;
 	if (q) {
-		for (let i = 0; i < q.getLength(); i++) {
+		let len = q.getLength();
+		for (let i = 0; i < len; i++) {
 			let obj = q.get(i);
 			let tmp = obj[1];
 			if (tmp[2] == uid) {
@@ -179,6 +180,7 @@ function queueSweepAndSend(uid, channel) {
 				if(fs) {
 					q.remove(i);
 					i -= 1;
+					len -= 1;
 				}
 			}
 		}
@@ -930,17 +932,7 @@ async function reconnect(uid, channel) {
 	gIsReconnect = true;
 	await sleep(gReconnTimeout);
 	gReconnTimeout *= 2;
-	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel]);
-}
-
-function syncReconnect() {
-	if (gIsReconnect)
-		return;
-
-	if ('' != gMyName && '' != gMyChannel) {
-		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel, gPrevBdKey]);
-		sendInitJoin();
-	}
+	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel, gPrevBdKey]);
 }
 
 function scrollToBottom() {
@@ -987,7 +979,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 			gWebWorker.postMessage(arr);
 		}
 		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0) {
-			queuePostMsg(uid, channel, [date, arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
+			queuePostMsg(uid, channel, [msgDate.valueOf(), arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
 		}
 	}
 }
