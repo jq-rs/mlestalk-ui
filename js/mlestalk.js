@@ -131,7 +131,7 @@ function uidQueueGet(uid, channel) {
 	return gUidQueue[get_uniq(uid, channel)];
 }
 
-function queueFindAndMatch(msgTimestamp, uid, channel, message) {
+function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
 	let q = uidQueueGet(uid, channel);
 	if (q) {
 		let lastSeen = -1;
@@ -142,7 +142,7 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message) {
 				continue;
 			}
 			if(message.length > 0) {
-				let hash = hashMessage(uid, message);
+				let hash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				if (obj[2] == hash) {
 					lastSeen = i + 1;
 					break;
@@ -620,7 +620,7 @@ function processData(uid, channel, msgTimestamp,
 			resync(uid, channel);
 		}
 		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Full or presence message */
-			queueFindAndMatch(msgTimestamp, uid, channel, message);
+			queueFindAndMatch(msgTimestamp, uid, channel, message, isFull);
 	}
 	else if (gOwnId > 0 && message.length >= 0 && gLastWrittenMsg.length > 0) {
 		let end = "</li></div>";
