@@ -31,6 +31,8 @@ const MSGISFIRST =       (0x1 << 4);
 const MSGISLAST =        (0x1 << 5);
 const MSGISPRESENCEACK = (0x1 << 6);
 const MSGPRESACKREQ =    (0x1 << 7);
+const MSGISBDONE =       (0x1 << 8);
+const MSGISBDACK =       (0x1 << 9);
 
 let gUidQueue = {};
 
@@ -939,42 +941,19 @@ function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
 
-const BEGIN = new Date(Date.UTC(2018, 0, 1, 0, 0, 0));
-function createTimestamp(valueofdate, weekstamp) {
-	let begin = BEGIN;
-	let this_week = new Date(begin.valueOf() + weekstamp * 1000 * 60 * 60 * 24 * 7);
-	let timestamp = parseInt((valueofdate - this_week) / 1000 / 60);
-	return timestamp;
-}
-
-function createWeekstamp(valueofdate) {
-	let begin = BEGIN;
-	let now = new Date(valueofdate);
-	let weekstamp = parseInt((now - begin) / 1000 / 60 / 60 / 24 / 7);
-	return weekstamp;
-}
-
-function readTimestamp(timestamp, weekstamp) {
-	let begin = BEGIN;
-	let weeks = new Date(begin.valueOf() + weekstamp * 1000 * 60 * 60 * 24 * 7);
-	let extension = timestamp * 1000 * 60;
-	let time = new Date(weeks.valueOf() + extension);
-	return time;
-}
-
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
-		const date = Date.now();
-		const weekstamp = createWeekstamp(date);
-		const timestamp = createTimestamp(date, weekstamp);
-		const msgDate = readTimestamp(timestamp, weekstamp);
+		const date = Date.now() //seconds since beginning of time
+		const msgDate = parseInt(date / 1000);
 		let mHash;
 
 		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
-		if(data.length > 0) {
+
+		if(!(msgtype & MSGISPRESENCE) && gSipKeyIsOk) {
 			mHash = hashMessage(uid, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
 			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
 		}
+
 		if (!gIsResync) {
 			gWebWorker.postMessage(arr);
 		}
@@ -1034,8 +1013,8 @@ function updateAfterSend(message, isFull, isImage) {
 
 function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	let msgtype = (isFull ? MSGISFULL : 0);
-	msgtype |= (isPresence ? MSGISPRESENCE : 0)
-	msgtype |= (isPresenceAck ? MSGISPRESENCEACK : 0)
+	msgtype |= (isPresence ? MSGISPRESENCE : 0);
+	msgtype |= (isPresenceAck ? MSGISPRESENCEACK : 0);
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
