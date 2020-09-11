@@ -738,14 +738,15 @@ function processData(uid, channel, msgTimestamp,
 			scrollToBottom();
 		}
 
-		if (uid != gMyName && isFull && gIdNotifyTs[get_uniq(uid, channel)] < msgTimestamp) {
+		const notifyTimestamp = parseInt(msgTimestamp/1000/60); //one notify per minute
+		if (uid != gMyName && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
 					message = gImageStr;
 				}
-				doNotify(uid, channel, msgTimestamp, message);
+				doNotify(uid, channel, notifyTimestamp, message);
 			}
-			gIdNotifyTs[get_uniq(uid, channel)] = msgTimestamp;
+			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
 		}
 	}
 	return 0;
@@ -943,11 +944,10 @@ function scrollToBottom() {
 
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
-		const date = Date.now() //seconds since beginning of time
-		const msgDate = parseInt(date / 1000);
+		const msgDate = parseInt(Date.now()/1000) * 1000; //in seconds
 		let mHash;
 
-		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, date];
+		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, msgDate.valueOf()];
 
 		if(!(msgtype & MSGISPRESENCE) && gSipKeyIsOk) {
 			mHash = hashMessage(uid, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
