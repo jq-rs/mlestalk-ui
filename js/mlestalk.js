@@ -938,6 +938,17 @@ async function reconnect(uid, channel) {
 	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel, gPrevBdKey]);
 }
 
+/* Called from the background thread */
+function syncReconnect() {
+	if (gIsReconnect)
+		return;
+
+	if ('' != gMyName && '' != gMyChannel) {
+		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel, gPrevBdKey]);
+		sendEmptyJoin();
+	}
+}
+
 function scrollToBottom() {
 	messages_list.scrollTop = messages_list.scrollHeight;
 }
