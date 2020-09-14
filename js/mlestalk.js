@@ -636,6 +636,7 @@ function processData(uid, channel, msgTimestamp,
 		//update presence if current time per user is larger than begin presence
 	}
 
+	const mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (isMultipart) {
 		if (!gMultipartDict[get_uniq(uid, channel)]) {
 			if (!isFirst) {
@@ -644,19 +645,23 @@ function processData(uid, channel, msgTimestamp,
 			}
 			gMultipartDict[get_uniq(uid, channel)] = "";
 		}
-		gMultipartDict[get_uniq(uid, channel)] += message;
-		if (!isLast) {
-			return 0;
+		// handle image hashing here
+		if(msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+			gMultipartDict[get_uniq(uid, channel)] += message;
+			if (!isLast) {
+				return 0;
+			}
+			message = gMultipartDict[get_uniq(uid, channel)];
+			gMultipartDict[get_uniq(uid, channel)] = null;
 		}
-		message = gMultipartDict[get_uniq(uid, channel)];
-		gMultipartDict[get_uniq(uid, channel)] = null;
+		else
+			return 0;
 	}
 
 	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 		return 0;
 
-	const mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-	if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+	if (isImage || msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		let date;
 		let time;
 		let li;
