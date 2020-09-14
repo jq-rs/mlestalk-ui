@@ -645,7 +645,7 @@ function processData(uid, channel, msgTimestamp,
 			}
 			gMultipartDict[get_uniq(uid, channel)] = "";
 		}
-		// handle image hashing here
+		// handle multipart hashing here
 		if(msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 			gMultipartDict[get_uniq(uid, channel)] += message;
 			if (!isLast) {
@@ -661,7 +661,7 @@ function processData(uid, channel, msgTimestamp,
 	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 		return 0;
 
-	if (isImage || msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+	if (isMultipart || msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		let date;
 		let time;
 		let li;
