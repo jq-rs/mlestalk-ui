@@ -245,7 +245,7 @@ function timeNow() {
 }
 
 function get_uniq(uid, channel) {
-	return uid + "|" + channel;
+	return SipHash.hash_hex(gSipKey, uid + channel);
 }
 
 let gWebWorker = new Worker('webworker/js/webworker.js');
@@ -566,7 +566,7 @@ function processInit(uid, channel, myuid, mychan) {
 }
 
 function get_duid(uid, channel) {
-	return uid.split(' ').join('_') + channel.split(' ').join('_');
+	return SipHash.hash_hex(gSipKey, uid + channel);
 }
 
 function processForwardSecrecy(uid, channel, prevBdKey) {
