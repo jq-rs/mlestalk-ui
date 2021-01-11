@@ -17,7 +17,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Nimesi?");
 			$("#channel_name").text("Kanava?");
 			$("#channel_key").text("Jaettu avain?");
-            $("#channel_server").text("Mles WebSocket palvelimen osoite");
+            $("#channel_server").text("WebSocket palvelimen osoite");
             $("#channel_exit").val("poistu");
 			$("#app_info").text("lisätietoja sovelluksesta");
 			$("#legal").text("lakitiedot");
@@ -36,7 +36,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Ditt namn?");
 			$("#channel_name").text("Kanal?");
 			$("#channel_key").text("Delad nyckel?");
-            $("#channel_server").text("Mles WebSocket server adress");
+            $("#channel_server").text("WebSocket server adress");
             $("#channel_exit").val("utgång");
 			$("#app_info").text("appinfo");
 			$("#legal").text("rättslig");
@@ -55,7 +55,7 @@ function setLanguage() {
 			$("#channel_user_name").text("¿Su nombre?");
 			$("#channel_name").text("¿Canal?");
 			$("#channel_key").text("¿Llave compartida?");
-			$("#channel_server").text("Dirección del servidor Mles Websocket");
+			$("#channel_server").text("Dirección del servidor Websocket");
 			$("#channel_exit").val("salida");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
@@ -74,7 +74,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Dein name?");
 			$("#channel_name").text("Kanal?");
 			$("#channel_key").text("Gemeinsamer Schlüssel?");
-			$("#channel_server").text("Mles WebSocket Serveradresse");
+			$("#channel_server").text("WebSocket Serveradresse");
 			$("#channel_exit").val("abgehen");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
@@ -93,7 +93,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Votre nom?");
 			$("#channel_name").text("Canal?");
 			$("#channel_key").text("Clé partagée?");
-			$("#channel_server").text("Mles WebSocket adresse du serveur");
+			$("#channel_server").text("WebSocket adresse du serveur");
 			$("#channel_exit").val("sortie");
 			$("#app_info").text("info sur l'app");
 			$("#legal").text("légal");
@@ -112,7 +112,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Seu nome?");
 			$("#channel_name").text("Canal?");
 			$("#channel_key").text("Chave compartilhada?");
-			$("#channel_server").text("Endereço do servidor Mles Websocket");
+			$("#channel_server").text("Endereço do servidor Websocket");
 			$("#channel_exit").val("saída");
 			$("#app_info").text("informação da aplicação");
 			$("#legal").text("legal");
@@ -131,7 +131,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Твое имя?");
 			$("#channel_name").text("Канал?");
 			$("#channel_key").text("Общий ключ?");
-			$("#channel_server").text("Адрес сервера Mles Websocket");
+			$("#channel_server").text("Адрес сервера Websocket");
 			$("#channel_exit").val("выход");
 			$("#app_info").text("информация о приложении");
 			$("#legal").text("правовой");
@@ -151,7 +151,7 @@ function setLanguage() {
 			$("#channel_user_name").text("Your name?");
 			$("#channel_name").text("Channel?");
 			$("#channel_key").text("Shared key?");
-			$("#channel_server").text("Mles WebSocket server address");
+			$("#channel_server").text("WebSocket server address");
 			$("#channel_exit").val("exit");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");

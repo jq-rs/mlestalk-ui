@@ -23,16 +23,16 @@ let gPrevBdKey = null;
 let gForwardSecrecy = false;
 
 /* Msg type flags */
-const MSGISFULL =         0x1;
-const MSGISPRESENCE =    (0x1 << 1);
-const MSGISIMAGE =       (0x1 << 2);
-const MSGISMULTIPART =   (0x1 << 3);
-const MSGISFIRST =       (0x1 << 4);
-const MSGISLAST =        (0x1 << 5);
+const MSGISFULL = 0x1;
+const MSGISPRESENCE = (0x1 << 1);
+const MSGISIMAGE = (0x1 << 2);
+const MSGISMULTIPART = (0x1 << 3);
+const MSGISFIRST = (0x1 << 4);
+const MSGISLAST = (0x1 << 5);
 const MSGISPRESENCEACK = (0x1 << 6);
-const MSGPRESACKREQ =    (0x1 << 7);
-const MSGISBDONE =       (0x1 << 8);
-const MSGISBDACK =       (0x1 << 9);
+const MSGPRESACKREQ = (0x1 << 7);
+const MSGISBDONE = (0x1 << 8);
+const MSGISBDACK = (0x1 << 9);
 
 let gUidQueue = {};
 
@@ -40,13 +40,13 @@ const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
-const PRESENCETIME = (3 * 60 + 1) * 1000 ; /* ms */
+const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
-const RESYNC_TIMEOUT = 15000; /* ms */
+const RESYNC_TIMEOUT = 2000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
@@ -143,7 +143,7 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
 				lastSeen = i + 1;
 				continue;
 			}
-			if(message.length > 0) {
+			if (message.length > 0) {
 				let hash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				if (obj[2] == hash) {
 					lastSeen = i + 1;
@@ -174,12 +174,12 @@ function queueSweepAndSend(uid, channel) {
 			let tmp = obj[1];
 			if (tmp[2] == uid) {
 				const fs = obj[4];
-				if(fs) {
+				if (fs) {
 					tmp[0] = "resend_prev";
 				}
 				cnt++;
 				gWebWorker.postMessage(tmp);
-				if(fs) {
+				if (fs) {
 					q.remove(i);
 					i -= 1;
 					len -= 1;
@@ -273,10 +273,10 @@ function onResume() {
 
 let gIsPresenceView = false;
 function onBackKeyDown() {
-	if(!gInitOk)
+	if (!gInitOk)
 		return;
 	/* Open presence info */
-	if(!gIsPresenceView) {
+	if (!gIsPresenceView) {
 		gIsPresenceView = true;
 		presenceShow();
 	}
@@ -406,11 +406,11 @@ function askChannel() {
 }
 
 /* Presence */
-function sendEmptyJoin() { 
+function sendEmptyJoin() {
 	sendMessage("", false, true);
 }
 
-function sendPresAck() { 
+function sendPresAck() {
 	sendMessage("", false, true, true);
 }
 
@@ -441,17 +441,20 @@ function chanExit() {
 function outputPresenceList() {
 	let date = Date.now();
 
-	for (let userid in gPresenceTs) {
-		let userpres = userid.split('|');
-		if(userpres[0] == gMyName)
+	for (let val in gPresenceTs) {
+		let arr = gPresenceTs[val];
+		const user = arr[0];
+		const channel = arr[1];
+		const timestamp = arr[2];
+		if (user == gMyName)
 			continue;
 		//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
-		if(gPresenceTs[userid].valueOf() + PRESENCETIME >= date.valueOf())
-			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
-		else if(gPresenceTs[userid].valueOf() + IDLETIME >= date.valueOf())
-			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
+		if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
+			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
+		else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
+			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
 		else
-			li = '<li class="new"><span class="name">' + userpres[0] + "@" + userpres[1] + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
+			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
 		$('#presence_avail').append(li);
 	}
 	$('#message_cont').fadeOut(400, function () {
@@ -460,7 +463,7 @@ function outputPresenceList() {
 }
 
 async function presenceShow() {
-	while(gIsPresenceView) {
+	while (gIsPresenceView) {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
 		outputPresenceList();
@@ -514,7 +517,7 @@ function closeSocket() {
 	$("#input_channel").val('');
 	$("#input_key").val('');
 	if (!gIsTokenChannel)
-		$('#qrcode').fadeOut();
+			$('#qrcode').fadeOut();
 	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
@@ -584,17 +587,17 @@ function processForwardSecrecyOff() {
 
 function msgHashHandle(uid, channel, msgTimestamp, mhash) {
 	let timedict = gIdTimestamp[get_uniq(uid, channel)];
-	if(!timedict) {
+	if (!timedict) {
 		gIdTimestamp[get_uniq(uid, channel)] = {};
 		timedict = gIdTimestamp[get_uniq(uid, channel)];
 	}
 	let arr = timedict[msgTimestamp];
-	if(!arr) {
+	if (!arr) {
 		timedict[msgTimestamp] = [mhash];
 		return true;
 	}
 	for (const hash of arr) {
-		if(hash == mhash) {
+		if (hash == mhash) {
 			return false;
 		}
 	}
@@ -602,16 +605,34 @@ function msgHashHandle(uid, channel, msgTimestamp, mhash) {
 	return true;
 }
 
+let prevUid = "";
+let prevChannel = "";
+let prevTime = "";
+function checkTime(uid, channel, time, isFull) {
+	/* Skip time output for the same minute */
+	if(prevUid == uid &&
+	   prevChannel == channel &&
+	   prevTime == time)
+	{
+		return "";
+	}
+	if(isFull) {
+		prevUid = uid;
+		prevChannel = channel;
+		prevTime = time;
+	}
+	return time;
+}
+
 function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
-	isMultipart, isFirst, isLast, fsEnabled)
-{
+	isMultipart, isFirst, isLast, fsEnabled) {
 	//update hash
 	let duid = get_duid(uid, channel);
 	if (gIdHash[duid] == null) {
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
-		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
+		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
 		gIdNotifyTs[get_uniq(uid, channel)] = 0;
 	}
 
@@ -646,7 +667,7 @@ function processData(uid, channel, msgTimestamp,
 			gMultipartDict[get_uniq(uid, channel)] = "";
 		}
 		// handle multipart hashing here
-		if(msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 			gMultipartDict[get_uniq(uid, channel)] += message;
 			if (!isLast) {
 				return 0;
@@ -666,12 +687,12 @@ function processData(uid, channel, msgTimestamp,
 		let time;
 		let li;
 
-		gPresenceTs[get_uniq(uid, channel)] = msgTimestamp;
+		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
 
 		if (gLastMessageSeenTs < msgTimestamp)
 			gLastMessageSeenTs = msgTimestamp;
 
-		if(!gIsResync && presAckRequired) {
+		if (!gIsResync && presAckRequired) {
 			sendPresAck();
 			//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 		}
@@ -689,37 +710,53 @@ function processData(uid, channel, msgTimestamp,
 		}
 		time = updateTime(dateString);
 
+		if(!date)
+			time = checkTime(uid, channel, time, isFull);
+
 		/* Check first is it a text or image */
 		if (isImage) {
-			if (uid != gMyName) {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
-					'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+			if (!fsEnabled) {
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
+						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
-			}
-			else {
-				li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time
-					+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time
+						+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
+				}
+			} else {
+				if (uid != gMyName) {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
+						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
+				else {
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+						+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
 			}
 			li += '</li></div>';
 		}
 		else {
-			if(!fsEnabled) {
+			if (!fsEnabled) {
 				if (uid != gMyName) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-						+ time + "" + autolinker.link(message) + '</li></div>';
+						+ time + '' + autolinker.link(message) + '</li></div>';
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + '' + autolinker.link(message) + '</li></div>';
 				}
 			}
 			else {
 				if (uid != gMyName) {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-						+ time + '<font color="' + FSFONTCOLOR + '">' + autolinker.link(message) + '</font></li></div>';
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
+						+ time + '' + autolinker.link(message) + '</font></li></div>';
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + '<font color="' + FSFONTCOLOR + '">' + autolinker.link(message) + '</font></li></div>';
+					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
 				}
 			}
 		}
@@ -743,7 +780,7 @@ function processData(uid, channel, msgTimestamp,
 			scrollToBottom();
 		}
 
-		const notifyTimestamp = parseInt(msgTimestamp/1000/60); //one notify per minute
+		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
 		if (uid != gMyName && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
@@ -811,7 +848,7 @@ gWebWorker.onmessage = function (e) {
 					msgtype & MSGISIMAGE ? true : false,
 					msgtype & MSGISMULTIPART ? true : false,
 					msgtype & MSGISFIRST ? true : false,
-					msgtype & MSGISLAST ? true : false, 
+					msgtype & MSGISLAST ? true : false,
 					fsEnabled);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
@@ -844,20 +881,20 @@ gWebWorker.onmessage = function (e) {
 			}
 			break;
 		case "forwardsecrecy":
-				{
-					let uid = e.data[1];
-					let channel = e.data[2];
-					//let myuid = e.data[3];
-					//let mychan = e.data[4];
-					const prevBdKey = e.data[5];
+			{
+				let uid = e.data[1];
+				let channel = e.data[2];
+				//let myuid = e.data[3];
+				//let mychan = e.data[4];
+				const prevBdKey = e.data[5];
 
-					let ret = processForwardSecrecy(uid, channel, prevBdKey);
-					//console.log("Got forward secrecy!")
-					if (ret < 0) {
-						console.log("Process close failed: " + ret);
-					}
+				let ret = processForwardSecrecy(uid, channel, prevBdKey);
+				//console.log("Got forward secrecy!")
+				if (ret < 0) {
+					console.log("Process close failed: " + ret);
 				}
-				break;
+			}
+			break;
 		case "forwardsecrecyoff":
 			{
 				let uid = e.data[1];
@@ -960,12 +997,12 @@ function scrollToBottom() {
 
 function sendData(cmd, uid, channel, data, msgtype) {
 	if (gInitOk) {
-		const msgDate = parseInt(Date.now()/1000) * 1000; //in seconds
+		const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
 		let mHash;
 
 		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, msgDate.valueOf()];
 
-		if(!(msgtype & MSGISPRESENCE) && gSipKeyIsOk) {
+		if (!(msgtype & MSGISPRESENCE) && gSipKeyIsOk) {
 			mHash = hashMessage(uid, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
 			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
 		}
@@ -991,17 +1028,26 @@ function updateAfterSend(message, isFull, isImage) {
 		$('#messages').append(li);
 	}
 
+	if(!date)
+		time = checkTime(gMyName, gMyChannel, time, isFull);
+
 	if (!isImage) {
 		if (!gForwardSecrecy) {
 			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
 		}
 		else {
-			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + '<font color="' + FSFONTCOLOR + '">' + autolinker.link(message) + '</font></li></div>';
+			li = '<div id="owner' + gOwnId + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
 		}
 	}
 	else {
+		if (!gForwardSecrecy) {
 			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
 				+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+		}
+		else {
+			li = '<div id="owner' + gOwnId + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+				+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
+		}
 
 	}
 
@@ -1036,7 +1082,7 @@ function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 
 const MULTIPART_SLICE = 768; //B
 async function sendDataurl(dataUrl, uid, channel) {
-	let msgtype = MSGISFULL|MSGISIMAGE;
+	let msgtype = MSGISFULL | MSGISIMAGE;
 
 	if (dataUrl.length > MULTIPART_SLICE) {
 		msgtype |= MSGISMULTIPART;
@@ -1134,14 +1180,14 @@ function getLocalAddrPortInput() {
 function getLocalBdKey() {
 	const bdKey = window.localStorage.getItem('gPrevBdKey');
 
-	if(bdKey) {
+	if (bdKey) {
 		gPrevBdKey = bdKey;
 		//console.log("Loading key from local storage!");
 	}
 }
 
 function setLocalBdKey(bdKey) {
-	if(bdKey) {
+	if (bdKey) {
 		window.localStorage.setItem('gPrevBdKey', bdKey);
 		//console.log("Saving keys to local storage!");
 	}
