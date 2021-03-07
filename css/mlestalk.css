@@ -54,7 +54,7 @@ input.exit_button {
 #name_channel_cont {
     margin: 0 auto;
     width: 350px;
-    height: 260px;
+    height: 285px;
     text-align: center;
 }
 
@@ -68,7 +68,7 @@ input.exit_button {
 
 #name_channel_cont p {
     font-family: sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     color: #77407b;
 }
 
@@ -80,6 +80,7 @@ input.exit_button {
     margin: 0 auto;
     outline: none;
     font-family: sans-serif;
+    font-size: 16px;
 }
 
 #name_channel_cont #input_channel {
@@ -90,6 +91,7 @@ input.exit_button {
     margin: 0 auto;
     outline: none;
     font-family: sans-serif;
+    font-size: 16px;
 }
 
 #name_channel_cont #input_key {
@@ -100,6 +102,7 @@ input.exit_button {
     margin: 0 auto;
     outline: none;
     font-family: sans-serif;
+    font-size: 16px;
 }
 
 #name_channel_cont #input_addr_port {
@@ -110,6 +113,7 @@ input.exit_button {
     margin: 0 auto;
     outline: none;
     font-family: sans-serif;
+    font-size: 16px;
 }
 
 #name_channel_cont #the_join {
@@ -165,7 +169,7 @@ input.exit_button {
 #presence_avail li {
     list-style: none;
     font-family: sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     padding: 1px 4px;
 }
 
@@ -198,7 +202,7 @@ input.exit_button {
 #messages li {
     list-style: none;
     font-family: sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     padding: 1px 4px;
 }
 
@@ -222,7 +226,7 @@ input.exit_button {
 #input_message {
     background: #f0f0f0;
     border: none;
-    font-size: 16px;
+    font-size: 18px;
     font-family: sans-serif;
     outline: none;
     padding: 6px;
