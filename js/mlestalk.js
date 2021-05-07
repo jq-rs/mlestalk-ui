@@ -256,6 +256,10 @@ function onPause() {
 		if (!cordova.plugins.backgroundMode.isActive()) {
 			cordova.plugins.backgroundMode.enable();
 		}
+		cordova.plugins.backgroundMode.configure({ 
+			title: gBgTitle,
+			text: gBgText
+		});
 		cordova.plugins.backgroundMode.toBackground();
 		cordova.plugins.notification.badge.clear();
 		cordova.plugins.notification.local.clearAll();
