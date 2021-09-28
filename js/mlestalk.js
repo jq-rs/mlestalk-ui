@@ -21,6 +21,7 @@ let gIdNotifyTs = {};
 let gIdLastMsgLen = {};
 let gPrevBdKey = null;
 let gForwardSecrecy = false;
+let gReadMsgDelayedQueueLen = 0;
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -628,9 +629,13 @@ function checkTime(uid, channel, time, isFull) {
 	return time;
 }
 
-function processData(uid, channel, msgTimestamp,
+async function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast, fsEnabled) {
+
+	await sleep(++gReadMsgDelayedQueueLen);
+	gReadMsgDelayedQueueLen--;
+
 	//update hash
 	let duid = get_duid(uid, channel);
 	if (gIdHash[duid] == null) {
