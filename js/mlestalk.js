@@ -55,6 +55,11 @@ const ASYNC_SLEEP = 1 /* ms */
 let gReconnTimeout = RETIMEOUT;
 let gReconnAttempts = 0;
 
+let gMultipartDict = {};
+let gMultipartSendDict = {};
+let gMultipartContinue = false;
+const MULTIPART_SLICE = 768; //B
+
 const DATELEN = 13;
 
 let gIsTokenChannel = false;
@@ -806,7 +811,7 @@ async function processData(uid, channel, msgTimestamp,
 function processSend(uid, channel, isMultipart) {
 	if (isMultipart) {
 		if (gMultipartSendDict[get_uniq(uid, channel)]) {
-			multipartContinue = true;
+			gMultipartContinue = true;
 		}
 	}
 	return 0;
@@ -819,9 +824,6 @@ function processClose(uid, channel, mychan) {
 	}
 }
 
-let gMultipartDict = {};
-let gMultipartSendDict = {};
-let multipartContinue = false;
 gWebWorker.onmessage = function (e) {
 	let cmd = e.data[0];
 	switch (cmd) {
@@ -1089,7 +1091,6 @@ function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
 	sendData("send", gMyName, gMyChannel, message, msgtype);
 }
 
-const MULTIPART_SLICE = 768; //B
 async function sendDataurl(dataUrl, uid, channel) {
 	let msgtype = MSGISFULL | MSGISIMAGE;
 
@@ -1105,15 +1106,15 @@ async function sendDataurl(dataUrl, uid, channel) {
 				let data = dataUrl.slice(i, dataUrl.length);
 				sendData("send", gMyName, gMyChannel, data, msgtype);
 				gMultipartSendDict[get_uniq(uid, channel)] = false;
-				multipartContinue = false;
+				gMultipartContinue = false;
 				break;
 			}
 			let data = dataUrl.slice(i, i + MULTIPART_SLICE);
 			sendData("send", gMyName, gMyChannel, data, msgtype);
-			while (false == multipartContinue) {
+			while (false == gMultipartContinue) {
 				await sleep(ASYNC_SLEEP);
 			}
-			multipartContinue = false;
+			gMultipartContinue = false;
 		}
 	}
 	else {
