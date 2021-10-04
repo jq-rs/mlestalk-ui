@@ -37,7 +37,7 @@ const MSGISBDACK = (0x1 << 9);
 
 let gUidQueue = {};
 
-const IMGMAXSIZE = 960; /* px */
+const IMGMAXSIZE = 920; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = false;
@@ -47,7 +47,7 @@ const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
 const MAXQLEN = 32;
-const RESYNC_TIMEOUT = 5000; /* ms */
+const RESYNC_TIMEOUT = 3000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
