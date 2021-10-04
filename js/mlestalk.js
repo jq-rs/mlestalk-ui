@@ -7,6 +7,7 @@
  */
 let gMyName = '';
 let gMyChannel = '';
+let gMyKey = '';
 let gMyAddr = '';
 let gMyPort = '';
 let gMyToken = null;
@@ -262,7 +263,7 @@ function onPause() {
 		if (!cordova.plugins.backgroundMode.isActive()) {
 			cordova.plugins.backgroundMode.enable();
 		}
-		cordova.plugins.backgroundMode.configure({ 
+		cordova.plugins.backgroundMode.configure({
 			title: gBgTitle,
 			text: gBgText
 		});
@@ -332,85 +333,109 @@ $(document).ready(function () {
 	let url_string = window.location.href;
 	let url = new URL(url_string);
 	gMyToken = url.searchParams.get("token");
+	askChannel();
 	$("#channel_submit, #form_send_message").submit(function (e) {
 		e.preventDefault();
 		askChannel();
 	});
 });
 
+function addrsplit(addrport) {
+	let addrarray = addrport.split(":");
+	if (addrarray.length > 0) {
+		gMyAddr = addrarray[0];
+	}
+	if (addrarray.length > 1) {
+		gMyPort = addrarray[1];
+	}
+	if (gMyAddr == '') {
+		gMyAddr = 'mles.io';
+	}
+	if (gMyPort == '') {
+		gMyPort = '443';
+	}
+}
 
 function askChannel() {
-	if ($('#input_name').val().trim().length <= 0 ||
+	getLocalSession();
+	gAddrPortInput = getLocalAddrPortInput();
+	if (!gInitOk && gMyName && gMyChannel && gMyKey && gAddrPortInput) {
+
+		addrsplit(gAddrPortInput);
+
+		$('#name_channel_cont').fadeOut(0, function () {
+			getLocalBdKey();
+			gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
+			$('#message_cont').fadeIn();
+		});
+	}
+	else if (!gInitOk && ($('#input_name').val().trim().length <= 0 ||
 		(gMyToken == null && $('#input_channel').val().trim().length <= 0) ||
-		$('#input_key').val().trim().length <= 0) {
+		$('#input_key').val().trim().length <= 0)) {
 
 		//not enough input, alert
 		popAlert();
-
-	} else {
-		if (!gInitOk) {
-			if (gMyToken != null) {
-				let token = gMyToken.trim();
-				token = token.split(' ').join('+');
-				token = atob(token);
-				let atoken = token.substring(0, 16);
-				let bfchannel = token.substr(16);
-				gSipKey = SipHash.string16_to_key(bfchannel);
-				let newtoken = SipHash.hash_hex(gSipKey, bfchannel);
-				if (atoken != newtoken) {
-					alert('Invalid token');
-					return;
-				}
-				gSipKeyIsOk = true;
-				gMyChannel = btoa(bfchannel);
-				gIsTokenChannel = true;
+	} else if (!gInitOk) {
+		if (gMyToken != null) {
+			let token = gMyToken.trim();
+			token = token.split(' ').join('+');
+			token = atob(token);
+			let atoken = token.substring(0, 16);
+			let bfchannel = token.substr(16);
+			gSipKey = SipHash.string16_to_key(bfchannel);
+			let newtoken = SipHash.hash_hex(gSipKey, bfchannel);
+			if (atoken != newtoken) {
+				alert('Invalid token');
+				return;
 			}
-			else {
-				gMyChannel = $('#input_channel').val().trim();
-			}
-
-			gMyName = $('#input_name').val().trim();
-			let fullkey = $('#input_key').val().trim();
-			gAddrPortInput = $('#input_addr_port').val().trim();
-			let localization = $('#channel_localization').val().trim();
-
-			//add to local storage
-			if (gAddrPortInput.length > 0) {
-				window.localStorage.setItem('gAddrPortInput', gAddrPortInput);
-			}
-			else {
-				window.localStorage.setItem('gAddrPortInput', "mles.io:443");
-			}
-
-			//add to local storage
-			if (localization.length > 0) {
-				window.localStorage.setItem('localization', localization);
-			}
-			else {
-				window.localStorage.setItem('localization', "gb");
-			}
-
-			let addrarray = gAddrPortInput.split(":");
-			if (addrarray.length > 0) {
-				gMyAddr = addrarray[0];
-			}
-			if (addrarray.length > 1) {
-				gMyPort = addrarray[1];
-			}
-			if (gMyAddr == '') {
-				gMyAddr = 'mles.io';
-			}
-			if (gMyPort == '') {
-				gMyPort = '443';
-			}
-
-			$('#name_channel_cont').fadeOut(400, function () {
-				/* Load keys from local storage */
-				getLocalBdKey();
-				gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, fullkey, gIsTokenChannel, gPrevBdKey]);
-				$('#message_cont').fadeIn();
-			});
+			gSipKeyIsOk = true;
+			gMyChannel = btoa(bfchannel);
+			gIsTokenChannel = true;
 		}
+		else {
+			gMyChannel = $('#input_channel').val().trim();
+		}
+
+		gMyName = $('#input_name').val().trim();
+		gMyKey = $('#input_key').val().trim();
+		gAddrPortInput = $('#input_addr_port').val().trim();
+		let localization = $('#channel_localization').val().trim();
+
+		//add to local storage
+		if (gMyName) {
+			window.localStorage.setItem('gMyName', gMyName);
+		}
+		if (gMyChannel) {
+			window.localStorage.setItem('gMyChannel', gMyChannel);
+		}
+		if (gMyKey) {
+			window.localStorage.setItem('gMyKey', gMyKey);
+		}
+
+		//add to local storage
+		if (gAddrPortInput.length > 0) {
+			window.localStorage.setItem('gAddrPortInput', gAddrPortInput);
+		}
+		else {
+			window.localStorage.setItem('gAddrPortInput', "mles.io:443");
+		}
+
+		//add to local storage
+		if (localization.length > 0) {
+			window.localStorage.setItem('localization', localization);
+		}
+		else {
+			window.localStorage.setItem('localization', "gb");
+		}
+
+		addrsplit(gAddrPortInput);
+
+		$('#name_channel_cont').fadeOut(400, function () {
+			/* Load keys from local storage */
+			getLocalBdKey();
+			gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
+			$('#message_cont').fadeIn();
+		});
 	}
 	return false;
 }
@@ -513,6 +538,7 @@ function closeSocket() {
 
 	queueFlush(gMyName, gMyChannel);
 	clearLocalBdKey();
+	clearLocalSession();
 	gForwardSecrecy = false;
 	gPrevBdKey = null;
 
@@ -527,7 +553,7 @@ function closeSocket() {
 	$("#input_channel").val('');
 	$("#input_key").val('');
 	if (!gIsTokenChannel)
-			$('#qrcode').fadeOut();
+		$('#qrcode').fadeOut();
 	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
@@ -620,13 +646,12 @@ let prevChannel = "";
 let prevTime = "";
 function checkTime(uid, channel, time, isFull) {
 	/* Skip time output for the same minute */
-	if(prevUid == uid &&
-	   prevChannel == channel &&
-	   prevTime == time)
-	{
+	if (prevUid == uid &&
+		prevChannel == channel &&
+		prevTime == time) {
 		return "";
 	}
-	if(isFull) {
+	if (isFull) {
 		prevUid = uid;
 		prevChannel = channel;
 		prevTime = time;
@@ -638,7 +663,7 @@ async function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast, fsEnabled) {
 
-	await sleep(++gReadMsgDelayedQueueLen*ASYNC_SLEEP);
+	await sleep(++gReadMsgDelayedQueueLen * ASYNC_SLEEP);
 	gReadMsgDelayedQueueLen--;
 
 	//update hash
@@ -674,7 +699,7 @@ async function processData(uid, channel, msgTimestamp,
 	const mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (isMultipart) {
 		//strip index
-		const index = message.substr(0,4);
+		const index = message.substr(0, 4);
 		const numIndex = parseInt(index);
 		message = message.substr(4);
 		//console.log("Received image index " + numIndex);
@@ -733,7 +758,7 @@ async function processData(uid, channel, msgTimestamp,
 		}
 		time = updateTime(dateString);
 
-		if(!date)
+		if (!date)
 			time = checkTime(uid, channel, time, isFull);
 
 		/* Check first is it a text or image */
@@ -1048,7 +1073,7 @@ function updateAfterSend(message, isFull, isImage) {
 		$('#messages').append(li);
 	}
 
-	if(!date)
+	if (!date)
 		time = checkTime(gMyName, gMyChannel, time, isFull);
 
 	if (!isImage) {
@@ -1108,13 +1133,13 @@ async function sendDataurl(dataUrl, uid, channel) {
 		gMultipartSendDict[get_uniq(uid, channel)] = true;
 		for (let i = 0; i < dataUrl.length; i += MULTIPART_SLICE) {
 			let data = "";
-			if(i/MULTIPART_SLICE < 10)
+			if (i / MULTIPART_SLICE < 10)
 				data += "000";
-			else if(i/MULTIPART_SLICE < 100)
+			else if (i / MULTIPART_SLICE < 100)
 				data += "00";
-			else if(i/MULTIPART_SLICE < 1000)
+			else if (i / MULTIPART_SLICE < 1000)
 				data += "0";
-			data += (i/MULTIPART_SLICE).toString();
+			data += (i / MULTIPART_SLICE).toString();
 			//console.log("Adding image index " + data);
 
 			if (0 == i) {
@@ -1206,6 +1231,20 @@ function getLocalAddrPortInput() {
 	}
 }
 
+function getLocalSession() {
+	gMyName = window.localStorage.getItem('gMyName');
+	gMyChannel = window.localStorage.getItem('gMyChannel');
+	gMyKey = window.localStorage.getItem('gMyKey');
+
+}
+
+function clearLocalSession() {
+	window.localStorage.removeItem('gMyName');
+	window.localStorage.removeItem('gMyChannel');
+	window.localStorage.removeItem('gMyKey');
+}
+
+
 function getLocalBdKey() {
 	const bdKey = window.localStorage.getItem('gPrevBdKey');
 
@@ -1214,6 +1253,7 @@ function getLocalBdKey() {
 		//console.log("Loading key from local storage!");
 	}
 }
+
 
 function setLocalBdKey(bdKey) {
 	if (bdKey) {
