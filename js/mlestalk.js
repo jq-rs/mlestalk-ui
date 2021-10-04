@@ -333,7 +333,8 @@ $(document).ready(function () {
 	let url_string = window.location.href;
 	let url = new URL(url_string);
 	gMyToken = url.searchParams.get("token");
-	askChannel();
+	getFront();
+	joinExistingChannel();
 	$("#channel_submit, #form_send_message").submit(function (e) {
 		e.preventDefault();
 		askChannel();
@@ -356,20 +357,22 @@ function addrsplit(addrport) {
 	}
 }
 
-function askChannel() {
+function joinExistingChannel() {
 	getLocalSession();
 	gAddrPortInput = getLocalAddrPortInput();
 	if (!gInitOk && gMyName && gMyChannel && gMyKey && gAddrPortInput) {
 
 		addrsplit(gAddrPortInput);
 
-		$('#name_channel_cont').fadeOut(0, function () {
-			getLocalBdKey();
-			gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
-			$('#message_cont').fadeIn();
-		});
+		$('#name_channel_cont').fadeOut();
+		getLocalBdKey();
+		gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
+		$('#message_cont').fadeIn();
 	}
-	else if (!gInitOk && ($('#input_name').val().trim().length <= 0 ||
+}
+
+function askChannel() {
+	if (!gInitOk && ($('#input_name').val().trim().length <= 0 ||
 		(gMyToken == null && $('#input_channel').val().trim().length <= 0) ||
 		$('#input_key').val().trim().length <= 0)) {
 
