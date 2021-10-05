@@ -5,24 +5,25 @@
  *
  * Copyright (c) 2019-2021 MlesTalk developers
  */
-let gMyName = '';
-let gMyChannel = '';
-let gMyKey = '';
-let gMyAddr = '';
-let gMyPort = '';
+let gMyName = {};
+let gMyChannel = {};
+let gMyKey = {};
+let gMyAddr = {};
+let gMyPort = {};
 let gMyToken = null;
-let gAddrPortInput = '';
-let gOwnId = 0;
-let gOwnAppend = false;
+let gAddrPortInput = {};
+let gOwnId = {};
+let gOwnAppend = {};
 let gIdHash = {};
 let gIdAppend = {};
 let gIdTimestamp = {};
 let gPresenceTs = {};
 let gIdNotifyTs = {};
 let gIdLastMsgLen = {};
-let gPrevBdKey = null;
-let gForwardSecrecy = false;
-let gReadMsgDelayedQueueLen = 0;
+let gPrevBdKey = {};
+let gForwardSecrecy = {};
+let gReadMsgDelayedQueueLen = {};
+let gActiveChannel = null;
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -41,7 +42,7 @@ let gUidQueue = {};
 const IMGMAXSIZE = 920; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
-let gInitOk = false;
+let gInitOk = {};
 const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const PRESENCE_SHOW_TIMER = 5000; /* ms */
@@ -58,26 +59,26 @@ let gReconnAttempts = 0;
 
 let gMultipartDict = {};
 let gMultipartSendDict = {};
-let gMultipartContinue = false;
+let gMultipartContinue = {};
 const MULTIPART_SLICE = 4096; //B
 
 const DATELEN = 13;
 
 let gIsTokenChannel = false;
-let gSipKey;
-let gSipKeyIsOk = false;
-let gIsResync = false;
-let gLastWrittenMsg = "";
+let gSipKey = {};
+let gSipKeyIsOk = {};
+let gIsResync = {};
+let gLastWrittenMsg = {};
 
-let gLastMessageSeenTs = 0;
-let gLastReconnectTs = 0;
+let gLastMessageSeenTs = {};
+let gLastReconnectTs = {};
 let gLastMessage = {};
-let gLastMessageSendOrRcvdDate = "";
+let gLastMessageSendOrRcvdDate = {};
 
 let gCanNotify = false;
 let gWillNotify = false;
 let isCordova = false;
-let gIsReconnect = false;
+let gIsReconnect = {};
 
 let gWeekday = new Array(7);
 gWeekday[0] = "Sun";
@@ -132,8 +133,8 @@ class Queue {
 	}
 }
 
-function hashMessage(uid, data) {
-	return SipHash.hash_hex(gSipKey, uid + data);
+function hashMessage(uid, channel, data) {
+	return SipHash.hash_hex(gSipKey[channel], uid + data);
 }
 
 function uidQueueGet(uid, channel) {
@@ -151,7 +152,7 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
 				continue;
 			}
 			if (message.length > 0) {
-				let hash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+				let hash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 				if (obj[2] == hash) {
 					lastSeen = i + 1;
 					break;
@@ -252,7 +253,7 @@ function timeNow() {
 }
 
 function get_uniq(uid, channel) {
-	return SipHash.hash_hex(gSipKey, uid + channel);
+	return SipHash.hash_hex(gSipKey[channel], uid + channel);
 }
 
 let gWebWorker = new Worker('webworker/js/webworker.js');
@@ -284,8 +285,6 @@ function onResume() {
 
 let gIsPresenceView = false;
 function onBackKeyDown() {
-	if (!gInitOk)
-		return;
 	/* Open presence info */
 	if (!gIsPresenceView) {
 		gIsPresenceView = true;
@@ -341,86 +340,95 @@ $(document).ready(function () {
 	});
 });
 
-function addrsplit(addrport) {
+function addrsplit(channel, addrport) {
 	let addrarray = addrport.split(":");
 	if (addrarray.length > 0) {
-		gMyAddr = addrarray[0];
+		gMyAddr[channel] = addrarray[0];
 	}
 	if (addrarray.length > 1) {
-		gMyPort = addrarray[1];
+		gMyPort[channel] = addrarray[1];
 	}
-	if (gMyAddr == '') {
-		gMyAddr = 'mles.io';
+	if (gMyAddr[channel] == '') {
+		gMyAddr[channel] = 'mles.io';
 	}
-	if (gMyPort == '') {
-		gMyPort = '443';
+	if (gMyPort[channel] == '') {
+		gMyPort[channel] = '443';
 	}
 }
 
-function joinExistingChannel() {
-	getLocalSession();
-	gAddrPortInput = getLocalAddrPortInput();
-	if (!gInitOk && gMyName && gMyChannel && gMyKey && gAddrPortInput) {
+function joinExistingChannel(channel) {
+	getLocalSession(channel);
+	gAddrPortInput = getLocalAddrPortInput(channel);
+	if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
 
-		addrsplit(gAddrPortInput);
+		addrsplit(gAddrPortInput[channel]);
 
 		$('#name_channel_cont').fadeOut();
 		getLocalBdKey();
-		gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
+		gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gIsTokenChannel, gPrevBdKey[channel]]);
 		$('#message_cont').fadeIn();
 	}
 }
 
 function askChannel() {
-	if (!gInitOk && ($('#input_name').val().trim().length <= 0 ||
+	let channel = gActiveChannel;
+	if (($('#input_name').val().trim().length <= 0 ||
 		(gMyToken == null && $('#input_channel').val().trim().length <= 0) ||
 		$('#input_key').val().trim().length <= 0)) {
 
 		//not enough input, alert
 		popAlert();
-	} else if (!gInitOk) {
+	} else if (!gInitOk[channel]) {
 		if (gMyToken != null) {
 			let token = gMyToken.trim();
 			token = token.split(' ').join('+');
 			token = atob(token);
 			let atoken = token.substring(0, 16);
 			let bfchannel = token.substr(16);
-			gSipKey = SipHash.string16_to_key(bfchannel);
-			let newtoken = SipHash.hash_hex(gSipKey, bfchannel);
+			channel = btoa(bfchannel);
+			gSipKey[channel] = SipHash.string16_to_key(bfchannel);
+			let newtoken = SipHash.hash_hex(gSipKey[channel], bfchannel);
 			if (atoken != newtoken) {
 				alert('Invalid token');
 				return;
 			}
-			gSipKeyIsOk = true;
-			gMyChannel = btoa(bfchannel);
+
+			gSipKeyIsOk[channel] = true;
 			gIsTokenChannel = true;
 		}
 		else {
-			gMyChannel = $('#input_channel').val().trim();
+			channel = $('#input_channel').val().trim();
 		}
 
-		gMyName = $('#input_name').val().trim();
-		gMyKey = $('#input_key').val().trim();
-		gAddrPortInput = $('#input_addr_port').val().trim();
+		gMyChannel[channel] = channel;
+		gOwnId[channel] = 0;
+		gOwnAppend[channel] = false;
+		gForwardSecrecy[channel] = false;
+		gReadMsgDelayedQueueLen[channel] = 0;
+		gLastMessageSeenTs[channel] = 0;
+
+		gMyName[channel] = $('#input_name').val().trim();
+		gMyKey[channel] = $('#input_key').val().trim();
+		gAddrPortInput[channel] = $('#input_addr_port').val().trim();
 		let localization = $('#channel_localization').val().trim();
 
 		//add to local storage
 		if (gMyName) {
-			window.localStorage.setItem('gMyName', gMyName);
+			window.localStorage.setItem('gMyName' + channel, gMyName[channel]);
 		}
 		if (gMyChannel) {
-			window.localStorage.setItem('gMyChannel', gMyChannel);
+			window.localStorage.setItem('gMyChannel' + channel, gMyChannel[channel]);
 		}
 		if (gMyKey) {
-			window.localStorage.setItem('gMyKey', gMyKey);
+			window.localStorage.setItem('gMyKey' + channel, gMyKey[channel]);
 		}
 
 		//add to local storage
 		if (gAddrPortInput.length > 0) {
-			window.localStorage.setItem('gAddrPortInput', gAddrPortInput);
+			window.localStorage.setItem('gAddrPortInput' + channel, gAddrPortInput[channel]);
 		}
 		else {
-			window.localStorage.setItem('gAddrPortInput', "mles.io:443");
+			window.localStorage.setItem('gAddrPortInput' + channel, "mles.io:443");
 		}
 
 		//add to local storage
@@ -431,49 +439,53 @@ function askChannel() {
 			window.localStorage.setItem('localization', "gb");
 		}
 
-		addrsplit(gAddrPortInput);
+		addrsplit(channel, gAddrPortInput);
 
 		$('#name_channel_cont').fadeOut(400, function () {
 			/* Load keys from local storage */
-			getLocalBdKey();
-			gWebWorker.postMessage(["init", null, gMyAddr, gMyPort, gMyName, gMyChannel, gMyKey, gIsTokenChannel, gPrevBdKey]);
+			getLocalBdKey(channel);
+			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gIsTokenChannel, gPrevBdKey[channel]]);
 			$('#message_cont').fadeIn();
+			gActiveChannel = channel;
 		});
 	}
 	return false;
 }
 
 /* Presence */
-function sendEmptyJoin() {
-	sendMessage("", false, true);
+function sendEmptyJoin(channel) {
+	sendMessage(channel, "", false, true);
 }
 
-function sendPresAck() {
-	sendMessage("", false, true, true);
+function sendPresAck(channel) {
+	sendMessage(channel, "", false, true, true);
 }
 
 /* Join after disconnect */
-function sendInitJoin() {
-	sendMessage("", true, false);
+function sendInitJoin(channel) {
+	sendMessage(channel, "", true, false);
 }
 
 async function send(isFull) {
+	const channel = gActiveChannel;
+
 	let message = $('#input_message').val();
 	let file = document.getElementById("input_file").files[0];
 
 	if (file) {
-		sendImage(file);
+		sendImage(channel, file);
 		document.getElementById("input_file").value = "";
 	}
 	else {
-		sendMessage(message, isFull, false);
+		sendMessage(channel, message, isFull, false);
 		await sleep(ASYNC_SLEEP); //in case fs state changes, wait a while
-		updateAfterSend(message, isFull, false);
+		updateAfterSend(channel, message, isFull, false);
 	}
 }
 
 function chanExit() {
-	closeSocket();
+	const channel = gActiveChannel;
+	closeSocket(channel);
 }
 
 function outputPresenceList() {
@@ -516,13 +528,13 @@ function presenceExit() {
 	$('#presence_avail').html('');
 }
 
-function closeSocket() {
-	initReconnect();
-	gInitOk = false;
+function closeSocket(channel) {
+	initReconnect(channel);
+	gInitOk[channel] = false;
 
 	//init all databases
 	for (let userid in gIdTimestamp) {
-		gIdTimestamp = {};
+		gIdTimestamp[userid] = {};
 	}
 	for (let userid in gPresenceTs) {
 		gPresenceTs[userid] = 0;
@@ -537,19 +549,23 @@ function closeSocket() {
 		gIdAppend[duid] = false;
 	}
 
-	gLastMessageSeenTs = 0;
+	gLastMessageSeenTs[channel] = 0;
 
-	queueFlush(gMyName, gMyChannel);
-	clearLocalBdKey();
-	clearLocalSession();
-	gForwardSecrecy = false;
-	gPrevBdKey = null;
+	queueFlush(gMyName[channel], gMyChannel[channel]);
+	clearLocalBdKey(channel);
+	clearLocalSession(channel);
+	gForwardSecrecy[channel] = false;
+	gPrevBdKey[channel] = null;
+	gActiveChannel = null;
+	gOwnId[channel] = 0;
+	gOwnAppend[channel] = false;
+	gIsResync[channel] = false;
 
 	//guarantee that websocket gets closed without reconnect
-	let tmpname = gMyName;
-	let tmpchannel = gMyChannel;
-	gMyName = '';
-	gMyChannel = '';
+	let tmpname = gMyName[channel];
+	let tmpchannel = gMyChannel[channel];
+	gMyName[channel] = null;
+	gMyChannel[channel] = null;
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel, gIsTokenChannel]);
 
 
@@ -564,20 +580,20 @@ function closeSocket() {
 	});
 }
 
-function initReconnect() {
-	gReconnTimeout = RETIMEOUT;
-	gReconnAttempts = 0;
-	gIsReconnect = false;
+function initReconnect(channel) {
+	gReconnTimeout[channel] = RETIMEOUT;
+	gReconnAttempts[channel] = 0;
+	gIsReconnect[channel] = false;
 }
 
 function processInit(uid, channel, myuid, mychan) {
 	if (uid.length > 0 && channel.length > 0) {
-		gInitOk = true;
-		sendInitJoin();
+		gInitOk[channel] = true;
+		sendInitJoin(channel);
 
 		let li;
-		if (gIsReconnect && gLastMessageSeenTs > 0) {
-			gLastReconnectTs = gLastMessageSeenTs;
+		if (gIsReconnect[channel] && gLastMessageSeenTs[channel] > 0) {
+			gLastReconnectTs[channel] = gLastMessageSeenTs[channel];
 		}
 		else {
 			if (!gIsTokenChannel) {
@@ -592,9 +608,9 @@ function processInit(uid, channel, myuid, mychan) {
 		if (!gIsTokenChannel) {
 			//use channel to create 128 bit secret key
 			let bfchannel = atob(mychan);
-			gSipKey = SipHash.string16_to_key(bfchannel);
-			gSipKeyIsOk = true;
-			let atoken = SipHash.hash_hex(gSipKey, bfchannel);
+			gSipKey[channel] = SipHash.string16_to_key(bfchannel);
+			gSipKeyIsOk[channel] = true;
+			let atoken = SipHash.hash_hex(gSipKey[channel], bfchannel);
 			atoken = atoken + bfchannel;
 			token = btoa(atoken);
 			document.getElementById("qrcode_link").setAttribute("href", getToken());
@@ -608,20 +624,20 @@ function processInit(uid, channel, myuid, mychan) {
 }
 
 function get_duid(uid, channel) {
-	return SipHash.hash_hex(gSipKey, uid + channel);
+	return SipHash.hash_hex(gSipKey[channel], uid + channel);
 }
 
 function processForwardSecrecy(uid, channel, prevBdKey) {
-	gPrevBdKey = prevBdKey;
+	gPrevBdKey[channel] = prevBdKey;
 	/* Save to local storage */
-	setLocalBdKey(prevBdKey);
+	setLocalBdKey(channel, prevBdKey);
 	/* Update info about forward secrecy */
-	gForwardSecrecy = true;
+	gForwardSecrecy[channel] = true;
 }
 
-function processForwardSecrecyOff() {
+function processForwardSecrecyOff(channel) {
 	/* Update info about forward secrecy */
-	gForwardSecrecy = false;
+	gForwardSecrecy[channel] = false;
 }
 
 function msgHashHandle(uid, channel, msgTimestamp, mhash) {
@@ -666,9 +682,6 @@ async function processData(uid, channel, msgTimestamp,
 	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 	isMultipart, isFirst, isLast, fsEnabled) {
 
-	await sleep(++gReadMsgDelayedQueueLen * ASYNC_SLEEP);
-	gReadMsgDelayedQueueLen--;
-
 	//update hash
 	let duid = get_duid(uid, channel);
 	if (gIdHash[duid] == null) {
@@ -680,26 +693,26 @@ async function processData(uid, channel, msgTimestamp,
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
-	if (uid == gMyName) {
-		if (!gIsResync) {
+	if (uid == gMyName[channel]) {
+		if (!gIsResync[channel]) {
 			console.log("Resyncing");
-			gIsResync = true;
+			gIsResync[channel] = true;
 			resync(uid, channel);
 		}
 		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Full or presence message */
 			queueFindAndMatch(msgTimestamp, uid, channel, message, isFull);
 	}
-	else if (gOwnId > 0 && message.length >= 0 && gLastWrittenMsg.length > 0) {
+	else if (gOwnId[channel] > 0 && message.length >= 0 && gLastWrittenMsg[channel].length > 0) {
 		let end = "</li></div>";
 		//console.log("Got presence update from " + uid);
-		gLastWrittenMsg = gLastWrittenMsg.substring(0, gLastWrittenMsg.length - end.length);
-		gLastWrittenMsg += " &#x2713;" + end;
-		$('#owner' + (gOwnId - 1)).replaceWith(gLastWrittenMsg);
-		gLastWrittenMsg = "";
+		gLastWrittenMsg[channel] = gLastWrittenMsg[channel].substring(0, gLastWrittenMsg[channel].length - end.length);
+		gLastWrittenMsg[channel] += " &#x2713;" + end;
+		$('#owner' + (gOwnId[channel] - 1)).replaceWith(gLastWrittenMsg[channel]);
+		gLastWrittenMsg[channel] = "";
 		//update presence if current time per user is larger than begin presence
 	}
 
-	const mHash = hashMessage(uid, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
+	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (isMultipart) {
 		//strip index
 		const index = message.substr(0, 4);
@@ -714,12 +727,17 @@ async function processData(uid, channel, msgTimestamp,
 			}
 			gMultipartDict[get_uniq(uid, channel)] = {};
 		}
+
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 			gMultipartDict[get_uniq(uid, channel)][numIndex] = message;
 			if (!isLast) {
 				return 0;
 			}
+
+			await sleep(++gReadMsgDelayedQueueLen[channel] * ASYNC_SLEEP);
+			gReadMsgDelayedQueueLen[channel]--;
+
 			message = "";
 			for (let i = 0; i <= numIndex; i++) {
 				message += gMultipartDict[get_uniq(uid, channel)][i];
@@ -740,11 +758,11 @@ async function processData(uid, channel, msgTimestamp,
 
 		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
 
-		if (gLastMessageSeenTs < msgTimestamp)
-			gLastMessageSeenTs = msgTimestamp;
+		if (gLastMessageSeenTs[channel] < msgTimestamp)
+			gLastMessageSeenTs[channel] = msgTimestamp;
 
-		if (!gIsResync && presAckRequired) {
-			sendPresAck();
+		if (!gIsResync[channel] && presAckRequired) {
+			sendPresAck(channel);
 			//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 		}
 
@@ -753,7 +771,7 @@ async function processData(uid, channel, msgTimestamp,
 			return 1;
 		}
 
-		date = updateDateval(dateString);
+		date = updateDateval(channel, dateString);
 		if (date) {
 			/* Update new date header */
 			li = '<li class="new"> - <span class="name">' + date + '</span> - </li>';
@@ -767,7 +785,7 @@ async function processData(uid, channel, msgTimestamp,
 		/* Check first is it a text or image */
 		if (isImage) {
 			if (!fsEnabled) {
-				if (uid != gMyName) {
+				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
 						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
@@ -778,7 +796,7 @@ async function processData(uid, channel, msgTimestamp,
 
 				}
 			} else {
-				if (uid != gMyName) {
+				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
 						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
@@ -793,7 +811,7 @@ async function processData(uid, channel, msgTimestamp,
 		}
 		else {
 			if (!fsEnabled) {
-				if (uid != gMyName) {
+				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
 						+ time + '' + autolinker.link(message) + '</li></div>';
 				}
@@ -802,7 +820,7 @@ async function processData(uid, channel, msgTimestamp,
 				}
 			}
 			else {
-				if (uid != gMyName) {
+				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
 						+ time + '' + autolinker.link(message) + '</font></li></div>';
 				}
@@ -832,7 +850,7 @@ async function processData(uid, channel, msgTimestamp,
 		}
 
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if (uid != gMyName && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
+		if (uid != gMyName[channel] && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
 					message = gImageStr;
@@ -848,15 +866,15 @@ async function processData(uid, channel, msgTimestamp,
 function processSend(uid, channel, isMultipart) {
 	if (isMultipart) {
 		if (gMultipartSendDict[get_uniq(uid, channel)]) {
-			gMultipartContinue = true;
+			gMultipartContinue[channel] = true;
 		}
 	}
 	return 0;
 }
 
 function processClose(uid, channel, mychan) {
-	gIsReconnect = false;
-	if (uid == gMyName && gIsTokenChannel ? mychan == gMyChannel : channel == gMyChannel) {
+	gIsReconnect[channel] = false;
+	if (uid == gMyName[channel] && gIsTokenChannel ? mychan == gMyChannel[channel] : channel == gMyChannel) {
 		reconnect(uid, gIsTokenChannel ? mychan : channel);
 	}
 }
@@ -960,17 +978,17 @@ gWebWorker.onmessage = function (e) {
 	}
 }
 
-function updateDateval(dateString) {
-	let lastDate = gLastMessageSendOrRcvdDate;
+function updateDateval(channel, dateString) {
+	let lastDate = gLastMessageSendOrRcvdDate[channel];
 	const begin = gWeekday[0].length + 2;
 	const end = DATELEN + 1;
-	if (lastDate != "" &&
+	if (lastDate &&
 		dateString.slice(begin, end) == lastDate.slice(begin, end)) {
 		return null;
 	}
 	else {
 		let dateval = dateString.slice(1, DATELEN + gWeekday[0].length - 1);
-		gLastMessageSendOrRcvdDate = dateString;
+		gLastMessageSendOrRcvdDate[channel] = dateString;
 		return dateval;
 	}
 }
@@ -1002,7 +1020,7 @@ function sleep(ms) {
 async function scrollToBottomWithTimer() {
 	await sleep(SCROLL_TIME);
 	scrollToBottom();
-	/* Scroll twice if me miss the first one in UI */
+	/* Scroll twice if we miss the first one in UI */
 	await sleep(SCROLL_TIME);
 	scrollToBottom();
 }
@@ -1013,29 +1031,33 @@ async function resync(uid, channel) {
 }
 
 async function reconnect(uid, channel) {
-	if (gIsReconnect) {
+	if (gIsReconnect[channel]) {
 		return;
 	}
 
-	if (gReconnTimeout > MAXTIMEOUT) {
-		gReconnTimeout = MAXTIMEOUT;
-		gReconnAttempts += 1;
+	if (gReconnTimeout[channel] > MAXTIMEOUT) {
+		gReconnTimeout[channel] = MAXTIMEOUT;
+		gReconnAttempts[channel] += 1;
 	}
 
-	gIsReconnect = true;
-	await sleep(gReconnTimeout);
-	gReconnTimeout *= 2;
-	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel, gPrevBdKey]);
+	gIsReconnect[channel] = true;
+	await sleep(gReconnTimeout[channel]);
+	gReconnTimeout[channel] *= 2;
+	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel, gPrevBdKey[channel]]);
 }
 
 /* Called from the background thread */
 function syncReconnect() {
-	if (gIsReconnect)
-		return;
+	for (let channel in gMyChannel) {
+		if (gInitOk[channel]) {
+			if (gIsReconnect[channel])
+				continue;
 
-	if ('' != gMyName && '' != gMyChannel) {
-		gWebWorker.postMessage(["reconnect", null, gMyName, gMyChannel, gIsTokenChannel, gPrevBdKey]);
-		sendEmptyJoin();
+			if (!gMyName[channel] && !gMyChannel[channel]) {
+				gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel, gPrevBdKey[channel]]);
+				sendEmptyJoin(channel);
+			}
+		}
 	}
 }
 
@@ -1044,29 +1066,29 @@ function scrollToBottom() {
 }
 
 function sendData(cmd, uid, channel, data, msgtype) {
-	if (gInitOk) {
+	if (gInitOk[channel]) {
 		const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
 		let mHash;
 
 		let arr = [cmd, data, uid, channel, gIsTokenChannel, msgtype, msgDate.valueOf()];
 
-		if (!(msgtype & MSGISPRESENCE) && gSipKeyIsOk) {
-			mHash = hashMessage(uid, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
+		if (!(msgtype & MSGISPRESENCE) && gSipKeyIsOk[channel]) {
+			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
 			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
 		}
 
-		if (!gIsResync) {
+		if (!gIsResync[channel]) {
 			gWebWorker.postMessage(arr);
 		}
-		if (gSipKeyIsOk && msgtype & MSGISFULL && data.length > 0) {
-			queuePostMsg(uid, channel, [msgDate.valueOf(), arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy]);
+		if (gSipKeyIsOk[channel] && msgtype & MSGISFULL && data.length > 0) {
+			queuePostMsg(uid, channel, [msgDate.valueOf(), arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy[channel]]);
 		}
 	}
 }
 
-function updateAfterSend(message, isFull, isImage) {
+function updateAfterSend(channel, message, isFull, isImage) {
 	let dateString = "[" + timeNow() + "] ";
-	let date = updateDateval(dateString);
+	let date = updateDateval(channel, dateString);
 	let time = updateTime(dateString);
 	let li;
 
@@ -1077,23 +1099,23 @@ function updateAfterSend(message, isFull, isImage) {
 	}
 
 	if (!date)
-		time = checkTime(gMyName, gMyChannel, time, isFull);
+		time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
 
 	if (!isImage) {
-		if (!gForwardSecrecy) {
-			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
+		if (!gForwardSecrecy[channel]) {
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"> ' + time + "" + autolinker.link(message) + '</li></div>';
 		}
 		else {
-			li = '<div id="owner' + gOwnId + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
 		}
 	}
 	else {
-		if (!gForwardSecrecy) {
-			li = '<div id="owner' + gOwnId + '"><li class="own"> ' + time
+		if (!gForwardSecrecy[channel]) {
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"> ' + time
 				+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
 		}
 		else {
-			li = '<div id="owner' + gOwnId + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
 				+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt=""></li></div>';
 		}
 
@@ -1103,29 +1125,29 @@ function updateAfterSend(message, isFull, isImage) {
 		if (isImage) {
 			$('#messages').append(li);
 		}
-		gLastWrittenMsg = li;
-		gOwnId = gOwnId + 1;
-		gOwnAppend = false;
+		gLastWrittenMsg[channel] = li;
+		gOwnId[channel] += 1;
+		gOwnAppend[channel] = false;
 	}
 	else {
-		gLastWrittenMsg = "";
-		if (false == gOwnAppend) {
+		gLastWrittenMsg[channel] = "";
+		if (false == gOwnAppend[channel]) {
 			$('#messages').append(li);
-			gOwnAppend = true;
+			gOwnAppend[channel] = true;
 		}
 		else
-			$('#owner' + gOwnId).replaceWith(li);
+			$('#owner' + gOwnId[channel]).replaceWith(li);
 	}
 	scrollToBottom();
 	if (isFull)
 		$('#input_message').val('');
 }
 
-function sendMessage(message, isFull, isPresence, isPresenceAck = false) {
+function sendMessage(channel, message, isFull, isPresence, isPresenceAck = false) {
 	let msgtype = (isFull ? MSGISFULL : 0);
 	msgtype |= (isPresence ? MSGISPRESENCE : 0);
 	msgtype |= (isPresenceAck ? MSGISPRESENCEACK : 0);
-	sendData("send", gMyName, gMyChannel, message, msgtype);
+	sendData("send", gMyName[channel], gMyChannel[channel], message, msgtype);
 }
 
 async function sendDataurl(dataUrl, uid, channel) {
@@ -1151,28 +1173,28 @@ async function sendDataurl(dataUrl, uid, channel) {
 			else if (i + MULTIPART_SLICE >= dataUrl.length) {
 				msgtype |= MSGISLAST;
 				data += dataUrl.slice(i, dataUrl.length);
-				sendData("send", gMyName, gMyChannel, data, msgtype);
+				sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 				gMultipartSendDict[get_uniq(uid, channel)] = false;
-				gMultipartContinue = false;
+				gMultipartContinue[channel] = false;
 				break;
 			}
 			data += dataUrl.slice(i, i + MULTIPART_SLICE);
-			sendData("send", gMyName, gMyChannel, data, msgtype);
-			while (false == gMultipartContinue) {
+			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+			while (false == gMultipartContinue[channel]) {
 				await sleep(ASYNC_SLEEP);
 			}
-			gMultipartContinue = false;
+			gMultipartContinue[channel] = false;
 		}
 	}
 	else {
-		sendData("send", gMyName, gMyChannel, dataUrl, msgtype); /* is not multipart */
+		sendData("send", gMyName[channel], gMyChannel[channel], dataUrl, msgtype); /* is not multipart */
 	}
 
-	updateAfterSend(dataUrl, true, true);
+	updateAfterSend(channel, dataUrl, true, true);
 }
 
 
-function sendImage(file) {
+function sendImage(channel, file) {
 	let fr = new FileReader();
 	fr.onload = function (readerEvent) {
 		if (file.size >= IMGFRAGSIZE) {
@@ -1202,30 +1224,30 @@ function sendImage(file) {
 				canvas.height = height;
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
-				sendDataurl(dataUrl, gMyName, gMyChannel);
+				sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
-			sendDataurl(fr.result, gMyName, gMyChannel);
+			sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]);
 		}
 	}
 	fr.readAsDataURL(file);
 }
 
-function getToken() {
-	return "https://" + gAddrPortInput + "/mlestalk-web.html?token=" + token;
+function getToken(channel) {
+	return "https://" + gAddrPortInput[channel] + "/mlestalk-web.html?token=" + token;
 }
 
-function getFront() {
+function getFront(channel) {
 	$("#channel_localization").val(getLocalLanguageSelection());
 	setLanguage();
-	$("#input_addr_port").val(getLocalAddrPortInput());
+	$("#input_addr_port").val(getLocalAddrPortInput(channel));
 }
 
-function getLocalAddrPortInput() {
-	let apinput = window.localStorage.getItem('gAddrPortInput');
+function getLocalAddrPortInput(channel) {
+	let apinput = window.localStorage.getItem('gAddrPortInput' + channel);
 	if (apinput != undefined && apinput != '' && apinput != 'mles.io:80') {
 		return apinput;
 	}
@@ -1234,83 +1256,37 @@ function getLocalAddrPortInput() {
 	}
 }
 
-function getLocalSession() {
-	gMyName = window.localStorage.getItem('gMyName');
-	gMyChannel = window.localStorage.getItem('gMyChannel');
-	gMyKey = window.localStorage.getItem('gMyKey');
+function getLocalSession(channel) {
+	gMyName[channel] = window.localStorage.getItem('gMyName' + channel);
+	gMyChannel[channel] = window.localStorage.getItem('gMyChannel' + channel);
+	gMyKey[channel] = window.localStorage.getItem('gMyKey' + channel);
 
 }
 
-function clearLocalSession() {
-	window.localStorage.removeItem('gMyName');
-	window.localStorage.removeItem('gMyChannel');
-	window.localStorage.removeItem('gMyKey');
+function clearLocalSession(channel) {
+	window.localStorage.removeItem('gMyName' + channel);
+	window.localStorage.removeItem('gMyChannel' + channel);
+	window.localStorage.removeItem('gMyKey' + channel);
 }
 
 
-function getLocalBdKey() {
-	const bdKey = window.localStorage.getItem('gPrevBdKey');
+function getLocalBdKey(channel) {
+	const bdKey = window.localStorage.getItem('gPrevBdKey' + channel);
 
 	if (bdKey) {
-		gPrevBdKey = bdKey;
+		gPrevBdKey[channel] = bdKey;
 		//console.log("Loading key from local storage!");
 	}
 }
 
-
-function setLocalBdKey(bdKey) {
+function setLocalBdKey(channel, bdKey) {
 	if (bdKey) {
-		window.localStorage.setItem('gPrevBdKey', bdKey);
+		window.localStorage.setItem('gPrevBdKey' + chanenl, bdKey);
 		//console.log("Saving keys to local storage!");
 	}
 }
 
-function clearLocalBdKey() {
-	window.localStorage.removeItem('gPrevBdKey');
-}
-
-/* Unit tests */
-function runUnitTests() {
-	//initTests();
-	//timestampTest();
-	//deinitTests();
-}
-
-function initTests() {
-	gInitOk = true;
-	gMyName = "unittest";
-	gMyChannel = "unittest";
-	gSipKey = SipHash.string16_to_key(atob(gMyChannel));
-	gSipKeyIsOk = true;
-}
-
-function deinitTests() {
-	gInitOk = false;
-	gMyName = undefined;
-	gMyChannel = undefined;
-	gSipKey = undefined;
-	gSipKeyIsOk = false;
-}
-
-function timestampTest() {
-	let time = Date.now();
-	/* Receive message with time */
-	let ret = processData("tester", "unittest", time, "First test message", true, false, false, false, false);
-	if (ret != 1)
-		console.log("First message failed! " + ret);
-
-	/* Receive presence message with time + 1 */
-	ret = processData("tester", "unittest", time + 1, "", false, false, false, false, false);
-	if (ret != 1)
-		console.log("Presence message failed! " + ret)
-
-	ret = processData("tester", "unittest", time, "First test message", false, false, false, false, false);
-	if (ret != 0)
-		console.log("Resend message failed! " + ret)
-
-	ret = processData("tester", "unittest", time, "First test message", true, false, false, false, false);
-	if (ret != 0)
-		console.log("Resend full message failed! " + ret)
-	/* => Check that it is not shown */
+function clearLocalBdKey(channel) {
+	window.localStorage.removeItem('gPrevBdKey' + channel);
 }
 
