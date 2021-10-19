@@ -1281,7 +1281,7 @@ function getLocalBdKey(channel) {
 
 function setLocalBdKey(channel, bdKey) {
 	if (bdKey) {
-		window.localStorage.setItem('gPrevBdKey' + chanenl, bdKey);
+		window.localStorage.setItem('gPrevBdKey' + channel, bdKey);
 		//console.log("Saving keys to local storage!");
 	}
 }
