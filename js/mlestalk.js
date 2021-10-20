@@ -195,7 +195,7 @@ function queueSweepAndSend(uid, channel) {
 			}
 		}
 	}
-	gIsResync = false;
+	gIsResync[channel] = false;
 	console.log("Resync complete: swept " + cnt + " msgs.");
 }
 
@@ -333,7 +333,8 @@ $(document).ready(function () {
 	let url = new URL(url_string);
 	gMyToken = url.searchParams.get("token");
 	getFront();
-	joinExistingChannel();
+	getActiveChannel();
+	joinExistingChannel(gActiveChannel);
 	$("#channel_submit, #form_send_message").submit(function (e) {
 		e.preventDefault();
 		askChannel();
@@ -358,10 +359,9 @@ function addrsplit(channel, addrport) {
 
 function joinExistingChannel(channel) {
 	getLocalSession(channel);
-	gAddrPortInput = getLocalAddrPortInput(channel);
+	gAddrPortInput[channel] = getLocalAddrPortInput(channel);
 	if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
-
-		addrsplit(gAddrPortInput[channel]);
+		addrsplit(channel, gAddrPortInput[channel]);
 
 		$('#name_channel_cont').fadeOut();
 		getLocalBdKey();
@@ -406,6 +406,7 @@ function askChannel() {
 		gForwardSecrecy[channel] = false;
 		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
+		gIsResync[channel] = false;
 
 		gMyName[channel] = $('#input_name').val().trim();
 		gMyKey[channel] = $('#input_key').val().trim();
@@ -424,7 +425,7 @@ function askChannel() {
 		}
 
 		//add to local storage
-		if (gAddrPortInput.length > 0) {
+		if (gAddrPortInput[channel].length > 0) {
 			window.localStorage.setItem('gAddrPortInput' + channel, gAddrPortInput[channel]);
 		}
 		else {
@@ -439,7 +440,7 @@ function askChannel() {
 			window.localStorage.setItem('localization', "gb");
 		}
 
-		addrsplit(channel, gAddrPortInput);
+		addrsplit(channel, gAddrPortInput[channel]);
 
 		$('#name_channel_cont').fadeOut(400, function () {
 			/* Load keys from local storage */
@@ -447,6 +448,7 @@ function askChannel() {
 			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gIsTokenChannel, gPrevBdKey[channel]]);
 			$('#message_cont').fadeIn();
 			gActiveChannel = channel;
+			setActiveChannel(channel);
 		});
 	}
 	return false;
@@ -587,6 +589,7 @@ function closeSocket(channel) {
 	queueFlush(gMyName[channel], gMyChannel[channel]);
 	clearLocalBdKey(channel);
 	clearLocalSession(channel);
+	clearActiveChannel();
 	gForwardSecrecy[channel] = false;
 	gPrevBdKey[channel] = null;
 	gActiveChannel = null;
@@ -727,7 +730,7 @@ async function processData(uid, channel, msgTimestamp,
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
 	if (uid == gMyName[channel]) {
-		if (!gIsResync[channel]) {
+		if (false == gIsResync[channel]) {
 			console.log("Resyncing");
 			gIsResync[channel] = true;
 			resync(uid, channel);
@@ -996,8 +999,6 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "forwardsecrecyoff":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
 				//let myuid = e.data[3];
 				//let mychan = e.data[4];
 
@@ -1006,6 +1007,12 @@ gWebWorker.onmessage = function (e) {
 				if (ret < 0) {
 					console.log("Process close failed: " + ret);
 				}
+			}
+			break;
+		case "resync":
+			{
+				let channel = e.data[2];
+				sendEmptyJoin(channel);
 			}
 			break;
 	}
@@ -1088,20 +1095,19 @@ function syncReconnect() {
 		if (gInitOk[channel]) {
 			if (gIsReconnect[channel])
 				continue;
-			console.log("Reconnecting channel " + channel);
-			if (!gMyName[channel] && !gMyChannel[channel]) {
-				if(RESESS_LIMIT == resession_counter) {
-					gWebWorker.postMessage(["close", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel]);
-					gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gIsTokenChannel, gPrevBdKey[channel]]);
-					resession_counter = 0;
+			if (gMyName[channel] && gMyChannel[channel]) {
+				if(resession_counter >= RESESS_LIMIT) {
+					gWebWorker.postMessage(["resync", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel, gPrevBdKey[channel]]);
 				}
 				else {
+					sendEmptyJoin(gMyChannel[channel]);
 					gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel, gPrevBdKey[channel]]);
 				}
-				sendEmptyJoin(channel);
 			}
 		}
 	}
+	if(resession_counter >= RESESS_LIMIT)
+		resession_counter = 0;
 }
 
 function scrollToBottom() {
@@ -1299,11 +1305,22 @@ function getLocalAddrPortInput(channel) {
 	}
 }
 
+function getActiveChannel() {
+	gActiveChannel = window.localStorage.getItem('gActiveChannel');
+}
+
+function setActiveChannel() {
+	window.localStorage.setItem('gActiveChannel', gActiveChannel);
+}
+
+function clearActiveChannel() {
+	window.localStorage.removeItem('gActiveChannel');
+}
+
 function getLocalSession(channel) {
 	gMyName[channel] = window.localStorage.getItem('gMyName' + channel);
 	gMyChannel[channel] = window.localStorage.getItem('gMyChannel' + channel);
 	gMyKey[channel] = window.localStorage.getItem('gMyKey' + channel);
-
 }
 
 function clearLocalSession(channel) {
