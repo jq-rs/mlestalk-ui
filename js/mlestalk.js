@@ -314,7 +314,7 @@ function onLoad() {
 			vibrate: true
 		});
 
-		// sets an recurring alarm that keeps things rolling
+		// sets a recurring alarm that keeps things rolling
 		cordova.plugins.backgroundMode.disableWebViewOptimizations();
 		cordova.plugins.backgroundMode.enable();
 
@@ -526,6 +526,39 @@ function presenceExit() {
 		$('#message_cont').fadeIn();
 	});
 	$('#presence_avail').html('');
+}
+
+function outputChannelList() {
+	for (let val in gMyChannel) {
+		if(val) {
+		let channel = gMyChannel[val];
+		console.log("Showing channel " + val + " channel val " + channel);
+		let li = '<li class="new"><span class="name">' + channel + '</span></li>';
+		$('#channel_list_avail').append(li);
+		}
+	}
+	$('#message_cont').fadeOut(400, function () {
+		$('#channel_list_cont').fadeIn();
+	});
+}
+
+function channelListShow() {
+	console.log("Show channel list..");
+	$('#channel_avail').html('');
+	outputChannelList();
+}
+
+function channelListUnshow() {
+	$('#channel_list_cont').fadeOut(400, function () {
+		$('#message_cont').fadeIn();
+	});
+}
+
+function channelListExit() {
+	$('#channel_list_cont').fadeOut(400, function () {
+		$('#message_cont').fadeIn();
+	});
+	$('#channel_avail').html('');
 }
 
 function closeSocket(channel) {
@@ -1046,15 +1079,25 @@ async function reconnect(uid, channel) {
 	gWebWorker.postMessage(["reconnect", null, uid, channel, gIsTokenChannel, gPrevBdKey[channel]]);
 }
 
+const RESESS_LIMIT = 5;
+let resession_counter = 0;
 /* Called from the background thread */
 function syncReconnect() {
+	resession_counter += 1;
 	for (let channel in gMyChannel) {
 		if (gInitOk[channel]) {
 			if (gIsReconnect[channel])
 				continue;
-
+			console.log("Reconnecting channel " + channel);
 			if (!gMyName[channel] && !gMyChannel[channel]) {
-				gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel, gPrevBdKey[channel]]);
+				if(RESESS_LIMIT == resession_counter) {
+					gWebWorker.postMessage(["close", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel]);
+					gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gIsTokenChannel, gPrevBdKey[channel]]);
+					resession_counter = 0;
+				}
+				else {
+					gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gIsTokenChannel, gPrevBdKey[channel]]);
+				}
 				sendEmptyJoin(channel);
 			}
 		}
