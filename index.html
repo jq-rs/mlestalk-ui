@@ -83,9 +83,9 @@
 					</form>
 				</div>
 				<div class="field">
-					<form>
+				<!-- <input id="channel_list" class="exit_button" type="button" value="channel_list" onclick="channelListShow()" />
+				<input id="resync" class="exit_button" type="button" value="resync" onclick="syncReconnect()" /> -->
 						<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
-					</form>
 				</div>
 			</div>
 			<div id="presence_cont" class="box_with_shadow">
@@ -93,6 +93,13 @@
 					<ul id="presence_avail">
 					</ul>
 				</div>
+			</div>
+			<div id="channel_list_cont" class="box_with_shadow">
+				<div id="channel_list" class="top_section">
+					<ul id="channel_list_avail">
+					</ul>
+				</div>
+				<!-- <input id="channel_list_unshow" class="exit_button" type="button" value="channel_list_unshow" onclick="channelListUnshow()" /> -->
 			</div>
 		</div>
 		<script src="js/zoom-vanilla.js"></script>
