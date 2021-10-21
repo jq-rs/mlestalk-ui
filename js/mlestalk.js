@@ -46,7 +46,7 @@ const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
-const MAXTIMEOUT = 1000 * 60 * 5; /* ms */
+const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 32;
 const RESYNC_TIMEOUT = 3000; /* ms */
 const LED_ON_TIME = 500; /* ms */
@@ -493,7 +493,7 @@ function outputPresenceList() {
 		const user = arr[0];
 		const channel = arr[1];
 		const timestamp = arr[2];
-		if (user == gMyName)
+		if (user == gMyName[channel])
 			continue;
 		//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
 		if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
@@ -522,16 +522,24 @@ function presenceExit() {
 	$('#presence_cont').fadeOut(400, function () {
 		$('#message_cont').fadeIn();
 	});
-	$('#presence_avail').html('');
 }
 
 function outputChannelList() {
+	$('#channel_list_avail').html('');
 	for (let val in gMyChannel) {
 		if(val) {
-		let channel = gMyChannel[val];
-		console.log("Showing channel " + val + " channel val " + channel);
-		let li = '<li class="new"><span class="name">' + channel + '</span></li>';
-		$('#channel_list_avail').append(li);
+			let channel = gMyChannel[val];
+			console.log("Showing channel " + val + " channel val " + channel);
+			let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
+			$('#channel_list_avail').append(li);
+			document.getElementById(channel).onclick = function() {
+				$('#channel_list_cont').fadeOut(400, function () {
+						//TODO: load channel messages and update to message cont, fade in.
+						//Update channel to show new full messages in brackets after the channel name, total full messages too?
+						//Add similar onclick to presence
+						$('#message_cont').fadeIn();
+				});
+			};
 		}
 	}
 	$('#message_cont').fadeOut(400, function () {
