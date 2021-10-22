@@ -553,20 +553,25 @@ function outputChannelList() {
 	for (let val in gMyChannel) {
 		if(val) {
 			let channel = gMyChannel[val];
-			let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
-			$('#channel_list_avail').append(li);
-			document.getElementById(channel).onclick = function() {
-				$('#channel_list_cont').fadeOut(400, function () {
-						$('#messages').html('');
-						const qlen = gMsgs[channel].getLength();
-						for(let i = 0; i < qlen; i++) {
-							let li = gMsgs[channel].get(i);
-							$('#messages').append(li);
+			if(channel) {
+				let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
+				$('#channel_list_avail').append(li);
+				document.getElementById(channel).onclick = function() {
+					$('#channel_list_cont').fadeOut(400, function () {
+						if(gMsgs[channel]) {
+							$('#messages').html('');
+							const qlen = gMsgs[channel].getLength();
+							for(let i = 0; i < qlen; i++) {
+								let li = gMsgs[channel].get(i);
+								$('#messages').append(li);
+							}
 						}
+						createSipToken(channel);
 						gActiveChannel = channel;
 						$('#message_cont').fadeIn();
-				});
-			};
+					});
+				};
+			}
 		}
 	}
 	$('#message_cont').fadeOut(400, function () {
@@ -617,7 +622,6 @@ function closeSocket(channel) {
 	queueFlush(gMyName[channel], gMyChannel[channel]);
 	clearLocalBdKey(channel);
 	clearLocalSession(channel);
-	clearActiveChannel();
 	gForwardSecrecy[channel] = false;
 	gPrevBdKey[channel] = null;
 	gActiveChannel = null;
@@ -632,15 +636,16 @@ function closeSocket(channel) {
 	gMyName[channel] = null;
 	gMyChannel[channel] = null;
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel]);
-
+	setActiveChannels();
+	gActiveChannel = null;
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
 	$('#qrcode').fadeOut();
 	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
-		$('#name_channel_cont').fadeIn();
-		$('#messages').html('');
+		channelListShow();
+		$('#channel_list_cont').fadeIn();
 	});
 }
 
