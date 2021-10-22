@@ -23,6 +23,7 @@ let gPrevBdKey = {};
 let gForwardSecrecy = {};
 let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
+let gActiveChannels = {};
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -47,7 +48,7 @@ const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const PRESENCE_SHOW_TIMER = 5000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
-const MAXQLEN = 32;
+const MAXQLEN = 1000;
 const RESYNC_TIMEOUT = 3000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
@@ -78,6 +79,9 @@ let gCanNotify = false;
 let gWillNotify = false;
 let isCordova = false;
 let gIsReconnect = {};
+
+//message-list of channels
+let gMsgs = {};
 
 let gWeekday = new Array(7);
 gWeekday[0] = "Sun";
@@ -295,6 +299,18 @@ function onBackKeyDown() {
 	}
 }
 
+function newChannelShow() {
+	$('#message_cont').fadeOut(400, function () {
+		getFront();
+		gActiveChannel = null;
+		$('#messages').html('');
+		$('#name_channel_cont').fadeIn();
+		$("#channel_submit, #form_send_message").submit(function (e) {
+			e.preventDefault();
+			askChannelNew();
+		});
+	});
+}
 
 let interval;
 function onLoad() {
@@ -331,11 +347,12 @@ $(document).ready(function () {
 	let url_string = window.location.href;
 	let url = new URL(url_string);
 	getFront();
-	getActiveChannel();
-	joinExistingChannel(gActiveChannel);
+	getActiveChannels();
+	if(gActiveChannels)
+		joinExistingChannels(gActiveChannels)
 	$("#channel_submit, #form_send_message").submit(function (e) {
 		e.preventDefault();
-		askChannel();
+		askChannelNew();
 	});
 });
 
@@ -355,98 +372,105 @@ function addrsplit(channel, addrport) {
 	}
 }
 
-function joinExistingChannel(channel) {
-	getLocalSession(channel);
-	gAddrPortInput[channel] = getLocalAddrPortInput(channel);
-	if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
-		addrsplit(channel, gAddrPortInput[channel]);
-		gOwnId[channel] = 0;
-		gOwnAppend[channel] = false;
-		gForwardSecrecy[channel] = false;
-		gReadMsgDelayedQueueLen[channel] = 0;
-		gLastMessageSeenTs[channel] = 0;
-		gIsResync[channel] = false;
-		gInitOk[channel] = true;
-
-		initReconnect(channel);
-
-		getLocalBdKey(channel);
-		gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
-
-		createSipToken(channel);
-		$('#name_channel_cont').fadeOut();
-		$('#message_cont').fadeIn();
-	}
-}
-
-function askChannel() {
-	let channel = gActiveChannel;
-	if (!gInitOk[channel]) {
-		if (($('#input_name').val().trim().length <= 0 ||
-					$('#input_channel').val().trim().length <= 0 ||
-					$('#input_key').val().trim().length <= 0)) {
-
-			//not enough input, alert
-			popAlert();
-		}
-		else {
-			channel = $('#input_channel').val().trim();
-
-			gMyChannel[channel] = channel;
+function joinExistingChannels(channels) {
+	if(!channels)
+		return;
+	for (let channel in channels) {
+		getLocalSession(channel);
+		gAddrPortInput[channel] = getLocalAddrPortInput(channel);
+		if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
+			addrsplit(channel, gAddrPortInput[channel]);
 			gOwnId[channel] = 0;
 			gOwnAppend[channel] = false;
 			gForwardSecrecy[channel] = false;
 			gReadMsgDelayedQueueLen[channel] = 0;
 			gLastMessageSeenTs[channel] = 0;
 			gIsResync[channel] = false;
-
-			gMyName[channel] = $('#input_name').val().trim();
-			gMyKey[channel] = $('#input_key').val().trim();
-			gAddrPortInput[channel] = $('#input_addr_port').val().trim();
-			let localization = $('#channel_localization').val().trim();
-
-			//add to local storage
-			if (gMyName) {
-				window.localStorage.setItem('gMyName' + channel, gMyName[channel]);
-			}
-			if (gMyChannel) {
-				window.localStorage.setItem('gMyChannel' + channel, gMyChannel[channel]);
-			}
-			if (gMyKey) {
-				window.localStorage.setItem('gMyKey' + channel, gMyKey[channel]);
-			}
-
-			//add to local storage
-			if (gAddrPortInput[channel].length > 0) {
-				window.localStorage.setItem('gAddrPortInput' + channel, gAddrPortInput[channel]);
-			}
-			else {
-				window.localStorage.setItem('gAddrPortInput' + channel, "mles.io:443");
-			}
-
-			//add to local storage
-			if (localization.length > 0) {
-				window.localStorage.setItem('localization', localization);
-			}
-			else {
-				window.localStorage.setItem('localization', "gb");
-			}
-
-			addrsplit(channel, gAddrPortInput[channel]);
+			gInitOk[channel] = true;
 
 			initReconnect(channel);
 
-			$('#name_channel_cont').fadeOut(400, function () {
-					/* Load keys from local storage */
-					getLocalBdKey(channel);
-					gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
-					$('#message_cont').fadeIn();
-					gActiveChannel = channel;
-					setActiveChannel(channel);
-					});
+			getLocalBdKey(channel);
+			createSipToken(channel);
+			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
 		}
+		gActiveChannel = channel;
 	}
-	return false;
+	$('#name_channel_cont').fadeOut();
+	channelListShow();
+	$('#channel_list_cont').fadeIn();
+}
+
+function askChannelNew() {
+	if(gActiveChannel)
+		return;
+
+	if (($('#input_name').val().trim().length <= 0 ||
+				$('#input_channel').val().trim().length <= 0 ||
+				$('#input_key').val().trim().length <= 0)) {
+
+		//not enough input, alert
+		popAlert();
+	}
+	else {
+		channel = $('#input_channel').val().trim();
+
+		gMyChannel[channel] = channel;
+		gOwnId[channel] = 0;
+		gOwnAppend[channel] = false;
+		gForwardSecrecy[channel] = false;
+		gReadMsgDelayedQueueLen[channel] = 0;
+		gLastMessageSeenTs[channel] = 0;
+		gIsResync[channel] = false;
+
+		gMyName[channel] = $('#input_name').val().trim();
+		gMyKey[channel] = $('#input_key').val().trim();
+		gAddrPortInput[channel] = $('#input_addr_port').val().trim();
+		let localization = $('#channel_localization').val().trim();
+
+		//add to local storage
+		if (gMyName[channel]) {
+			window.localStorage.setItem('gMyName' + channel, gMyName[channel]);
+		}
+		if (gMyChannel[channel]) {
+			window.localStorage.setItem('gMyChannel' + channel, gMyChannel[channel]);
+		}
+		if (gMyKey[channel]) {
+			window.localStorage.setItem('gMyKey' + channel, gMyKey[channel]);
+		}
+
+		//add to local storage
+		if (gAddrPortInput[channel].length > 0) {
+			window.localStorage.setItem('gAddrPortInput' + channel, gAddrPortInput[channel]);
+		}
+		else {
+			window.localStorage.setItem('gAddrPortInput' + channel, "mles.io:443");
+		}
+
+		//add to local storage
+		if (localization.length > 0) {
+			window.localStorage.setItem('localization', localization);
+		}
+		else {
+			window.localStorage.setItem('localization', "gb");
+		}
+
+		addrsplit(channel, gAddrPortInput[channel]);
+
+		initReconnect(channel);
+
+		$('#name_channel_cont').fadeOut(400, function () {
+				/* Load keys from local storage */
+				getLocalBdKey(channel);
+				gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+				$('#message_cont').fadeIn();
+				if(!gActiveChannels)
+					gActiveChannels = {};
+				gActiveChannels[channel] = channel;
+				setActiveChannels();
+				gActiveChannel = channel;
+		});
+	}
 }
 
 /* Presence */
@@ -529,14 +553,17 @@ function outputChannelList() {
 	for (let val in gMyChannel) {
 		if(val) {
 			let channel = gMyChannel[val];
-			console.log("Showing channel " + val + " channel val " + channel);
 			let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
 			$('#channel_list_avail').append(li);
 			document.getElementById(channel).onclick = function() {
 				$('#channel_list_cont').fadeOut(400, function () {
-						//TODO: load channel messages and update to message cont, fade in.
-						//Update channel to show new full messages in brackets after the channel name, total full messages too?
-						//Add similar onclick to presence
+						$('#messages').html('');
+						const qlen = gMsgs[channel].getLength();
+						for(let i = 0; i < qlen; i++) {
+							let li = gMsgs[channel].get(i);
+							$('#messages').append(li);
+						}
+						gActiveChannel = channel;
 						$('#message_cont').fadeIn();
 				});
 			};
@@ -548,8 +575,7 @@ function outputChannelList() {
 }
 
 function channelListShow() {
-	console.log("Show channel list..");
-	$('#channel_avail').html('');
+	$('#channel_list_avail').html('');
 	outputChannelList();
 }
 
@@ -563,7 +589,6 @@ function channelListExit() {
 	$('#channel_list_cont').fadeOut(400, function () {
 		$('#message_cont').fadeIn();
 	});
-	$('#channel_avail').html('');
 }
 
 function closeSocket(channel) {
@@ -596,6 +621,7 @@ function closeSocket(channel) {
 	gForwardSecrecy[channel] = false;
 	gPrevBdKey[channel] = null;
 	gActiveChannel = null;
+	gActiveChannels[channel] = null;
 	gOwnId[channel] = 0;
 	gOwnAppend[channel] = false;
 	gIsResync[channel] = false;
@@ -627,7 +653,13 @@ function initReconnect(channel) {
 function processInit(uid, channel) {
 	if (uid.length > 0 && channel.length > 0) {
 		gInitOk[channel] = true;
+		createSipToken(channel);
+
 		sendInitJoin(channel);
+
+		if(!gMsgs[channel]) {
+			gMsgs[channel] = new Queue();
+		}
 
 		let li;
 		if (gIsReconnect[channel] && gLastMessageSeenTs[channel] > 0) {
@@ -635,10 +667,10 @@ function processInit(uid, channel) {
 		}
 		else {
 			li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
-			$('#messages').append(li);
+			if(gActiveChannel == channel)
+				$('#messages').append(li);
+			gMsgs[channel].push(li);
 		}
-
-		createSipToken(channel);
 
 		return 0;
 	}
@@ -647,7 +679,7 @@ function processInit(uid, channel) {
 
 function createSipToken(channel) {
 	//use channel to create 128 bit token
-	let bfchannel = atob(channel);
+	let bfchannel = channel;
 	gSipKey[channel] = SipHash.string16_to_key(bfchannel);
 	gSipKeyIsOk[channel] = true;
 	let atoken = SipHash.hash_hex(gSipKey[channel], bfchannel);
@@ -808,10 +840,18 @@ async function processData(uid, channel, msgTimestamp,
 		}
 
 		date = updateDateval(channel, dateString);
+
+		if(!gMsgs[channel]) {
+			console.log("Init message-list for channel " + channel);
+			gMsgs[channel] = new Queue();
+		}
+
 		if (date) {
 			/* Update new date header */
 			li = '<li class="new"> - <span class="name">' + date + '</span> - </li>';
-			$('#messages').append(li);
+			gMsgs[channel].push(li);
+			if(gActiveChannel == channel)
+				$('#messages').append(li);
 		}
 		time = updateTime(dateString);
 
@@ -866,14 +906,17 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		if (false == gIdAppend[duid]) {
-			$('#messages').append(li);
-			gIdAppend[duid] = true;
+		if(gActiveChannel == channel) {
+			if (false == gIdAppend[duid]) {
+				$('#messages').append(li);
+				gIdAppend[duid] = true;
+			}
+			else
+				$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
 		}
-		else
-			$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
 
 		if (isFull) {
+			gMsgs[channel].push(li);
 			gIdHash[duid] += 1;
 			gIdAppend[duid] = false;
 			if (isCordova && gLastReconnectTs[channel] < msgTimestamp) {
@@ -882,7 +925,9 @@ async function processData(uid, channel, msgTimestamp,
 		}
 
 		if (isFull || $('#input_message').val().length == 0) {
-			scrollToBottom();
+			if(gActiveChannel == channel) {
+				scrollToBottom();
+			}
 		}
 
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
@@ -1135,10 +1180,15 @@ function updateAfterSend(channel, message, isFull, isImage) {
 	let time = updateTime(dateString);
 	let li;
 
+	if(!gMsgs[channel]) {
+		gMsgs[channel] = new Queue();
+	}
+
 	if (date) {
 		/* Update new date header */
 		li = '<li class="own"> - <span class="name">' + date + '</span> - </li>';
 		$('#messages').append(li);
+		gMsgs[channel].push(li);
 	}
 
 	if (!date)
@@ -1168,6 +1218,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		if (isImage) {
 			$('#messages').append(li);
 		}
+		gMsgs[channel].push(li);
 		gLastWrittenMsg[channel] = li;
 		gOwnId[channel] += 1;
 		gOwnAppend[channel] = false;
@@ -1299,16 +1350,16 @@ function getLocalAddrPortInput(channel) {
 	}
 }
 
-function getActiveChannel() {
-	gActiveChannel = window.localStorage.getItem('gActiveChannel');
+function getActiveChannels() {
+	gActiveChannels = JSON.parse(window.localStorage.getItem('gActiveChannelsJSON'));
 }
 
-function setActiveChannel() {
-	window.localStorage.setItem('gActiveChannel', gActiveChannel);
+function setActiveChannels() {
+	window.localStorage.setItem('gActiveChannelsJSON', JSON.stringify(gActiveChannels));
 }
 
-function clearActiveChannel() {
-	window.localStorage.removeItem('gActiveChannel');
+function clearActiveChannels() {
+	window.localStorage.removeItem('gActiveChannelsJSON');
 }
 
 function getLocalSession(channel) {
