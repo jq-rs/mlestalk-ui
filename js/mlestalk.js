@@ -842,7 +842,6 @@ async function processData(uid, channel, msgTimestamp,
 		date = updateDateval(channel, dateString);
 
 		if(!gMsgs[channel]) {
-			console.log("Init message-list for channel " + channel);
 			gMsgs[channel] = new Queue();
 		}
 
