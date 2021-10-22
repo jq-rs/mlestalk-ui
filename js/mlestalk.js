@@ -199,7 +199,7 @@ function queueSweepAndSend(uid, channel) {
 		}
 	}
 	gIsResync[channel] = false;
-	console.log("Resync complete: swept " + cnt + " msgs.");
+	console.log("Resync for channel " + channel + " complete: swept " + cnt + " msgs.");
 }
 
 function uidQueuePush(uid, channel, arr) {
@@ -459,16 +459,17 @@ function askChannelNew() {
 
 		initReconnect(channel);
 
+		/* Load keys from local storage */
+		getLocalBdKey(channel);
+		gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+		if(!gActiveChannels)
+			gActiveChannels = {};
+		gActiveChannels[channel] = channel;
+		setActiveChannels();
+		gActiveChannel = channel;
+
 		$('#name_channel_cont').fadeOut(400, function () {
-				/* Load keys from local storage */
-				getLocalBdKey(channel);
-				gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
 				$('#message_cont').fadeIn();
-				if(!gActiveChannels)
-					gActiveChannels = {};
-				gActiveChannels[channel] = channel;
-				setActiveChannels();
-				gActiveChannel = channel;
 		});
 	}
 }
@@ -557,17 +558,17 @@ function outputChannelList() {
 				let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
 				$('#channel_list_avail').append(li);
 				document.getElementById(channel).onclick = function() {
-					$('#channel_list_cont').fadeOut(400, function () {
-						if(gMsgs[channel]) {
-							$('#messages').html('');
-							const qlen = gMsgs[channel].getLength();
-							for(let i = 0; i < qlen; i++) {
-								let li = gMsgs[channel].get(i);
-								$('#messages').append(li);
-							}
+					if(gMsgs[channel]) {
+						$('#messages').html('');
+						const qlen = gMsgs[channel].getLength();
+						for(let i = 0; i < qlen; i++) {
+							let li = gMsgs[channel].get(i);
+							$('#messages').append(li);
 						}
-						createSipToken(channel);
-						gActiveChannel = channel;
+					}
+					createSipToken(channel);
+					gActiveChannel = channel;
+					$('#channel_list_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 					});
 				};
@@ -768,7 +769,7 @@ async function processData(uid, channel, msgTimestamp,
 
 	if (uid == gMyName[channel]) {
 		if (false == gIsResync[channel]) {
-			console.log("Resyncing");
+			console.log("Resyncing channel " + channel);
 			gIsResync[channel] = true;
 			resync(uid, channel);
 		}
