@@ -17,8 +17,10 @@ function setLanguage() {
 			$("#channel_user_name").text("Nimesi?");
 			$("#channel_name").text("Kanava?");
 			$("#channel_key").text("Jaettu avain?");
-            $("#channel_server").text("WebSocket palvelimen osoite");
-            $("#channel_exit").val("poistu");
+			$("#channel_server").text("WebSocket palvelimen osoite");
+			$("#channel_exit").val("poistu");
+			$("#new_channel").val("uusi kanava");
+			$("#channel_list").val("kanavat");
 			$("#app_info").text("lisätietoja sovelluksesta");
 			$("#legal").text("lakitiedot");
 			gWeekday[0] = "su";
@@ -36,8 +38,10 @@ function setLanguage() {
 			$("#channel_user_name").text("Ditt namn?");
 			$("#channel_name").text("Kanal?");
 			$("#channel_key").text("Delad nyckel?");
-            $("#channel_server").text("WebSocket server adress");
-            $("#channel_exit").val("utgång");
+			$("#channel_server").text("WebSocket server adress");
+			$("#channel_exit").val("utgång");
+			$("#new_channel").val("ny kanal");
+			$("#channel_list").val("kanaler");
 			$("#app_info").text("appinfo");
 			$("#legal").text("rättslig");
 			gWeekday[0] = "sö";
@@ -57,6 +61,8 @@ function setLanguage() {
 			$("#channel_key").text("¿Llave compartida?");
 			$("#channel_server").text("Dirección del servidor Websocket");
 			$("#channel_exit").val("salida");
+			$("#new_channel").text("nuevo canal");
+			$("#channel_list").val("canales");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
 			gWeekday[0] = "D";
@@ -76,6 +82,8 @@ function setLanguage() {
 			$("#channel_key").text("Gemeinsamer Schlüssel?");
 			$("#channel_server").text("WebSocket Serveradresse");
 			$("#channel_exit").val("abgehen");
+			$("#new_channel").text("neuer Kanal");
+			$("#channel_list").val("Kanäle");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
 			gWeekday[0] = "So";
@@ -95,6 +103,8 @@ function setLanguage() {
 			$("#channel_key").text("Clé partagée?");
 			$("#channel_server").text("WebSocket adresse du serveur");
 			$("#channel_exit").val("sortie");
+			$("#new_channel").val("nouveau canal");
+			$("#channel_list").val("canaux");
 			$("#app_info").text("info sur l'app");
 			$("#legal").text("légal");
 			gWeekday[0] = "dim";
@@ -114,6 +124,8 @@ function setLanguage() {
 			$("#channel_key").text("Chave compartilhada?");
 			$("#channel_server").text("Endereço do servidor Websocket");
 			$("#channel_exit").val("saída");
+			$("#new_channel").val("novo canal");
+			$("#channel_list").val("canais");
 			$("#app_info").text("informação da aplicação");
 			$("#legal").text("legal");
 			gWeekday[0] = "Dom.";
@@ -133,6 +145,8 @@ function setLanguage() {
 			$("#channel_key").text("Общий ключ?");
 			$("#channel_server").text("Адрес сервера Websocket");
 			$("#channel_exit").val("выход");
+			$("#new_channel").val("новый канал");
+			$("#channel_list").val("каналами");
 			$("#app_info").text("информация о приложении");
 			$("#legal").text("правовой");
 			gWeekday[0] = "ВСК";
@@ -153,6 +167,8 @@ function setLanguage() {
 			$("#channel_key").text("Shared key?");
 			$("#channel_server").text("WebSocket server address");
 			$("#channel_exit").val("exit");
+			$("#new_channel").val("new channel");
+			$("#channel_list").val("channels");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
 			gWeekday[0] = "Sun";

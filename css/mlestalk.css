@@ -51,6 +51,28 @@ input.exit_button {
 	border-radius: 0px;
 }	
 
+input.new_channel_button {
+	padding: 1px;
+	cursor: pointer;
+	font-size: 90%;
+	float: left;
+	background: transparent;
+	color: #77407b;
+	border: 0px solid #77407b;
+	border-radius: 0px;
+}
+
+input.channel_list_button {
+	padding: 1px;
+	cursor: pointer;
+	font-size: 90%;
+	float: left;
+	background: transparent;
+	color: #77407b;
+	border: 0px solid #77407b;
+	border-radius: 0px;
+}
+
 #name_channel_cont {
     margin: 0 auto;
     width: 350px;
@@ -171,7 +193,8 @@ input.exit_button {
 #presence_avail {
     margin: 0px;
     padding: 0;
-    height: 230px;
+    overflow: scroll;
+    height: 80vh;
 }
 
 #presence_avail li {
@@ -204,7 +227,8 @@ input.exit_button {
 #channel_list_avail {
     margin: 0px;
     padding: 0;
-    height: 230px;
+    overflow: scroll;
+    height: 80vh;
 }
 
 #channel_list_avail li {

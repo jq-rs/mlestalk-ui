@@ -300,10 +300,11 @@ function onBackKeyDown() {
 }
 
 function newChannelShow() {
+	getFront();
+	gActiveChannel = null;
+	$('#messages').html('');
+	$('#channel_list_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
-		getFront();
-		gActiveChannel = null;
-		$('#messages').html('');
 		$('#name_channel_cont').fadeIn();
 		$("#channel_submit, #form_send_message").submit(function (e) {
 			e.preventDefault();
@@ -513,21 +514,47 @@ function chanExit() {
 function outputPresenceList() {
 	let date = Date.now();
 
-	for (let val in gPresenceTs) {
-		let arr = gPresenceTs[val];
-		const user = arr[0];
-		const channel = arr[1];
-		const timestamp = arr[2];
-		if (user == gMyName[channel])
-			continue;
-		//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
-		if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
-			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
-		else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
-			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
-		else
-			li = '<li class="new"><span class="name">' + user + "@" + channel + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
-		$('#presence_avail').append(li);
+	for (let val in gMyChannel) {
+		if(val) {
+			let channel = gMyChannel[val];
+			if(channel) {
+				let li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + '</span></li>';
+				$('#presence_avail').append(li);
+				for (let val in gPresenceTs) {
+					let arr = gPresenceTs[val];
+					const ps_channel = arr[1];
+					if(ps_channel != channel)
+						continue;
+					const user = arr[0];
+					const timestamp = arr[2];
+					if (user == gMyName[channel])
+						continue;
+					//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
+					if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
+						li = '<li><span class="name">   ' + user + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
+					else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
+						li = '<li><span class="name">   ' + user + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
+					else
+						li = '<li><span class="name">   ' + user + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
+					$('#presence_avail').append(li);
+				}
+				document.getElementById(channel).onclick = function() {
+					if(gMsgs[channel]) {
+						$('#messages').html('');
+						const qlen = gMsgs[channel].getLength();
+						for(let i = 0; i < qlen; i++) {
+							let li = gMsgs[channel].get(i);
+							$('#messages').append(li);
+						}
+					}
+					createSipToken(channel);
+					gActiveChannel = channel;
+					$('#channel_list_cont').fadeOut(400, function () {
+						$('#message_cont').fadeIn();
+					});
+				};
+			}
+		}
 	}
 	$('#message_cont').fadeOut(400, function () {
 		$('#presence_cont').fadeIn();
@@ -555,7 +582,7 @@ function outputChannelList() {
 		if(val) {
 			let channel = gMyChannel[val];
 			if(channel) {
-				let li = '<li class="new" id="' + channel + '"><span class="name">' + channel + '</span></li>';
+				let li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + '</span></li>';
 				$('#channel_list_avail').append(li);
 				document.getElementById(channel).onclick = function() {
 					if(gMsgs[channel]) {
