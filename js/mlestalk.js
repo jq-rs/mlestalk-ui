@@ -76,7 +76,8 @@ let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
 
 let gCanNotify = false;
-let gWillNotify = false;
+let gWillNotify = true;
+let gIsPause = false;
 let isCordova = false;
 let gIsReconnect = {};
 
@@ -263,6 +264,7 @@ let gWebWorker = new Worker('webworker/js/webworker.js');
 
 function onPause() {
 	gWillNotify = true;
+	gIsPause = true;
 	if (isCordova) {
 		if (!cordova.plugins.backgroundMode.isActive()) {
 			cordova.plugins.backgroundMode.enable();
@@ -278,7 +280,8 @@ function onPause() {
 }
 
 function onResume() {
-	gWillNotify = false;
+	gWillNotify = true;
+	gIsPause = false;
 	if (isCordova) {
 		cordova.plugins.notification.local.clearAll();
 		cordova.plugins.notification.badge.clear();
@@ -304,6 +307,7 @@ function newChannelShow() {
 	gActiveChannel = null;
 	$('#messages').html('');
 	$('#channel_list_cont').fadeOut();
+	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
 		$("#channel_submit, #form_send_message").submit(function (e) {
@@ -549,7 +553,8 @@ function outputPresenceList() {
 					}
 					createSipToken(channel);
 					gActiveChannel = channel;
-					$('#channel_list_cont').fadeOut(400, function () {
+					gIsPresenceView = false;
+					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 					});
 				};
@@ -562,6 +567,7 @@ function outputPresenceList() {
 }
 
 async function presenceShow() {
+	$('#channel_list_cont').fadeOut();
 	while (gIsPresenceView) {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
@@ -609,6 +615,7 @@ function outputChannelList() {
 
 function channelListShow() {
 	$('#channel_list_avail').html('');
+	$('#presence_cont').fadeOut();
 	outputChannelList();
 }
 
@@ -963,7 +970,7 @@ async function processData(uid, channel, msgTimestamp,
 		}
 
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if (uid != gMyName[channel] && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
+		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
 					message = gImageStr;
@@ -1114,7 +1121,7 @@ function doNotify(uid, channel, msgTimestamp, message) {
 	let msg = gLastMessage[channel];
 	if (isCordova) {
 		cordova.plugins.notification.local.schedule({
-			title: msg[1],
+			title: msg[1] + "@" + channel,
 			text: msg[2],
 			icon: 'res://large_micon.png',
 			smallIcon: 'res://icon.png',
