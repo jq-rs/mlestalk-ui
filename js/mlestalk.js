@@ -1166,14 +1166,15 @@ function syncReconnect() {
 			if (true == gIsReconnect[channel])
 				continue;
 			if (gMyName[channel] && gMyChannel[channel]) {
-				console.log("resyncing channel " + gMyChannel[channel], " uid " + gMyName[channel]);
-				if(resession_counter >= RESESS_LIMIT) {
-					gWebWorker.postMessage(["resync", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-				}
-				else {
+				//disable for now
+				//console.log("resyncing channel " + gMyChannel[channel], " uid " + gMyName[channel]);
+				//if(resession_counter >= RESESS_LIMIT) {
+				//	gWebWorker.postMessage(["resync", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
+				//}
+				//else {
 					sendEmptyJoin(gMyChannel[channel]);
 					gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-				}
+				//}
 			}
 		}
 	}
