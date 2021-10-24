@@ -199,7 +199,7 @@ function queueSweepAndSend(uid, channel) {
 		}
 	}
 	gIsResync[channel] = false;
-	console.log("Resync for channel " + channel + " complete: swept " + cnt + " msgs.");
+	console.log("Resync for " + channel + " complete: swept " + cnt + " msgs.");
 }
 
 function uidQueuePush(uid, channel, arr) {
@@ -769,7 +769,7 @@ async function processData(uid, channel, msgTimestamp,
 
 	if (uid == gMyName[channel]) {
 		if (false == gIsResync[channel]) {
-			console.log("Resyncing channel " + channel);
+			console.log("Resyncing " + channel);
 			gIsResync[channel] = true;
 			resync(uid, channel);
 		}
@@ -1034,7 +1034,7 @@ gWebWorker.onmessage = function (e) {
 				let channel = e.data[2];
 				const prevBdKey = e.data[3];
 
-				console.log("Got forward secrecy on!")
+				//console.log("Got forward secrecy on!")
 				let ret = processForwardSecrecy(uid, channel, prevBdKey);
 				if (ret < 0) {
 					console.log("Process close failed: " + ret);
@@ -1047,7 +1047,7 @@ gWebWorker.onmessage = function (e) {
 				let channel = e.data[2];
 
 				let ret = processForwardSecrecyOff(uid, channel);
-				console.log("Got forward secrecy off!")
+				//console.log("Got forward secrecy off!")
 				if (ret < 0) {
 					console.log("Process close failed: " + ret);
 				}
