@@ -217,7 +217,7 @@ input.channel_list_button {
     color: #77407b;
 }
 
-#channel_list {
+#channels_list {
     margin: 10px;
     padding: 0;
 	overflow: scroll;

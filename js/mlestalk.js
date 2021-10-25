@@ -45,11 +45,11 @@ const IMGFRAGSIZE = 512 * 1024;
 let gInitOk = {};
 const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
-const PRESENCE_SHOW_TIMER = 5000; /* ms */
+const LISTING_SHOW_TIMER = 3500; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 1000;
-const RESYNC_TIMEOUT = 3000; /* ms */
+const RESYNC_TIMEOUT = 2500; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
@@ -69,11 +69,16 @@ let gSipKey = {};
 let gSipKeyIsOk = {};
 let gIsResync = {};
 let gLastWrittenMsg = {};
+//TODO Check how initts works with different timezones..
+let gInitTs = {};
 
 let gLastMessageSeenTs = {};
 let gLastReconnectTs = {};
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
+
+let gIsPresenceView = false;
+let gIsChannelListView = false;
 
 let gCanNotify = false;
 let gWillNotify = true;
@@ -83,6 +88,7 @@ let gIsReconnect = {};
 
 //message-list of channels
 let gMsgs = {};
+let gNewMsgsCnt = {};
 
 let gWeekday = new Array(7);
 gWeekday[0] = "Sun";
@@ -289,7 +295,6 @@ function onResume() {
 	}
 }
 
-let gIsPresenceView = false;
 function onBackKeyDown() {
 	/* Open presence info */
 	if (!gIsPresenceView) {
@@ -491,6 +496,9 @@ function sendPresAck(channel) {
 /* Join after disconnect */
 function sendInitJoin(channel) {
 	sendMessage(channel, "", true, false);
+	//save channel init
+	const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
+	gInitTs[channel] = msgDate.valueOf();
 }
 
 async function send(isFull) {
@@ -522,7 +530,12 @@ function outputPresenceList() {
 		if(val) {
 			let channel = gMyChannel[val];
 			if(channel) {
-				let li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + '</span></li>';
+				let li;
+				if(gMsgs[channel])
+					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
+				else
+					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
+
 				$('#presence_avail').append(li);
 				for (let val in gPresenceTs) {
 					let arr = gPresenceTs[val];
@@ -554,6 +567,8 @@ function outputPresenceList() {
 					createSipToken(channel);
 					gActiveChannel = channel;
 					gIsPresenceView = false;
+					if(gMsgs[channel])
+						gNewMsgsCnt[channel] = 0;
 					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
@@ -573,7 +588,7 @@ async function presenceShow() {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
 		outputPresenceList();
-		await sleep(PRESENCE_SHOW_TIMER);
+		await sleep(LISTING_SHOW_TIMER);
 	}
 }
 
@@ -589,7 +604,12 @@ function outputChannelList() {
 		if(val) {
 			let channel = gMyChannel[val];
 			if(channel) {
-				let li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + '</span></li>';
+				let li;
+				if(gMsgs[channel])
+					li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
+				else
+					li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
+
 				$('#channel_list_avail').append(li);
 				document.getElementById(channel + "-view").onclick = function() {
 					if(gMsgs[channel]) {
@@ -602,6 +622,9 @@ function outputChannelList() {
 					}
 					createSipToken(channel);
 					gActiveChannel = channel;
+					gIsChannelListView = false;
+					if(gMsgs[channel])
+						gNewMsgsCnt[channel] = 0;
 					$('#channel_list_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
@@ -615,10 +638,15 @@ function outputChannelList() {
 	});
 }
 
-function channelListShow() {
+async function channelListShow() {
 	$('#channel_list_avail').html('');
 	$('#presence_cont').fadeOut();
-	outputChannelList();
+	gIsChannelListView = true;
+	gActiveChannel = null;
+	while (gIsChannelListView) {
+		outputChannelList();
+		await sleep(LISTING_SHOW_TIMER);
+	}
 }
 
 function channelListUnshow() {
@@ -701,6 +729,7 @@ function processInit(uid, channel) {
 
 		if(!gMsgs[channel]) {
 			gMsgs[channel] = new Queue();
+			gNewMsgsCnt[channel] = 0;
 		}
 
 		let li;
@@ -885,6 +914,7 @@ async function processData(uid, channel, msgTimestamp,
 
 		if(!gMsgs[channel]) {
 			gMsgs[channel] = new Queue();
+			gNewMsgsCnt[channel] = 0;
 		}
 
 		if (date) {
@@ -976,15 +1006,20 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull && gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
-			if (gWillNotify && gCanNotify) {
-				if (true == isImage) {
-					message = gImageStr;
+		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
+			gInitTs[channel] && gInitTs[channel] < msgTimestamp)
+		{
+			gNewMsgsCnt[channel] += 1;
+			const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
+			if(gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
+				if (gWillNotify && gCanNotify) {
+					if (true == isImage) {
+						message = gImageStr;
+					}
+					doNotify(uid, channel, notifyTimestamp, message);
 				}
-				doNotify(uid, channel, notifyTimestamp, message);
+				gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
 			}
-			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
 		}
 	}
 	return 0;
@@ -1228,6 +1263,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 
 	if(!gMsgs[channel]) {
 		gMsgs[channel] = new Queue();
+		gNewMsgsCnt[channel] = 0;
 	}
 
 	if (date) {
