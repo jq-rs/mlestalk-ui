@@ -310,6 +310,7 @@ function onBackKeyDown() {
 function newChannelShow() {
 	getFront();
 	gActiveChannel = null;
+	gIsChannelListView = false;
 	$('#messages').html('');
 	$('#channel_list_cont').fadeOut();
 	$('#presence_cont').fadeOut();
