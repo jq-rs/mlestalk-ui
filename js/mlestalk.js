@@ -298,6 +298,7 @@ function onResume() {
 function onBackKeyDown() {
 	/* Open presence info */
 	if (!gIsPresenceView) {
+		gIsChannelListView = false;
 		gIsPresenceView = true;
 		presenceShow();
 	}
