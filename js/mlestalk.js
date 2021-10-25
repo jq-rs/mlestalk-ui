@@ -556,6 +556,7 @@ function outputPresenceList() {
 					gIsPresenceView = false;
 					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
+						scrollToBottom();
 					});
 				};
 			}
@@ -588,9 +589,9 @@ function outputChannelList() {
 		if(val) {
 			let channel = gMyChannel[val];
 			if(channel) {
-				let li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + '</span></li>';
+				let li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + '</span></li>';
 				$('#channel_list_avail').append(li);
-				document.getElementById(channel).onclick = function() {
+				document.getElementById(channel + "-view").onclick = function() {
 					if(gMsgs[channel]) {
 						$('#messages').html('');
 						const qlen = gMsgs[channel].getLength();
@@ -603,6 +604,7 @@ function outputChannelList() {
 					gActiveChannel = channel;
 					$('#channel_list_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
+						scrollToBottom();
 					});
 				};
 			}
@@ -897,6 +899,8 @@ async function processData(uid, channel, msgTimestamp,
 		if (!date)
 			time = checkTime(uid, channel, time, isFull);
 
+		//console.log("Channel " + channel + " uid " + uid + " Duid " + duid + "  hash " + gIdHash[duid]);
+
 		/* Check first is it a text or image */
 		if (isImage) {
 			if (!fsEnabled) {
@@ -945,13 +949,16 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		if(gActiveChannel == channel) {
-			if (false == gIdAppend[duid]) {
+		if (false == gIdAppend[duid]) {
+			if(gActiveChannel == channel) {
 				$('#messages').append(li);
-				gIdAppend[duid] = true;
 			}
-			else
+			gIdAppend[duid] = true;
+		}
+		else {
+			if(gActiveChannel == channel) {
 				$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
+			}
 		}
 
 		if (isFull) {
@@ -1136,7 +1143,6 @@ function sleep(ms) {
 }
 
 async function scrollToBottomWithTimer() {
-	await sleep(SCROLL_TIME);
 	scrollToBottom();
 	/* Scroll twice if we miss the first one in UI */
 	await sleep(SCROLL_TIME);
