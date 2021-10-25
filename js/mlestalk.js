@@ -392,8 +392,10 @@ function joinExistingChannels(channels) {
 		gAddrPortInput[channel] = getLocalAddrPortInput(channel);
 		if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
 			addrsplit(channel, gAddrPortInput[channel]);
-			gOwnId[channel] = 0;
-			gOwnAppend[channel] = false;
+			if(!gOwnId[channel])
+				gOwnId[channel] = 0;
+			if(!gOwnAppend[channel])
+				gOwnAppend[channel] = false;
 			gForwardSecrecy[channel] = false;
 			gReadMsgDelayedQueueLen[channel] = 0;
 			gLastMessageSeenTs[channel] = 0;
@@ -693,7 +695,7 @@ function closeSocket(channel) {
 	gPrevBdKey[channel] = null;
 	gActiveChannel = null;
 	gActiveChannels[channel] = null;
-	gOwnId[channel] = 0;
+	gOwnId[channel] = null;
 	gOwnAppend[channel] = false;
 	gIsResync[channel] = false;
 
@@ -1415,7 +1417,7 @@ function sendImage(channel, file) {
 }
 
 function getToken(channel) {
-	return "https://" + gAddrPortInput[channel] + "/mlestalk-web.html?token=" + token;
+	return "https://" + getLocalAddrPortInput(channel) + "/mlestalk-web.html?token=" + token;
 }
 
 function getFront(channel) {
