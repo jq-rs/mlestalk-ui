@@ -69,8 +69,6 @@ let gSipKey = {};
 let gSipKeyIsOk = {};
 let gIsResync = {};
 let gLastWrittenMsg = {};
-//TODO Check how initts works with different timezones..
-let gInitTs = {};
 
 let gLastMessageSeenTs = {};
 let gLastReconnectTs = {};
@@ -356,8 +354,6 @@ function onLoad() {
 }
 
 $(document).ready(function () {
-	let url_string = window.location.href;
-	let url = new URL(url_string);
 	getFront();
 	getActiveChannels();
 	if(gActiveChannels)
@@ -387,6 +383,7 @@ function addrsplit(channel, addrport) {
 function joinExistingChannels(channels) {
 	if(!channels)
 		return;
+	getNotifyTimestamps();
 	for (let channel in channels) {
 		getLocalSession(channel);
 		gAddrPortInput[channel] = getLocalAddrPortInput(channel);
@@ -408,7 +405,6 @@ function joinExistingChannels(channels) {
 			createSipToken(channel);
 			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
 		}
-		gActiveChannel = channel;
 	}
 	$('#name_channel_cont').fadeOut();
 	channelListShow();
@@ -500,9 +496,6 @@ function sendPresAck(channel) {
 /* Join after disconnect */
 function sendInitJoin(channel) {
 	sendMessage(channel, "", true, false);
-	//save channel init
-	const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
-	gInitTs[channel] = msgDate.valueOf();
 }
 
 async function send(isFull) {
@@ -706,7 +699,7 @@ function closeSocket(channel) {
 	gMyChannel[channel] = null;
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel]);
 	setActiveChannels();
-	gActiveChannel = null;
+	setNotifyTimestamps();
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
@@ -831,7 +824,8 @@ async function processData(uid, channel, msgTimestamp,
 		gIdHash[duid] = 0;
 		gIdAppend[duid] = false;
 		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
-		gIdNotifyTs[get_uniq(uid, channel)] = 0;
+		if(!gIdNotifyTs[get_uniq(uid, channel)])
+			gIdNotifyTs[get_uniq(uid, channel)] = 0;
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
@@ -1010,20 +1004,19 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
+		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
 		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
-			gInitTs[channel] && gInitTs[channel] < msgTimestamp)
+			gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp)
 		{
 			gNewMsgsCnt[channel] += 1;
-			const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-			if(gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
-				if (gWillNotify && gCanNotify) {
-					if (true == isImage) {
-						message = gImageStr;
-					}
-					doNotify(uid, channel, notifyTimestamp, message);
+			if (gWillNotify && gCanNotify) {
+				if (true == isImage) {
+					message = gImageStr;
 				}
-				gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
+				doNotify(uid, channel, notifyTimestamp, message);
 			}
+			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
+			setNotifyTimestamps();
 		}
 	}
 	return 0;
@@ -1435,6 +1428,20 @@ function getLocalAddrPortInput(channel) {
 	else {
 		return "mles.io:443";
 	}
+}
+
+function getNotifyTimestamps() {
+	gIdNotifyTs = JSON.parse(window.localStorage.getItem('gIdNotifyTsJSON'));
+	if(!gIdNotifyTs)
+		gIdNotifyTs = {};
+}
+
+function setNotifyTimestamps() {
+	window.localStorage.setItem('gIdNotifyTsJSON', JSON.stringify(gIdNotifyTs));
+}
+
+function clearNotifyTimestamps() {
+	window.localStorage.removeItem('gIdNotifyTsJSON');
 }
 
 function getActiveChannels() {
