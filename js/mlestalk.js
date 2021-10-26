@@ -67,7 +67,7 @@ const MULTIPART_SLICE = 4096; //B
 const DATELEN = 13;
 
 let gSipKey = {};
-let gSipKeyIsOk = {};
+let gSipKeyChan = {};
 let gIsResync = {};
 let gLastWrittenMsg = {};
 
@@ -403,7 +403,6 @@ function joinExistingChannels(channels) {
 			initReconnect(channel);
 
 			getLocalBdKey(channel);
-			createSipToken(channel);
 			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
 		}
 	}
@@ -478,6 +477,7 @@ function askChannelNew() {
 		gActiveChannels[channel] = channel;
 		setActiveChannels();
 		gActiveChannel = channel;
+		selectSipToken(channel);
 
 		$('#name_channel_cont').fadeOut(400, function () {
 				$('#message_cont').fadeIn();
@@ -562,7 +562,7 @@ function outputPresenceList() {
 							$('#messages').append(li);
 						}
 					}
-					createSipToken(channel);
+					selectSipToken(channel);
 					gActiveChannel = channel;
 					gIsPresenceView = false;
 					if(gMsgs[channel])
@@ -621,7 +621,7 @@ function outputChannelList() {
 							$('#messages').append(li);
 						}
 					}
-					createSipToken(channel);
+					selectSipToken(channel);
 					gActiveChannel = channel;
 					gIsChannelListView = false;
 					if(gMsgs[channel])
@@ -726,10 +726,12 @@ function initReconnect(channel) {
 	gIsReconnect[channel] = false;
 }
 
-function processInit(uid, channel) {
+function processInit(uid, channel, mychan) {
 	if (uid.length > 0 && channel.length > 0) {
 		gInitOk[channel] = true;
-		createSipToken(channel);
+		createSipToken(channel, mychan);
+		if(gActiveChannel == channel)
+			selectSipToken(channel);
 
 		sendInitJoin(channel);
 
@@ -754,18 +756,25 @@ function processInit(uid, channel) {
 	return -1;
 }
 
-function createSipToken(channel) {
-	//use channel to create 128 bit token
-	let bfchannel = channel;
+function createSipToken(channel, mychan) {
+	//use channel to create 128 bit secret key
+	let bfchannel = atob(mychan);
 	gSipKey[channel] = SipHash.string16_to_key(bfchannel);
-	gSipKeyIsOk[channel] = true;
-	let atoken = SipHash.hash_hex(gSipKey[channel], bfchannel);
-	atoken = atoken + bfchannel;
-	token = btoa(atoken);
-	document.getElementById("qrcode_link").setAttribute("href", getToken());
-	qrcode.clear(); // clear the code.
-	qrcode.makeCode(getToken()); // make another code.
-	$('#qrcode').fadeIn();
+	gSipKeyChan[channel] = bfchannel;
+}
+
+function selectSipToken(channel) {
+	if(gSipKey[channel] && gSipKeyChan[channel]) {
+		let atoken = SipHash.hash_hex(gSipKey[channel], gSipKeyChan[channel]);
+		atoken = atoken + gSipKeyChan[channel];
+		let token = btoa(atoken);
+		document.getElementById("qrcode_link").setAttribute("href", getToken(channel, token));
+		qrcode.clear(); // clear the code.
+		qrcode.makeCode(getToken(channel, token)); // make another code.
+		$('#qrcode').fadeIn();
+	}
+	else
+		$('#qrcode').fadeOut();
 }
 
 function get_duid(uid, channel) {
@@ -1065,8 +1074,9 @@ gWebWorker.onmessage = function (e) {
 			{
 				let uid = e.data[1];
 				let channel = e.data[2];
+				let mychan = e.data[3]; //encrypted channel for token
 
-				let ret = processInit(uid, channel);
+				let ret = processInit(uid, channel, mychan);
 				if (ret < 0) {
 					console.log("Process init failed: " + ret);
 				}
@@ -1259,7 +1269,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 
 		let arr = [cmd, data, uid, channel, msgtype, msgDate.valueOf()];
 
-		if (!(msgtype & MSGISPRESENCE) && gSipKeyIsOk[channel]) {
+		if (!(msgtype & MSGISPRESENCE) && gSipKeyChan[channel]) {
 			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
 			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
 		}
@@ -1430,7 +1440,7 @@ function sendImage(channel, file) {
 	fr.readAsDataURL(file);
 }
 
-function getToken(channel) {
+function getToken(channel, token) {
 	return "https://" + getLocalAddrPortInput(channel) + "/mlestalk-web.html?token=" + token;
 }
 
