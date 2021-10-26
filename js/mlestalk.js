@@ -1182,6 +1182,7 @@ function sleep(ms) {
 }
 
 async function scrollToBottomWithTimer() {
+	await sleep(SCROLL_TIME);
 	scrollToBottom();
 	/* Scroll twice if we miss the first one in UI */
 	await sleep(SCROLL_TIME);
