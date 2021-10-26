@@ -1004,19 +1004,20 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
-			gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp)
+		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull)
 		{
 			gNewMsgsCnt[channel] += 1;
-			if (gWillNotify && gCanNotify) {
-				if (true == isImage) {
-					message = gImageStr;
+			const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
+			if (gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
+				if (gWillNotify && gCanNotify) {
+					if (true == isImage) {
+						message = gImageStr;
+					}
+					doNotify(uid, channel, notifyTimestamp, message);
 				}
-				doNotify(uid, channel, notifyTimestamp, message);
+				gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
+				setNotifyTimestamps();
 			}
-			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
-			setNotifyTimestamps();
 		}
 	}
 	return 0;
