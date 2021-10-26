@@ -18,6 +18,7 @@ let gIdAppend = {};
 let gIdTimestamp = {};
 let gPresenceTs = {};
 let gIdNotifyTs = {};
+let gMsgTs = {};
 let gIdLastMsgLen = {};
 let gPrevBdKey = {};
 let gForwardSecrecy = {};
@@ -71,7 +72,6 @@ let gIsResync = {};
 let gLastWrittenMsg = {};
 
 let gLastMessageSeenTs = {};
-let gLastReconnectTs = {};
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
 
@@ -384,6 +384,7 @@ function joinExistingChannels(channels) {
 	if(!channels)
 		return;
 	getNotifyTimestamps();
+	getMsgTimestamps();
 	for (let channel in channels) {
 		getLocalSession(channel);
 		gAddrPortInput[channel] = getLocalAddrPortInput(channel);
@@ -671,6 +672,7 @@ function closeSocket(channel) {
 	}
 	for (let userid in gIdNotifyTs) {
 		gIdNotifyTs[userid] = 0;
+		gMsgTs[userid] = 0;
 	}
 	for (let duid in gIdHash) {
 		gIdHash[duid] = null;
@@ -700,6 +702,7 @@ function closeSocket(channel) {
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel]);
 	setActiveChannels();
 	setNotifyTimestamps();
+	setMsgTimestamps();
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
@@ -731,7 +734,7 @@ function processInit(uid, channel) {
 
 		let li;
 		if (gIsReconnect[channel] && gLastMessageSeenTs[channel] > 0) {
-			gLastReconnectTs[channel] = gLastMessageSeenTs[channel];
+			//do nothing
 		}
 		else {
 			li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
@@ -826,6 +829,9 @@ async function processData(uid, channel, msgTimestamp,
 		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
 		if(!gIdNotifyTs[get_uniq(uid, channel)])
 			gIdNotifyTs[get_uniq(uid, channel)] = 0;
+		if(!gMsgTs[channel])
+			gMsgTs[channel] = 0;
+
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
@@ -993,9 +999,6 @@ async function processData(uid, channel, msgTimestamp,
 			gMsgs[channel].push(li);
 			gIdHash[duid] += 1;
 			gIdAppend[duid] = false;
-			if (isCordova && gLastReconnectTs[channel] < msgTimestamp) {
-				cordova.plugins.notification.badge.increase();
-			}
 		}
 
 		if (isFull || $('#input_message').val().length == 0) {
@@ -1004,11 +1007,20 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull)
+		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
+		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
+			gIdNotifyTs[get_uniq(uid, channel)] <= notifyTimestamp)
 		{
-			gNewMsgsCnt[channel] += 1;
-			const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-			if (gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
+			if(gMsgTs[channel] < msgTimestamp) {
+				gNewMsgsCnt[channel] += 1;
+				gMsgTs[channel] = msgTimestamp;
+				setMsgTimestamps();
+				if (isCordova && gIsPause) {
+					cordova.plugins.notification.badge.increase();
+				}
+			}
+
+			if(gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
 				if (gWillNotify && gCanNotify) {
 					if (true == isImage) {
 						message = gImageStr;
@@ -1429,6 +1441,20 @@ function getLocalAddrPortInput(channel) {
 	else {
 		return "mles.io:443";
 	}
+}
+
+function getMsgTimestamps() {
+	gMsgTs = JSON.parse(window.localStorage.getItem('gMsgTsJSON'));
+	if(!gMsgTs)
+		gMsgTs = {};
+}
+
+function setMsgTimestamps() {
+	window.localStorage.setItem('gMsgTsJSON', JSON.stringify(gMsgTs));
+}
+
+function clearMsgTimestamps() {
+	window.localStorage.removeItem('gMsgTsJSON');
 }
 
 function getNotifyTimestamps() {
