@@ -567,6 +567,11 @@ function outputPresenceList() {
 					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
+					if(gMsgTs[channel]) {
+						const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
+						gMsgTs[channel] = msgDate.valueOf();
+						setMsgTimestamps();
+					}
 					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
@@ -623,6 +628,11 @@ function outputChannelList() {
 					gIsChannelListView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
+					if(gMsgTs[channel]) {
+						const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
+						gMsgTs[channel] = msgDate.valueOf();
+						setMsgTimestamps();
+					}
 					$('#channel_list_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
@@ -1007,29 +1017,30 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
+		if(gActiveChannel == channel) {
+			gMsgTs[channel] = msgTimestamp;
+			setMsgTimestamps();
+		}
+
+		if(isFull && (gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && gMsgTs[channel] < msgTimestamp) {
+			gNewMsgsCnt[channel] += 1;
+			if (isCordova && gIsPause) {
+				cordova.plugins.notification.badge.increase();
+			}
+		}
+
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
 		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
-			gIdNotifyTs[get_uniq(uid, channel)] <= notifyTimestamp)
+			gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp)
 		{
-			if(gMsgTs[channel] < msgTimestamp) {
-				gNewMsgsCnt[channel] += 1;
-				gMsgTs[channel] = msgTimestamp;
-				setMsgTimestamps();
-				if (isCordova && gIsPause) {
-					cordova.plugins.notification.badge.increase();
+			if (gWillNotify && gCanNotify) {
+				if (true == isImage) {
+					message = gImageStr;
 				}
+				doNotify(uid, channel, notifyTimestamp, message);
 			}
-
-			if(gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp) {
-				if (gWillNotify && gCanNotify) {
-					if (true == isImage) {
-						message = gImageStr;
-					}
-					doNotify(uid, channel, notifyTimestamp, message);
-				}
-				gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
-				setNotifyTimestamps();
-			}
+			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
+			setNotifyTimestamps();
 		}
 	}
 	return 0;
