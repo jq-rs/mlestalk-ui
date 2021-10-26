@@ -567,11 +567,9 @@ function outputPresenceList() {
 					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
-					if(gMsgTs[channel]) {
-						const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
-						gMsgTs[channel] = msgDate.valueOf();
-						setMsgTimestamps();
-					}
+					const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
+					gMsgTs[channel] = msgDate.valueOf();
+					setMsgTimestamps();
 					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
@@ -628,11 +626,9 @@ function outputChannelList() {
 					gIsChannelListView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
-					if(gMsgTs[channel]) {
-						const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
-						gMsgTs[channel] = msgDate.valueOf();
-						setMsgTimestamps();
-					}
+					const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
+					gMsgTs[channel] = msgDate.valueOf();
+					setMsgTimestamps();
 					$('#channel_list_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
 						scrollToBottom();
