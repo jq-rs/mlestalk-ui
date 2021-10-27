@@ -293,17 +293,23 @@ function onResume() {
 	}
 }
 
+let gWasChannelList = false;
 function onBackKeyDown() {
 	/* Open presence info */
 	if (!gIsPresenceView) {
 		gIsPresenceView = true;
-		if(gIsChannelListView)
+		if(gIsChannelListView) {
+			gWasChannelListView = true;
+			gIsChannelListView = false;
 			$('#channel_list_cont').fadeOut();
+		}
 		presenceShow();
 	}
 	else {
 		gIsPresenceView = false;
-		if(gIsChannelListView) {
+		if(gWasChannelListView) {
+			gIsChannelListView = true;
+			gWasChannelListView = false;
 			$('#presence_cont').fadeOut(400, function () {
 					$('#channel_list_cont').fadeIn();
 			});
@@ -527,7 +533,6 @@ async function send(isFull) {
 	}
 	else {
 		sendMessage(channel, message, isFull, false);
-		await sleep(ASYNC_SLEEP); //in case fs state changes, wait a while
 		updateAfterSend(channel, message, isFull, false);
 	}
 }
@@ -581,6 +586,7 @@ function outputPresenceList() {
 					selectSipToken(channel);
 					gActiveChannel = channel;
 					gIsChannelListView = false;
+					gWasChannelListView = false;
 					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
@@ -611,7 +617,6 @@ async function presenceShow() {
 
 
 function outputChannelList() {
-	$('#channel_list_avail').html('');
 	for (let val in gMyChannel) {
 		if(val) {
 			let channel = gMyChannel[val];
@@ -635,6 +640,7 @@ function outputChannelList() {
 					selectSipToken(channel);
 					gActiveChannel = channel;
 					gIsChannelListView = false;
+					gWasChannelListView = false;
 					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
@@ -655,23 +661,16 @@ function outputChannelList() {
 }
 
 async function channelListShow() {
-	$('#channel_list_avail').html('');
-	$('#presence_cont').fadeOut();
 	gIsChannelListView = true;
 	gActiveChannel = null;
 	while (gIsChannelListView) {
+		$('#channel_list_avail').html('');
 		outputChannelList();
 		await sleep(LISTING_SHOW_TIMER);
 	}
 }
 
 function channelListUnshow() {
-	$('#channel_list_cont').fadeOut(400, function () {
-		$('#message_cont').fadeIn();
-	});
-}
-
-function channelListExit() {
 	$('#channel_list_cont').fadeOut(400, function () {
 		$('#message_cont').fadeIn();
 	});
