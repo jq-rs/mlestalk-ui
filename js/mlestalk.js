@@ -77,6 +77,7 @@ let gLastMessageSendOrRcvdDate = {};
 
 let gIsPresenceView = false;
 let gIsChannelListView = false;
+let gWasChannelListView = false;
 
 let gCanNotify = false;
 let gWillNotify = true;
@@ -293,7 +294,6 @@ function onResume() {
 	}
 }
 
-let gWasChannelList = false;
 function onBackKeyDown() {
 	/* Open presence info */
 	if (!gIsPresenceView) {
@@ -682,24 +682,12 @@ function closeSocket(channel) {
 	gInitOk[channel] = false;
 
 	//init all databases
-	for (let userid in gIdTimestamp) {
-		gIdTimestamp[userid] = {};
-	}
-	for (let userid in gPresenceTs) {
-		gPresenceTs[userid] = 0;
-	}
-	for (let userid in gIdNotifyTs) {
-		gIdNotifyTs[userid] = 0;
-	}
-	for (let userid in gMsgTs) {
-		gMsgTs[userid] = null;
-	}
-	for (let duid in gIdHash) {
-		gIdHash[duid] = null;
-	}
-	for (let duid in gIdAppend) {
-		gIdAppend[duid] = false;
-	}
+	gIdTimestamp[channel] = null;
+	gPresenceTs[channel] = null;
+	gIdNotifyTs[channel] = null;
+	gMsgTs[channel] = null;
+	gIdHash[channel] = null;
+	gIdAppend[channel] = null;
 
 	gLastMessageSeenTs[channel] = 0;
 
@@ -809,10 +797,13 @@ function processForwardSecrecyOff(uid, channel) {
 }
 
 function msgHashHandle(uid, channel, msgTimestamp, mhash) {
-	let timedict = gIdTimestamp[get_uniq(uid, channel)];
+	if(!gIdTimestamp[channel])
+		gIdTimestamp[channel] = {};
+
+	let timedict = gIdTimestamp[channel][uid];
 	if (!timedict) {
-		gIdTimestamp[get_uniq(uid, channel)] = {};
-		timedict = gIdTimestamp[get_uniq(uid, channel)];
+		gIdTimestamp[channel][uid] = {};
+		timedict = gIdTimestamp[channel][uid];
 	}
 	let arr = timedict[msgTimestamp];
 	if (!arr) {
@@ -852,15 +843,21 @@ async function processData(uid, channel, msgTimestamp,
 
 	//update hash
 	let duid = get_duid(uid, channel);
-	if (gIdHash[duid] == null) {
-		gIdHash[duid] = 0;
-		gIdAppend[duid] = false;
-		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
-		if(!gIdNotifyTs[get_uniq(uid, channel)])
-			gIdNotifyTs[get_uniq(uid, channel)] = 0;
+	if(!gIdHash[channel])
+		gIdHash[channel] = {};
+	if (!gIdHash[channel][uid]) {
+		gIdHash[channel][uid] = 0;
+		if(!gIdAppend[channel])
+			gIdAppend[channel] = {};
+		gIdAppend[channel][uid] = false;
+		if(!gPresenceTs[channel])
+			gPresenceTs[channel] = {};
+		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+		if(!gIdNotifyTs[channel])
+			gIdNotifyTs[channel] = {};
+		gIdNotifyTs[channel][uid] = 0;
 		if(!gMsgTs[channel])
 			gMsgTs[channel] = 0;
-
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
@@ -928,7 +925,7 @@ async function processData(uid, channel, msgTimestamp,
 		let time;
 		let li;
 
-		gPresenceTs[get_uniq(uid, channel)] = [uid, channel, msgTimestamp];
+		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
 		if (gLastMessageSeenTs[channel] < msgTimestamp)
 			gLastMessageSeenTs[channel] = msgTimestamp;
@@ -962,29 +959,29 @@ async function processData(uid, channel, msgTimestamp,
 		if (!date)
 			time = checkTime(uid, channel, time, isFull);
 
-		//console.log("Channel " + channel + " uid " + uid + " Duid " + duid + "  hash " + gIdHash[duid]);
+		//console.log("Channel " + channel + " uid " + uid + " Duid " + duid + "  hash " + gIdHash[channel][uid]);
 
 		/* Check first is it a text or image */
 		if (isImage) {
 			if (!fsEnabled) {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
 						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"> ' + time
 						+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 				}
 			} else {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
 						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
 						+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
 
 				}
@@ -994,41 +991,41 @@ async function processData(uid, channel, msgTimestamp,
 		else {
 			if (!fsEnabled) {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
 						+ time + '' + autolinker.link(message) + '</li></div>';
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"> ' + time + '' + autolinker.link(message) + '</li></div>';
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"> ' + time + '' + autolinker.link(message) + '</li></div>';
 				}
 			}
 			else {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
 						+ time + '' + autolinker.link(message) + '</font></li></div>';
 				}
 				else {
-					li = '<div id="' + duid + '' + gIdHash[duid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
+					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
 				}
 			}
 		}
 
 		if(gActiveChannel == channel) {
-			if (false == gIdAppend[duid]) {
+			if (false == gIdAppend[channel][uid]) {
 				$('#messages').append(li);
-				gIdAppend[duid] = true;
+				gIdAppend[channel][uid] = true;
 			}
 			else {
-				$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
+				$('#' + duid + '' + gIdHash[channel][uid]).replaceWith(li);
 			}
 		}
 		else {
-			gIdAppend[duid] = false;
+			gIdAppend[channel][uid] = false;
 		}
 
 		if (isFull) {
 			gMsgs[channel].push(li);
-			gIdHash[duid] += 1;
-			gIdAppend[duid] = false;
+			gIdHash[channel][uid] += 1;
+			gIdAppend[channel][uid] = false;
 
 			if(gActiveChannel == channel) {
 				scrollToBottom();
@@ -1049,7 +1046,7 @@ async function processData(uid, channel, msgTimestamp,
 
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
 		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
-			gIdNotifyTs[get_uniq(uid, channel)] < notifyTimestamp)
+			gIdNotifyTs[channel][uid] < notifyTimestamp)
 		{
 			if (gWillNotify && gCanNotify) {
 				if (true == isImage) {
@@ -1057,7 +1054,7 @@ async function processData(uid, channel, msgTimestamp,
 				}
 				doNotify(uid, channel, notifyTimestamp, message);
 			}
-			gIdNotifyTs[get_uniq(uid, channel)] = notifyTimestamp;
+			gIdNotifyTs[channel][uid] = notifyTimestamp;
 			setNotifyTimestamps();
 		}
 	}
@@ -1282,12 +1279,12 @@ function sendData(cmd, uid, channel, data, msgtype) {
 
 		let arr = [cmd, data, uid, channel, msgtype, msgDate.valueOf()];
 
-		if (!(msgtype & MSGISPRESENCE) && gSipKeyChan[channel]) {
+		if (!(msgtype & MSGISPRESENCE) && gSipKey[channel]) {
 			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
 			msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
 		}
 
-		if (!gIsResync[channel]) {
+		if (false == gIsResync[channel]) {
 			gWebWorker.postMessage(arr);
 		}
 		if (msgtype & MSGISFULL && data.length > 0) {
