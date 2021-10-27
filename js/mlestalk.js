@@ -296,23 +296,39 @@ function onResume() {
 function onBackKeyDown() {
 	/* Open presence info */
 	if (!gIsPresenceView) {
-		gIsChannelListView = false;
 		gIsPresenceView = true;
+		if(gIsChannelListView)
+			$('#channel_list_cont').fadeOut();
 		presenceShow();
 	}
 	else {
-		presenceExit();
 		gIsPresenceView = false;
+		if(gIsChannelListView) {
+			$('#presence_cont').fadeOut(400, function () {
+					$('#channel_list_cont').fadeIn();
+			});
+		}
+		else {
+			$('#presence_cont').fadeOut(400, function () {
+					$('#messages_cont').fadeIn();
+			});
+		}
 	}
 }
 
 function newChannelShow() {
 	getFront();
 	gActiveChannel = null;
-	gIsChannelListView = false;
+
+	if(gIsChannelListView) {
+		gIsChannelListView = false;
+		$('#channel_list_cont').fadeOut();
+	}
+	if(gIsPresenceView) {
+		gIsPresenceView = false;
+		$('#presence_cont').fadeOut();
+	}
 	$('#messages').html('');
-	$('#channel_list_cont').fadeOut();
-	$('#presence_cont').fadeOut();
 	$('#message_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
 		$("#channel_submit, #form_send_message").submit(function (e) {
@@ -564,6 +580,7 @@ function outputPresenceList() {
 					}
 					selectSipToken(channel);
 					gActiveChannel = channel;
+					gIsChannelListView = false;
 					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
@@ -584,7 +601,6 @@ function outputPresenceList() {
 }
 
 async function presenceShow() {
-	$('#channel_list_cont').fadeOut();
 	while (gIsPresenceView) {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
@@ -593,11 +609,6 @@ async function presenceShow() {
 	}
 }
 
-function presenceExit() {
-	$('#presence_cont').fadeOut(400, function () {
-		$('#message_cont').fadeIn();
-	});
-}
 
 function outputChannelList() {
 	$('#channel_list_avail').html('');
@@ -624,6 +635,7 @@ function outputChannelList() {
 					selectSipToken(channel);
 					gActiveChannel = channel;
 					gIsChannelListView = false;
+					gIsPresenceView = false;
 					if(gMsgs[channel])
 						gNewMsgsCnt[channel] = 0;
 					const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
@@ -998,25 +1010,24 @@ async function processData(uid, channel, msgTimestamp,
 			}
 		}
 
-		if (false == gIdAppend[duid]) {
-			if(gActiveChannel == channel) {
+		if(gActiveChannel == channel) {
+			if (false == gIdAppend[duid]) {
 				$('#messages').append(li);
+				gIdAppend[duid] = true;
 			}
-			gIdAppend[duid] = true;
-		}
-		else {
-			if(gActiveChannel == channel) {
+			else {
 				$('#' + duid + '' + gIdHash[duid]).replaceWith(li);
 			}
+		}
+		else {
+			gIdAppend[duid] = false;
 		}
 
 		if (isFull) {
 			gMsgs[channel].push(li);
 			gIdHash[duid] += 1;
 			gIdAppend[duid] = false;
-		}
 
-		if (isFull || $('#input_message').val().length == 0) {
 			if(gActiveChannel == channel) {
 				scrollToBottom();
 			}
