@@ -307,7 +307,7 @@ function onBackKeyDown() {
 	}
 	else {
 		gIsPresenceView = false;
-		if(gWasChannelListView) {
+		if(gWasChannelListView ) {
 			gWasChannelListView = false;
 			channelListShow();
 			$('#presence_cont').fadeOut(400, function () {
@@ -316,7 +316,7 @@ function onBackKeyDown() {
 		}
 		else {
 			$('#presence_cont').fadeOut(400, function () {
-					$('#messages_cont').fadeIn();
+					$('#message_cont').fadeIn();
 			});
 		}
 	}
@@ -557,8 +557,10 @@ function outputPresenceList() {
 					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
 
 				$('#presence_avail').append(li);
-				for (let val in gPresenceTs) {
-					let arr = gPresenceTs[val];
+				for (let uid in gPresenceTs[channel]) {
+					let arr = gPresenceTs[channel][uid];
+					if(!arr)
+						continue;
 					const ps_channel = arr[1];
 					if(ps_channel != channel)
 						continue;
