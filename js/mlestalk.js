@@ -428,9 +428,10 @@ function joinExistingChannels(channels) {
 			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
 		}
 	}
-	$('#name_channel_cont').fadeOut();
 	channelListShow();
-	$('#channel_list_cont').fadeIn();
+	$('#name_channel_cont').fadeOut(400, function () {
+		$('#channel_list_cont').fadeIn();
+	});
 }
 
 function askChannelNew() {
@@ -689,7 +690,9 @@ function closeSocket(channel) {
 	}
 	for (let userid in gIdNotifyTs) {
 		gIdNotifyTs[userid] = 0;
-		gMsgTs[userid] = 0;
+	}
+	for (let userid in gMsgTs) {
+		gMsgTs[userid] = null;
 	}
 	for (let duid in gIdHash) {
 		gIdHash[duid] = null;
