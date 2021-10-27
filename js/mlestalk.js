@@ -50,7 +50,7 @@ const LISTING_SHOW_TIMER = 3500; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 1000;
-const RESYNC_TIMEOUT = 2500; /* ms */
+const RESYNC_TIMEOUT = 4000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
@@ -857,9 +857,6 @@ async function processData(uid, channel, msgTimestamp,
 		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 		if(!gIdNotifyTs[channel])
 			gIdNotifyTs[channel] = {};
-		gIdNotifyTs[channel][uid] = 0;
-		if(!gMsgTs[channel])
-			gMsgTs[channel] = 0;
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
