@@ -308,8 +308,8 @@ function onBackKeyDown() {
 	else {
 		gIsPresenceView = false;
 		if(gWasChannelListView) {
-			gIsChannelListView = true;
 			gWasChannelListView = false;
+			channelListShow();
 			$('#presence_cont').fadeOut(400, function () {
 					$('#channel_list_cont').fadeIn();
 			});
