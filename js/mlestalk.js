@@ -50,7 +50,7 @@ const LISTING_SHOW_TIMER = 3500; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 1000;
-const RESYNC_TIMEOUT = 2500; /* ms */
+const RESYNC_TIMEOUT = 2000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 500; /* ms */
@@ -147,18 +147,23 @@ function hashMessage(uid, channel, data) {
 }
 
 function uidQueueGet(uid, channel) {
-	return gUidQueue[get_uniq(uid, channel)];
+	if(!gUidQueue[channel])
+		gUidQueue[channel] = {};
+	if (!gUidQueue[channel][uid])
+		gUidQueue[channel][uid] = new Queue();
+	return gUidQueue[channel][uid];
 }
 
 function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
 	let q = uidQueueGet(uid, channel);
 	if (q) {
 		let lastSeen = -1;
-		for (let i = 0; i < q.getLength(); i++) {
+		const qlen = q.getLength();
+		for (let i = qlen-1; i >= 0 ; i--) {
 			let obj = q.get(i);
 			if (obj[0] < msgTimestamp) {
 				lastSeen = i + 1;
-				continue;
+				break;
 			}
 			if (message.length > 0) {
 				let hash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
@@ -204,16 +209,12 @@ function queueSweepAndSend(uid, channel) {
 			}
 		}
 	}
-	gIsResync[channel] = false;
+	gIsResync[channel] = 0;
 	console.log("Resync for " + channel + " complete: swept " + cnt + " msgs.");
 }
 
 function uidQueuePush(uid, channel, arr) {
 	let q = uidQueueGet(uid, channel);
-	if (!q) {
-		gUidQueue[get_uniq(uid, channel)] = new Queue();
-		q = uidQueueGet(uid, channel);
-	}
 	q.push(arr);
 }
 
@@ -419,7 +420,7 @@ function joinExistingChannels(channels) {
 			gForwardSecrecy[channel] = false;
 			gReadMsgDelayedQueueLen[channel] = 0;
 			gLastMessageSeenTs[channel] = 0;
-			gIsResync[channel] = false;
+			gIsResync[channel] = 0;
 			gInitOk[channel] = true;
 
 			initReconnect(channel);
@@ -454,7 +455,7 @@ function askChannelNew() {
 		gForwardSecrecy[channel] = false;
 		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
-		gIsResync[channel] = false;
+		gIsResync[channel] = 0;
 
 		gMyName[channel] = $('#input_name').val().trim();
 		gMyKey[channel] = $('#input_key').val().trim();
@@ -702,7 +703,7 @@ function closeSocket(channel) {
 	gActiveChannels[channel] = null;
 	gOwnId[channel] = null;
 	gOwnAppend[channel] = false;
-	gIsResync[channel] = false;
+	gIsResync[channel] = 0;
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName[channel];
@@ -861,12 +862,12 @@ async function processData(uid, channel, msgTimestamp,
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
 	if (uid == gMyName[channel]) {
-		if (false == gIsResync[channel]) {
+		if (0 == gIsResync[channel]) {
 			console.log("Resyncing " + channel);
-			gIsResync[channel] = true;
 			resync(uid, channel);
 		}
-		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Full or presence message */
+		gIsResync[channel] += 1;
+		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Match full or presence messages */
 			queueFindAndMatch(msgTimestamp, uid, channel, message, isFull);
 	}
 	else if (gOwnId[channel] > 0 && message.length >= 0 && gLastWrittenMsg[channel].length > 0) {
@@ -1221,7 +1222,12 @@ async function scrollToBottomWithTimer() {
 }
 
 async function resync(uid, channel) {
-	await sleep(RESYNC_TIMEOUT);
+	let cnt;
+	do {
+		cnt = gIsResync[channel];
+		await sleep(RESYNC_TIMEOUT);
+	}
+	while(cnt < gIsResync[channel]);
 	queueSweepAndSend(uid, channel);
 }
 
