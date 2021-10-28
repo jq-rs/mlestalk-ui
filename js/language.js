@@ -19,6 +19,7 @@ function setLanguage() {
 			$("#channel_key").text("Jaettu avain?");
 			$("#channel_server").text("WebSocket palvelimen osoite");
 			$("#channel_exit").val("poistu");
+			$("#channel_exit_all").val("poistu kaikista");
 			$("#new_channel").val("uusi kanava");
 			$("#channel_list").val("kanavat");
 			$("#app_info").text("lisätietoja sovelluksesta");
@@ -40,6 +41,7 @@ function setLanguage() {
 			$("#channel_key").text("Delad nyckel?");
 			$("#channel_server").text("WebSocket server adress");
 			$("#channel_exit").val("utgång");
+			$("#channel_exit_all").val("utgång alla");
 			$("#new_channel").val("ny kanal");
 			$("#channel_list").val("kanaler");
 			$("#app_info").text("appinfo");
@@ -61,6 +63,7 @@ function setLanguage() {
 			$("#channel_key").text("¿Llave compartida?");
 			$("#channel_server").text("Dirección del servidor Websocket");
 			$("#channel_exit").val("salida");
+			$("#channel_exit_all").val("salir de todo");
 			$("#new_channel").text("nuevo canal");
 			$("#channel_list").val("canales");
 			$("#app_info").text("info de la app");
@@ -81,7 +84,8 @@ function setLanguage() {
 			$("#channel_name").text("Kanal?");
 			$("#channel_key").text("Gemeinsamer Schlüssel?");
 			$("#channel_server").text("WebSocket Serveradresse");
-			$("#channel_exit").val("abgehen");
+			$("#channel_exit").val("verlassen");
+			$("#channel_exit_all").val("alle verlassen");
 			$("#new_channel").text("neuer Kanal");
 			$("#channel_list").val("Kanäle");
 			$("#app_info").text("app info");
@@ -103,6 +107,7 @@ function setLanguage() {
 			$("#channel_key").text("Clé partagée?");
 			$("#channel_server").text("WebSocket adresse du serveur");
 			$("#channel_exit").val("sortie");
+			$("#channel_exit_all").val("tout quitter");
 			$("#new_channel").val("nouveau canal");
 			$("#channel_list").val("canaux");
 			$("#app_info").text("info sur l'app");
@@ -124,6 +129,7 @@ function setLanguage() {
 			$("#channel_key").text("Chave compartilhada?");
 			$("#channel_server").text("Endereço do servidor Websocket");
 			$("#channel_exit").val("saída");
+			$("#channel_exit_all").val("saia de tudo");
 			$("#new_channel").val("novo canal");
 			$("#channel_list").val("canais");
 			$("#app_info").text("informação da aplicação");
@@ -145,6 +151,7 @@ function setLanguage() {
 			$("#channel_key").text("Общий ключ?");
 			$("#channel_server").text("Адрес сервера Websocket");
 			$("#channel_exit").val("выход");
+			$("#channel_exit_all").val("выйти из всего");
 			$("#new_channel").val("новый канал");
 			$("#channel_list").val("каналами");
 			$("#app_info").text("информация о приложении");
@@ -167,6 +174,7 @@ function setLanguage() {
 			$("#channel_key").text("Shared key?");
 			$("#channel_server").text("WebSocket server address");
 			$("#channel_exit").val("exit");
+			$("#channel_exit_all").val("exit all");
 			$("#new_channel").val("new channel");
 			$("#channel_list").val("channels");
 			$("#app_info").text("app info");

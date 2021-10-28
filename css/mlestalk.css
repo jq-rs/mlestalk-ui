@@ -167,14 +167,6 @@ input.channel_list_button {
     padding: 1px 0 0 0;
 }
 
-#channel_list_cont {
-    display: none;
-    width: auto;
-    margin: 8px 8px auto;
-    background: #fff;
-    padding: 1px 0 0 0;
-}
-
 #qrcode_cont {
     display: none;
     width: auto;
@@ -214,40 +206,6 @@ input.channel_list_button {
 }
 
 #presence_avail li span.name {
-    color: #77407b;
-}
-
-#channels_list {
-    margin: 10px;
-    padding: 0;
-	overflow: scroll;
-    overflow-x: hidden;
-}
-
-#channel_list_avail {
-    margin: 0px;
-    padding: 0;
-    overflow: scroll;
-    height: 80vh;
-}
-
-#channel_list_avail li {
-    list-style: none;
-    font-family: sans-serif;
-    font-size: 18px;
-    padding: 1px 4px;
-}
-
-#channel_list_avail li.new,#channel_list_avail li.exit {
-    font-style: italic;
-    color: #bbbbcf;
-}
-
-#channel_list_avail li.own {
-    color: #bbbbce;
-}
-
-#channel_list_avail li span.name {
     color: #77407b;
 }
 

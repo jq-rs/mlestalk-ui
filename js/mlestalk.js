@@ -46,7 +46,7 @@ const IMGFRAGSIZE = 512 * 1024;
 let gInitOk = {};
 const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
-const LISTING_SHOW_TIMER = 3500; /* ms */
+const LISTING_SHOW_TIMER = 2000; /* ms */
 const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 1000;
@@ -159,11 +159,11 @@ function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
 	if (q) {
 		let lastSeen = -1;
 		const qlen = q.getLength();
-		for (let i = qlen-1; i >= 0 ; i--) {
+		for (let i = 0; i < qlen ; i++) {
 			let obj = q.get(i);
 			if (obj[0] < msgTimestamp) {
 				lastSeen = i + 1;
-				break;
+				continue;
 			}
 			if (message.length > 0) {
 				let hash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
@@ -302,18 +302,15 @@ function onBackKeyDown() {
 		if(gIsChannelListView) {
 			gWasChannelListView = true;
 			gIsChannelListView = false;
-			$('#channel_list_cont').fadeOut();
 		}
-		presenceShow();
+		presenceChannelListShow();
 	}
 	else {
 		gIsPresenceView = false;
-		if(gWasChannelListView ) {
+		if(gWasChannelListView) {
 			gWasChannelListView = false;
-			channelListShow();
-			$('#presence_cont').fadeOut(400, function () {
-					$('#channel_list_cont').fadeIn();
-			});
+			gIsChannelListView = true;
+			presenceChannelListShow();
 		}
 		else {
 			$('#presence_cont').fadeOut(400, function () {
@@ -327,21 +324,14 @@ function newChannelShow() {
 	getFront();
 	gActiveChannel = null;
 
-	if(gIsChannelListView) {
-		gIsChannelListView = false;
-		$('#channel_list_cont').fadeOut();
-	}
-	if(gIsPresenceView) {
-		gIsPresenceView = false;
-		$('#presence_cont').fadeOut();
-	}
-	$('#messages').html('');
-	$('#message_cont').fadeOut(400, function () {
+	gIsPresenceView = false;
+	gIsChannelListView = false;
+	$('#presence_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
 		$("#channel_submit, #form_send_message").submit(function (e) {
-			e.preventDefault();
-			askChannelNew();
-		});
+				e.preventDefault();
+				askChannelNew();
+				});
 	});
 }
 
@@ -431,7 +421,7 @@ function joinExistingChannels(channels) {
 	}
 	channelListShow();
 	$('#name_channel_cont').fadeOut(400, function () {
-		$('#channel_list_cont').fadeIn();
+		$('#presence_cont').fadeIn();
 	});
 }
 
@@ -439,6 +429,7 @@ function askChannelNew() {
 	if(gActiveChannel)
 		return;
 
+	$('#messages').html('');
 	if (($('#input_name').val().trim().length <= 0 ||
 				$('#input_channel').val().trim().length <= 0 ||
 				$('#input_key').val().trim().length <= 0)) {
@@ -539,12 +530,35 @@ async function send(isFull) {
 	}
 }
 
+function chanExitAll() {
+	for (let val in gMyChannel) {
+		if(val) {
+			let channel = gMyChannel[val];
+			if(channel) {
+				closeSocket(channel);
+			}
+		}
+	}
+	$("#input_channel").val('');
+	$("#input_key").val('');
+	$('#qrcode').fadeOut();
+	channelListShow();
+}
+
 function chanExit() {
 	const channel = gActiveChannel;
 	closeSocket(channel);
+	$("#input_channel").val('');
+	$("#input_key").val('');
+	$('#qrcode').fadeOut();
+	$('#presence_cont').fadeOut();
+	$('#message_cont').fadeOut(400, function () {
+		channelListShow();
+		$('#presence_cont').fadeIn();
+	});
 }
 
-function outputPresenceList() {
+function outputPresenceChannelList() {
 	let date = Date.now();
 
 	for (let val in gMyChannel) {
@@ -558,25 +572,26 @@ function outputPresenceList() {
 					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
 
 				$('#presence_avail').append(li);
-				for (let uid in gPresenceTs[channel]) {
-					let arr = gPresenceTs[channel][uid];
-					if(!arr)
-						continue;
-					const ps_channel = arr[1];
-					if(ps_channel != channel)
-						continue;
-					const user = arr[0];
-					const timestamp = arr[2];
-					if (user == gMyName[channel])
-						continue;
-					//console.log("Timestamp" + gPresenceTs[userid].valueOf() + " Saved timestamp " + date.valueOf())
-					if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
-						li = '<li><span class="name">   ' + user + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
-					else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
-						li = '<li><span class="name">   ' + user + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
-					else
-						li = '<li><span class="name">   ' + user + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
-					$('#presence_avail').append(li);
+				if(gIsPresenceView) {
+					for (let uid in gPresenceTs[channel]) {
+						let arr = gPresenceTs[channel][uid];
+						if(!arr)
+							continue;
+						const ps_channel = arr[1];
+						if(ps_channel != channel)
+							continue;
+						const user = arr[0];
+						const timestamp = arr[2];
+						if (user == gMyName[channel])
+							continue;
+						if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
+							li = '<li><span class="name">   ' + user + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
+						else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
+							li = '<li><span class="name">   ' + user + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
+						else
+							li = '<li><span class="name">   ' + user + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
+						$('#presence_avail').append(li);
+					}
 				}
 				document.getElementById(channel).onclick = function() {
 					if(gMsgs[channel]) {
@@ -610,74 +625,20 @@ function outputPresenceList() {
 	});
 }
 
-async function presenceShow() {
-	while (gIsPresenceView) {
+async function presenceChannelListShow() {
+	while (gIsPresenceView || gIsChannelListView) {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
-		outputPresenceList();
+		outputPresenceChannelList();
 		await sleep(LISTING_SHOW_TIMER);
 	}
-}
-
-
-function outputChannelList() {
-	for (let val in gMyChannel) {
-		if(val) {
-			let channel = gMyChannel[val];
-			if(channel) {
-				let li;
-				if(gMsgs[channel])
-					li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
-				else
-					li = '<li class="new" id="' + channel + '-view"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
-
-				$('#channel_list_avail').append(li);
-				document.getElementById(channel + "-view").onclick = function() {
-					if(gMsgs[channel]) {
-						$('#messages').html('');
-						const qlen = gMsgs[channel].getLength();
-						for(let i = 0; i < qlen; i++) {
-							let li = gMsgs[channel].get(i);
-							$('#messages').append(li);
-						}
-					}
-					selectSipToken(channel);
-					gActiveChannel = channel;
-					gIsChannelListView = false;
-					gWasChannelListView = false;
-					gIsPresenceView = false;
-					if(gMsgs[channel])
-						gNewMsgsCnt[channel] = 0;
-					const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
-					gMsgTs[channel] = msgDate.valueOf();
-					setMsgTimestamps();
-					$('#channel_list_cont').fadeOut(400, function () {
-						$('#message_cont').fadeIn();
-						scrollToBottom();
-					});
-				};
-			}
-		}
-	}
-	$('#message_cont').fadeOut(400, function () {
-		$('#channel_list_cont').fadeIn();
-	});
 }
 
 async function channelListShow() {
 	gIsChannelListView = true;
 	gActiveChannel = null;
-	while (gIsChannelListView) {
-		$('#channel_list_avail').html('');
-		outputChannelList();
-		await sleep(LISTING_SHOW_TIMER);
-	}
-}
 
-function channelListUnshow() {
-	$('#channel_list_cont').fadeOut(400, function () {
-		$('#message_cont').fadeIn();
-	});
+	presenceChannelListShow();
 }
 
 function closeSocket(channel) {
@@ -714,15 +675,6 @@ function closeSocket(channel) {
 	setActiveChannels();
 	setNotifyTimestamps();
 	setMsgTimestamps();
-
-	$("#input_channel").val('');
-	$("#input_key").val('');
-	$('#qrcode').fadeOut();
-	$('#presence_cont').fadeOut();
-	$('#message_cont').fadeOut(400, function () {
-		channelListShow();
-		$('#channel_list_cont').fadeIn();
-	});
 }
 
 function initReconnect(channel) {
@@ -857,6 +809,8 @@ async function processData(uid, channel, msgTimestamp,
 		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 		if(!gIdNotifyTs[channel])
 			gIdNotifyTs[channel] = {};
+		if(!gIdNotifyTs[channel][uid])
+			gIdNotifyTs[channel][uid] = 0;
 	}
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
