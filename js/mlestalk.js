@@ -998,14 +998,15 @@ async function processData(uid, channel, msgTimestamp,
 		}
 
 		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if ((gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && isFull &&
-			gIdNotifyTs[channel][uid] < notifyTimestamp)
+		if (uid != gMyName[channel] && isFull && gIdNotifyTs[channel][uid] < notifyTimestamp)
 		{
-			if (gWillNotify && gCanNotify) {
-				if (true == isImage) {
-					message = gImageStr;
+			if(gActiveChannel != channel || gIsPause) {
+				if (gWillNotify && gCanNotify) {
+					if (true == isImage) {
+						message = gImageStr;
+					}
+					doNotify(uid, channel, notifyTimestamp, message);
 				}
-				doNotify(uid, channel, notifyTimestamp, message);
 			}
 			gIdNotifyTs[channel][uid] = notifyTimestamp;
 			setNotifyTimestamps();
