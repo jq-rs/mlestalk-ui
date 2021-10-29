@@ -22,6 +22,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("poistu kaikista");
 			$("#new_channel").val("uusi kanava");
 			$("#channel_list").val("kanavat");
+			$("#channel_list_new").val("kanavat");
 			$("#app_info").text("lisätietoja sovelluksesta");
 			$("#legal").text("lakitiedot");
 			gWeekday[0] = "su";
@@ -44,6 +45,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("utgång alla");
 			$("#new_channel").val("ny kanal");
 			$("#channel_list").val("kanaler");
+			$("#channel_list_new").val("kanaler");
 			$("#app_info").text("appinfo");
 			$("#legal").text("rättslig");
 			gWeekday[0] = "sö";
@@ -66,6 +68,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("salir de todo");
 			$("#new_channel").text("nuevo canal");
 			$("#channel_list").val("canales");
+			$("#channel_list_new").val("canales");
 			$("#app_info").text("info de la app");
 			$("#legal").text("legal");
 			gWeekday[0] = "D";
@@ -88,6 +91,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("alle verlassen");
 			$("#new_channel").text("neuer Kanal");
 			$("#channel_list").val("Kanäle");
+			$("#channel_list_new").val("Kanäle");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
 			gWeekday[0] = "So";
@@ -110,6 +114,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("tout quitter");
 			$("#new_channel").val("nouveau canal");
 			$("#channel_list").val("canaux");
+			$("#channel_list_new").val("canaux");
 			$("#app_info").text("info sur l'app");
 			$("#legal").text("légal");
 			gWeekday[0] = "dim";
@@ -132,6 +137,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("saia de tudo");
 			$("#new_channel").val("novo canal");
 			$("#channel_list").val("canais");
+			$("#channel_list_new").val("canais");
 			$("#app_info").text("informação da aplicação");
 			$("#legal").text("legal");
 			gWeekday[0] = "Dom.";
@@ -154,6 +160,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("выйти из всего");
 			$("#new_channel").val("новый канал");
 			$("#channel_list").val("каналами");
+			$("#channel_list_new").val("каналами");
 			$("#app_info").text("информация о приложении");
 			$("#legal").text("правовой");
 			gWeekday[0] = "ВСК";
@@ -177,6 +184,7 @@ function setLanguage() {
 			$("#channel_exit_all").val("exit all");
 			$("#new_channel").val("new channel");
 			$("#channel_list").val("channels");
+			$("#channel_list_new").val("channels");
 			$("#app_info").text("app info");
 			$("#legal").text("legal");
 			gWeekday[0] = "Sun";
@@ -217,16 +225,47 @@ function popAlert() {
 			break;
 		case "fr":
 			alert('Nom, canal et clé partagée?');
-            break;
-        case "pt":
-            alert('Seu nome, canal e chave compartilhada?');
-            break;
-        case "ru":
-            alert('Твое имя, канал и общий ключ?');
-            break;
-        case "gb":
+            		break;
+        	case "pt":
+            		alert('Seu nome, canal e chave compartilhada?');
+            		break;
+        	case "ru":
+            		alert('Твое имя, канал и общий ключ?');
+            		break;
+        	case "gb":
 		default:
 			alert('Name, channel and shared key?');
+			break;
+	}
+}
+
+function popChannelAlert() {
+	let language = $("#channel_localization").val();
+	switch (language) {
+		case "fi":
+			alert('Kanava on jo olemassa');
+			break;
+		case "se":
+			alert('Kanal finns redan');
+			break;
+		case "es":
+			alert('El canal ya existe');
+			break;
+		case "de":
+			alert('Kanal existiert bereits');
+			break;
+		case "fr":
+			alert('Le canal existe déjà');
+            		break;
+        	case "pt":
+            		alert('Canal já existe');
+            		break;
+        	case "ru":
+            		alert('Канал уже существует');
+            		break;
+        	case "gb":
+		default:
+			alert('Channel already exists');
 			break;
 	}
 }

@@ -51,7 +51,11 @@
 						<input type="text" id="input_addr_port" value="" />
 					</div>
 				</form>
+				<div class="field">
+					<input id="channel_list_new" class="channel_list_button" type="button" value="channels" onclick="channelListShow()" />
+					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
 				<a href="https://mles.io/app.html" id="app_info">app info</a> <a href="https://mles.io/legal.html" id="legal">legal</a>
+				</div>
 			</div>
 			<div id="message_cont" class="box_with_shadow">
 				<div id="messages_list" class="top_section">
@@ -84,6 +88,7 @@
 				</div>
 				<div class="field">
 					<input id="channel_list" class="channel_list_button" type="button" value="channels" onclick="channelListShow()" />
+					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
 					<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
 				</div>
 			</div>
@@ -94,6 +99,7 @@
 				</div>
 				<div class="field">
 					<input id="new_channel" class="new_channel_button" type="button" value="new_channel" onclick="newChannelShow()" />
+					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
 					<input id="channel_exit_all" class="exit_button" type="button" value="channel_exit_all" onclick="chanExitAll()" />
 				</div>
 			</div>
