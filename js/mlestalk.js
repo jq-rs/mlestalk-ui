@@ -473,6 +473,7 @@ function askChannelNew() {
 		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
 		gIsResync[channel] = 0;
+		gPrevScrollTop[channel] = 0;
 
 		gMyName[channel] = $('#input_name').val().trim();
 		gMyKey[channel] = $('#input_key').val().trim();
@@ -1048,8 +1049,9 @@ async function processData(uid, channel, msgTimestamp,
 
 		if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
 			//if user has scrolled, do not scroll to bottom unless full message
-			if(messages_list.scrollTop >= gPrevScrollTop[channel])
+			if(messages_list.scrollTop >= gPrevScrollTop[channel]-200) { //webview is not accurate in scrolltop
 				scrollToBottom(channel);
+			}
 		}
 
 		if(gActiveChannel == channel) {
