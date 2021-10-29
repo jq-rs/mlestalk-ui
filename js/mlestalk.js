@@ -468,6 +468,7 @@ function askChannelNew() {
 		channel = $('#input_channel').val().trim();
 
 		gMyChannel[channel] = channel;
+		gOwnId[channel] = 0;
 		gOwnAppend[channel] = false;
 		gForwardSecrecy[channel] = false;
 		gReadMsgDelayedQueueLen[channel] = 0;
