@@ -72,6 +72,7 @@ let gIsResync = {};
 let gLastWrittenMsg = {};
 
 let gJoinExistingComplete = false;
+let gPrevScrollTop = {};
 
 let gLastMessageSeenTs = {};
 let gLastMessage = {};
@@ -343,10 +344,6 @@ function newChannelShow() {
 	gIsInputView = true;
 	$("#input_channel").val('');
 	$("#input_key").val('');
-	$("#channel_submit, #form_send_message").submit(function (e) {
-			e.preventDefault();
-			askChannelNew();
-	});
 	$('#presence_cont').fadeOut(400, function () {
 		$('#name_channel_cont').fadeIn();
 	});
@@ -388,11 +385,10 @@ $(document).ready(function () {
 	getActiveChannels();
 	if(gActiveChannels)
 		joinExistingChannels(gActiveChannels)
-	else
-		$("#channel_submit, #form_send_message").submit(function (e) {
-			e.preventDefault();
-			askChannelNew();
-		});
+	$("#channel_submit, #form_send_message").submit(function (e) {
+		e.preventDefault();
+		askChannelNew();
+	});
 });
 
 function addrsplit(channel, addrport) {
@@ -414,33 +410,42 @@ function addrsplit(channel, addrport) {
 function joinExistingChannels(channels) {
 	if(!channels || gJoinExistingComplete)
 		return;
+	let cnt = 0;
 	getNotifyTimestamps();
 	getMsgTimestamps();
 	for (let channel in channels) {
-		getLocalSession(channel);
-		gAddrPortInput[channel] = getLocalAddrPortInput(channel);
-		if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
-			addrsplit(channel, gAddrPortInput[channel]);
-			if(null == gOwnId[channel])
-				gOwnId[channel] = 0;
-			if(null == gOwnAppend[channel])
-				gOwnAppend[channel] = false;
-			gForwardSecrecy[channel] = false;
-			gReadMsgDelayedQueueLen[channel] = 0;
-			gLastMessageSeenTs[channel] = 0;
-			gIsResync[channel] = 0;
-			gInitOk[channel] = true;
+		if(channel) {
+			cnt++;
+			getLocalSession(channel);
+			gAddrPortInput[channel] = getLocalAddrPortInput(channel);
+			if (!gInitOk[channel] && gMyName[channel] && gMyChannel[channel] && gMyKey[channel] && gAddrPortInput[channel]) {
+				addrsplit(channel, gAddrPortInput[channel]);
+				if(null == gOwnId[channel])
+					gOwnId[channel] = 0;
+				if(null == gOwnAppend[channel])
+					gOwnAppend[channel] = false;
+				gForwardSecrecy[channel] = false;
+				gReadMsgDelayedQueueLen[channel] = 0;
+				gLastMessageSeenTs[channel] = 0;
+				gIsResync[channel] = 0;
+				gInitOk[channel] = true;
 
-			initReconnect(channel);
+				initReconnect(channel);
 
-			getLocalBdKey(channel);
-			gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+				getLocalBdKey(channel);
+				gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+			}
 		}
 	}
-	channelListShow();
-	$('#name_channel_cont').fadeOut(400, function () {
-		$('#presence_cont').fadeIn();
-	});
+	if(0 == cnt) {
+		newChannelShow();
+	}
+	else {
+		channelListShow();
+		$('#name_channel_cont').fadeOut(400, function () {
+			$('#presence_cont').fadeIn();
+		});
+	}
 	gJoinExistingComplete = true;
 }
 
@@ -448,8 +453,6 @@ function askChannelNew() {
 	if(gActiveChannel)
 		return;
 
-	gIsInputView = true;
-	$('#messages').html('');
 	if (($('#input_name').val().trim().length <= 0 ||
 				$('#input_channel').val().trim().length <= 0 ||
 				$('#input_key').val().trim().length <= 0)) {
@@ -518,6 +521,7 @@ function askChannelNew() {
 		selectSipToken(channel);
 
 		gIsInputView = false;
+		$('#messages').html('');
 		$('#name_channel_cont').fadeOut(400, function () {
 				$('#message_cont').fadeIn();
 		});
@@ -566,29 +570,52 @@ function chanExitAll() {
 	$("#input_channel").val('');
 	$("#input_key").val('');
 	$('#qrcode').fadeOut();
-	channelListShow();
+
+	clearActiveChannels();
+	clearNotifyTimestamps();
+	clearMsgTimestamps();
+
+	$('#message_cont').fadeOut(400, function () {
+			newChannelShow();
+	});
 }
 
 function chanExit() {
 	const channel = gActiveChannel;
 	closeChannel(channel);
+
+	setActiveChannels();
+	setNotifyTimestamps();
+	setMsgTimestamps();
+
 	$("#input_channel").val('');
 	$("#input_key").val('');
 	$('#qrcode').fadeOut();
-	channelListShow();
-	$('#message_cont').fadeOut(400, function () {
-		$('#presence_cont').fadeIn();
-	});
+
+	if (Object.keys(gMyChannel).length > 0) {
+		channelListShow();
+		$('#message_cont').fadeOut(400, function () {
+			$('#presence_cont').fadeIn();
+		});
+	}
+	else
+		$('#message_cont').fadeOut(400, function () {
+				newChannelShow();
+		});
+
 }
 
 function outputPresenceChannelList() {
 	let date = Date.now();
+	let cnt = 0;
 
 	for (let val in gMyChannel) {
 		if(val) {
 			let channel = gMyChannel[val];
 			if(channel) {
 				let li;
+
+				cnt++;
 				if(gMsgs[channel])
 					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
 				else
@@ -608,11 +635,11 @@ function outputPresenceChannelList() {
 						if (user == gMyName[channel])
 							continue;
 						if (timestamp.valueOf() + PRESENCETIME >= date.valueOf())
-							li = '<li><span class="name">   ' + user + '</span> <img src="img/available.png" alt="green" style="vertical-align:middle;height:22px;" /></li>';
+							li = '<li class="item"><span class="name"><img src="img/available.png" alt="green" style="vertical-align:middle;height:20px;" /> ' + user + '</span></li>';
 						else if (timestamp.valueOf() + IDLETIME >= date.valueOf())
-							li = '<li><span class="name">   ' + user + '</span> <img src="img/idle.png" alt="light green" style="vertical-align:middle;height:22px;" /></li>';
+							li = '<li class="item"><span class="name"><img src="img/idle.png" alt="light green" style="vertical-align:middle;height:20px;" /> ' + user + '</span></li>';
 						else
-							li = '<li><span class="name">   ' + user + '</span> <img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:22px;" /></li>';
+							li = '<li class="item"><span class="name"><img src="img/unavailable.png" alt="grey" style="vertical-align:middle;height:20px;" /> ' + user + '</span></li>';
 						$('#presence_avail').append(li);
 					}
 				}
@@ -639,26 +666,31 @@ function outputPresenceChannelList() {
 					setMsgTimestamps();
 					$('#presence_cont').fadeOut(400, function () {
 						$('#message_cont').fadeIn();
-						scrollToBottom();
+						scrollToBottom(channel);
 					});
 				};
 			}
 		}
 	}
-	if(gIsInputView) {
-		gIsInputView = false;
-		$('#name_channel_cont').fadeOut(400, function () {
-			$('#presence_cont').fadeIn();
-		});
+	if(cnt > 0) {
+		if(gIsInputView) {
+			gIsInputView = false;
+			$('#name_channel_cont').fadeOut(400, function () {
+				$('#presence_cont').fadeIn();
+			});
+		}
+		else {
+			$('#message_cont').fadeOut(400, function () {
+				$('#presence_cont').fadeIn();
+			});
+		}
 	}
-	else {
-		$('#message_cont').fadeOut(400, function () {
-			$('#presence_cont').fadeIn();
-		});
-	}
+	else
+                newChannelShow();
 }
 
 async function presenceChannelListShow() {
+	let cnt;
 	while (gIsPresenceView || gIsChannelListView) {
 		//console.log("Building presence list..");
 		$('#presence_avail').html('');
@@ -668,6 +700,7 @@ async function presenceChannelListShow() {
 }
 
 async function channelListShow() {
+	let cnt;
 	gIsChannelListView = true;
 	gActiveChannel = null;
 	presenceChannelListShow();
@@ -678,35 +711,34 @@ function closeChannel(channel) {
 	gInitOk[channel] = false;
 
 	//init all databases
-	gIdTimestamp[channel] = null;
-	gPresenceTs[channel] = null;
-	gIdNotifyTs[channel] = null;
-	gMsgs[channel] = null;
-	gMsgTs[channel] = null;
-	gIdHash[channel] = null;
-	gIdAppend[channel] = null;
+	delete gIdTimestamp[channel];
+	delete gPresenceTs[channel];
+	delete gIdNotifyTs[channel];
+	delete gMsgs[channel];
+	delete gMsgTs[channel];
+	delete gIdHash[channel];
+	delete gIdAppend[channel];
 
-	gLastMessageSeenTs[channel] = 0;
+	delete gLastMessageSeenTs[channel];
 
 	queueFlush(gMyName[channel], gMyChannel[channel]);
 	clearLocalBdKey(channel);
 	clearLocalSession(channel);
-	gForwardSecrecy[channel] = false;
-	gPrevBdKey[channel] = null;
+	delete gForwardSecrecy[channel];
+	delete gPrevBdKey[channel];
+	delete gActiveChannels[channel];
+	delete gOwnAppend[channel];
+	delete gIsResync[channel];
+	delete gPrevScrollTop[channel];
+
 	gActiveChannel = null;
-	gActiveChannels[channel] = null;
-	gOwnAppend[channel] = false;
-	gIsResync[channel] = 0;
 
 	//guarantee that websocket gets closed without reconnect
 	let tmpname = gMyName[channel];
 	let tmpchannel = gMyChannel[channel];
-	gMyName[channel] = null;
-	gMyChannel[channel] = null;
+	delete gMyName[channel];
+	delete gMyChannel[channel];
 	gWebWorker.postMessage(["close", null, tmpname, tmpchannel]);
-	setActiveChannels();
-	setNotifyTimestamps();
-	setMsgTimestamps();
 }
 
 function initReconnect(channel) {
@@ -1012,9 +1044,12 @@ async function processData(uid, channel, msgTimestamp,
 			gIdHash[channel][uid] += 1;
 			gIdAppend[channel][uid] = false;
 
-			if(gActiveChannel == channel) {
-				scrollToBottom();
-			}
+		}
+
+		if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
+			//if user has scrolled, do not scroll to bottom unless full message
+			if(messages_list.scrollTop >= gPrevScrollTop[channel])
+				scrollToBottom(channel);
 		}
 
 		if(gActiveChannel == channel) {
@@ -1201,11 +1236,12 @@ function sleep(ms) {
 }
 
 async function scrollToBottomWithTimer() {
+	let channel = gActiveChannel;
 	await sleep(SCROLL_TIME);
-	scrollToBottom();
+	scrollToBottom(channel);
 	/* Scroll twice if we miss the first one in UI */
 	await sleep(SCROLL_TIME);
-	scrollToBottom();
+	scrollToBottom(channel);
 }
 
 async function resync(uid, channel) {
@@ -1219,6 +1255,10 @@ async function resync(uid, channel) {
 }
 
 async function reconnect(uid, channel) {
+	if (null == gMyChannel[channel]) {
+		gWebWorker.postMessage(["close", null, uid, channel]);
+		return;
+	}
 	if (true == gIsReconnect[channel]) {
 		return;
 	}
@@ -1259,8 +1299,11 @@ function syncReconnect() {
 		resession_counter = 0;
 }
 
-function scrollToBottom() {
+function scrollToBottom(channel) {
+	if(null == channel)
+		return;
 	messages_list.scrollTop = messages_list.scrollHeight;
+	gPrevScrollTop[channel] = messages_list.scrollTop;
 }
 
 function sendData(cmd, uid, channel, data, msgtype) {
@@ -1343,9 +1386,14 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		else
 			$('#owner' + gOwnId[channel]).replaceWith(li);
 	}
-	scrollToBottom();
-	if (isFull)
+
+	if(1 == $('#input_message').val().length) //show new line
+		scrollToBottom(channel);
+
+	if (isFull) {
+		scrollToBottom(channel);
 		$('#input_message').val('');
+	}
 }
 
 function sendMessage(channel, message, isFull, isPresence, isPresenceAck = false) {
@@ -1445,13 +1493,15 @@ function getToken(channel, token) {
 	return "https://" + getLocalAddrPortInput(channel) + "/mlestalk-web.html?token=" + token;
 }
 
-function getFront(channel) {
+function getFront() {
 	$("#channel_localization").val(getLocalLanguageSelection());
 	setLanguage();
-	$("#input_addr_port").val(getLocalAddrPortInput(channel));
+	$('#input_addr_port').val(getLocalAddrPortInput(null));
 }
 
 function getLocalAddrPortInput(channel) {
+	if(null == channel)
+		return "mles.io:443";
 	let apinput = window.localStorage.getItem('gAddrPortInput' + channel);
 	if (apinput != undefined && apinput != '' && apinput != 'mles.io:80') {
 		return apinput;

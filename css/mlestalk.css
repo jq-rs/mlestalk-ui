@@ -189,6 +189,22 @@ input.channel_list_button {
     height: 80vh;
 }
 
+#presence_hdr {
+    margin: 4px;
+    padding: 0;
+}
+
+#presence_hdr li {
+    list-style: none;
+    font-family: sans-serif;
+    font-size: 18px;
+    padding: 0px 0px;
+}
+
+#presence_hdr li.new {
+    color: #bbbbcf;
+}
+
 #presence_avail li {
     list-style: none;
     font-family: sans-serif;
@@ -199,6 +215,11 @@ input.channel_list_button {
 #presence_avail li.new,#presence_avail li.exit {
     font-style: italic;
     color: #bbbbcf;
+}
+#presence_avail li.item {
+    color: #bbbbcf;
+    font-size: 17px;
+    padding-left: 10px;
 }
 
 #presence_avail li.own {
