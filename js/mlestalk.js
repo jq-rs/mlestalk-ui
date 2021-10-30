@@ -648,8 +648,8 @@ function outputPresenceChannelList() {
 				}
 				document.getElementById(channel).onclick = function() {
 					gActiveChannel = channel;
+					$('#messages').html('');
 					if(gMsgs[channel]) {
-						$('#messages').html('');
 						const qlen = gMsgs[channel].getLength();
 						for(let i = 0; i < qlen; i++) {
 							let li = gMsgs[channel].get(i);
