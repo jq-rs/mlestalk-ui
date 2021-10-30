@@ -519,11 +519,12 @@ function askChannelNew() {
 			gActiveChannels = {};
 		gActiveChannels[channel] = channel;
 		setActiveChannels();
-		gActiveChannel = channel;
-		selectSipToken(channel);
 
-		gIsInputView = false;
+		gActiveChannel = channel;
 		$('#messages').html('');
+
+		selectSipToken(channel);
+		gIsInputView = false;
 		$('#name_channel_cont').fadeOut(400, function () {
 				$('#message_cont').fadeIn();
 		});
@@ -646,6 +647,7 @@ function outputPresenceChannelList() {
 					}
 				}
 				document.getElementById(channel).onclick = function() {
+					gActiveChannel = channel;
 					if(gMsgs[channel]) {
 						$('#messages').html('');
 						const qlen = gMsgs[channel].getLength();
@@ -655,7 +657,6 @@ function outputPresenceChannelList() {
 						}
 					}
 					selectSipToken(channel);
-					gActiveChannel = channel;
 					gIsChannelListView = false;
 					gWasChannelListView = false;
 					gIsInputView = false;
