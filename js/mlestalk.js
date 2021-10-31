@@ -1391,13 +1391,9 @@ function updateAfterSend(channel, message, isFull, isImage) {
 			$('#owner' + gOwnId[channel]).replaceWith(li);
 	}
 
-	if(1 == $('#input_message').val().length) //show new line
-		scrollToBottom(channel);
-
-	if (isFull) {
-		scrollToBottom(channel);
+	scrollToBottom(channel);
+	if (isFull)
 		$('#input_message').val('');
-	}
 }
 
 function sendMessage(channel, message, isFull, isPresence, isPresenceAck = false) {
