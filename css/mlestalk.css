@@ -16,6 +16,10 @@ a {
     color: #77407b;
 }
 
+a:hover {
+        text-decoration: none;
+}
+
 .body_cont {
     width: auto;
     margin: 0 auto;
@@ -60,6 +64,10 @@ input.exit_button {
 	border-radius: 0px;
 }	
 
+input.exit_button:hover {
+        text-decoration: underline;
+}
+
 input.new_channel_button {
 	padding: 1px;
 	cursor: pointer;
@@ -71,6 +79,10 @@ input.new_channel_button {
 	border-radius: 0px;
 }
 
+input.new_channel_button:hover {
+        text-decoration: underline;
+}
+
 input.channel_list_button {
 	padding: 1px;
 	cursor: pointer;
@@ -80,6 +92,10 @@ input.channel_list_button {
 	color: #77407b;
 	border: 0px solid #77407b;
 	border-radius: 0px;
+}
+
+input.channel_list_button:hover {
+        text-decoration: underline;
 }
 
 #name_channel_cont {
@@ -237,6 +253,10 @@ input.channel_list_button {
 
 #presence_avail li span.name {
     color: #77407b;
+}
+
+#presence_avail li.new:hover {
+    text-decoration: underline;
 }
 
 #messages_list {
