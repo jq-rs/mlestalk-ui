@@ -106,7 +106,7 @@ let gBgTitle = "MlesTalk in the background";
 let gBgText = "Notifications active";
 let gImageStr = "<an image>";
 
-const FSFONTCOLOR = "#769c74";
+const FSFONTCOLOR = "#8bac89";
 
 class Queue {
 	constructor(...elements) {
