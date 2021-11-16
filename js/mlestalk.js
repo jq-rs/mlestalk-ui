@@ -1293,8 +1293,8 @@ function syncReconnect() {
 				//	gWebWorker.postMessage(["resync", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
 				//}
 				//else {
-					sendEmptyJoin(gMyChannel[channel]);
 					gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
+					sendEmptyJoin(gMyChannel[channel]);
 				//}
 			}
 		}
