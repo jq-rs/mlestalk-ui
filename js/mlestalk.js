@@ -951,8 +951,8 @@ async function processData(uid, channel, msgTimestamp,
 			gLastMessageSeenTs[channel] = msgTimestamp;
 
 		if (!gIsResync[channel] && presAckRequired) {
-			sendPresAck(channel);
 			//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
+			sendPresAck(channel);
 		}
 
 		if (isPresence) {
