@@ -542,7 +542,7 @@ function sendPresAck(channel) {
 
 /* Join after disconnect */
 function sendInitJoin(channel) {
-	sendMessage(channel, "", true, false);
+	sendMessage(channel, "", true, true);
 }
 
 async function send(isFull) {
@@ -937,6 +937,11 @@ async function processData(uid, channel, msgTimestamp,
 			return 0;
 	}
 
+	if (!gIsResync[channel] && presAckRequired) {
+		//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
+		sendPresAck(channel);
+	}
+
 	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 		return 0;
 
@@ -949,11 +954,6 @@ async function processData(uid, channel, msgTimestamp,
 
 		if (gLastMessageSeenTs[channel] < msgTimestamp)
 			gLastMessageSeenTs[channel] = msgTimestamp;
-
-		if (!gIsResync[channel] && presAckRequired) {
-			//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
-			sendPresAck(channel);
-		}
 
 		if (isPresence) {
 			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
