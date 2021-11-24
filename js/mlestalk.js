@@ -53,7 +53,7 @@ const MAXQLEN = 1000;
 const RESYNC_TIMEOUT = 2000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
-const SCROLL_TIME = 500; /* ms */
+const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 1 /* ms */
 const ASYNC_IMG_SLEEP = 10 /* ms */
 let gReconnTimeout = {};
@@ -298,6 +298,8 @@ function onResume() {
 		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.fromBackground();
 	}
+	if(gActiveChannel)
+		scrollToBottom(gActiveChannel);
 }
 
 function onBackKeyDown() {
@@ -1241,9 +1243,11 @@ function sleep(ms) {
 
 async function scrollToBottomWithTimer() {
 	let channel = gActiveChannel;
+	/* Scroll several times to update UI */
 	await sleep(SCROLL_TIME);
 	scrollToBottom(channel);
-	/* Scroll twice if we miss the first one in UI */
+	await sleep(SCROLL_TIME);
+	scrollToBottom(channel);
 	await sleep(SCROLL_TIME);
 	scrollToBottom(channel);
 }
