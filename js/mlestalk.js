@@ -1294,20 +1294,15 @@ async function reconnect(uid, channel) {
 	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
 }
 
-/* Called from the background thread */
+/* Called from the background thread and when back online */
 function syncReconnect() {
-
 	if(false == gOnline)
 		return;
 
 	for (let channel in gMyChannel) {
-		if (gInitOk[channel]) {
-			if (true == gIsReconnect[channel])
-				continue;
-			if (gMyName[channel] && gMyChannel[channel]) {
-				gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-				sendEmptyJoin(gMyChannel[channel]);
-			}
+		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
+			gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
+			sendEmptyJoin(gMyChannel[channel]);
 		}
 	}
 }
