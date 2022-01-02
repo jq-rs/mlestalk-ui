@@ -1243,7 +1243,7 @@ function doNotify(uid, channel, msgTimestamp, message) {
 			title: msg[1] + "@" + channel,
 			text: msg[2],
 			icon: 'res://large_micon.png',
-			smallIcon: 'res://icon.png',
+			smallIcon: 'res://micon.png',
 			foreground: false,
 			trigger: { in: 1, unit: 'second' }
 		});
