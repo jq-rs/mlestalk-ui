@@ -25,6 +25,7 @@ let gForwardSecrecy = {};
 let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
+let gOnline = true;
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -351,7 +352,16 @@ function newChannelShow() {
 	});
 }
 
-let interval;
+function onOffline() {
+	// Handle the offline event
+	gOnline = false;
+}
+
+function onOnline() {
+	// Handle the online event
+	gOnline = true;
+}
+
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
@@ -375,6 +385,8 @@ function onLoad() {
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
 		document.addEventListener("backbutton", onBackKeyDown, false);
+		document.addEventListener("offline", onOffline, false);
+		document.addEventListener("online", onOnline, false);
 
 		isCordova = true;
 	}, false);
@@ -1281,30 +1293,23 @@ async function reconnect(uid, channel) {
 	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
 }
 
-const RESESS_LIMIT = 5;
-let resession_counter = 0;
 /* Called from the background thread */
 function syncReconnect() {
-	resession_counter += 1;
+
+	if(false == gOnline)
+		return;
+
 	for (let channel in gMyChannel) {
 		if (gInitOk[channel]) {
 			if (true == gIsReconnect[channel])
 				continue;
 			if (gMyName[channel] && gMyChannel[channel]) {
 				//disable for now
-				//console.log("resyncing channel " + gMyChannel[channel], " uid " + gMyName[channel]);
-				//if(resession_counter >= RESESS_LIMIT) {
-				//	gWebWorker.postMessage(["resync", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-				//}
-				//else {
-					gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-					sendEmptyJoin(gMyChannel[channel]);
-				//}
+				gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
+				sendEmptyJoin(gMyChannel[channel]);
 			}
 		}
 	}
-	if(resession_counter >= RESESS_LIMIT)
-		resession_counter = 0;
 }
 
 function scrollToBottom(channel) {
