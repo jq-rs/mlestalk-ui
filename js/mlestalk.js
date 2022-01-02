@@ -360,6 +360,7 @@ function onOffline() {
 function onOnline() {
 	// Handle the online event
 	gOnline = true;
+	syncReconnect();
 }
 
 function onLoad() {
@@ -1304,7 +1305,6 @@ function syncReconnect() {
 			if (true == gIsReconnect[channel])
 				continue;
 			if (gMyName[channel] && gMyChannel[channel]) {
-				//disable for now
 				gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
 				sendEmptyJoin(gMyChannel[channel]);
 			}
