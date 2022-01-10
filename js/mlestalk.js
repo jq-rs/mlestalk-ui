@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019-2021 MlesTalk developers
+ * Copyright (c) 2019-2022 MlesTalk developers
  */
 let gMyName = {};
 let gMyChannel = {};
@@ -1291,7 +1291,8 @@ async function reconnect(uid, channel) {
 	gIsReconnect[channel] = true;
 	await sleep(gReconnTimeout[channel]);
 	gReconnTimeout[channel] *= 2;
-	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
+	if (gOnline)
+		gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
 }
 
 /* Called from the background thread */
