@@ -25,7 +25,6 @@ let gForwardSecrecy = {};
 let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
-let gOnline = true;
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -352,17 +351,6 @@ function newChannelShow() {
 	});
 }
 
-function onOffline() {
-	// Handle the offline event
-	gOnline = false;
-}
-
-function onOnline() {
-	// Handle the online event
-	gOnline = true;
-	onlineReconnect();
-}
-
 function onLoad() {
 	document.addEventListener("deviceready", function () {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
@@ -386,8 +374,6 @@ function onLoad() {
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
 		document.addEventListener("backbutton", onBackKeyDown, false);
-		document.addEventListener("offline", onOffline, false);
-		document.addEventListener("online", onOnline, false);
 
 		isCordova = true;
 	}, false);
@@ -1291,15 +1277,11 @@ async function reconnect(uid, channel) {
 	gIsReconnect[channel] = true;
 	await sleep(gReconnTimeout[channel]);
 	gReconnTimeout[channel] *= 2;
-	if (gOnline)
-		gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
+	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
 }
 
 /* Called from the background thread */
 function syncReconnect() {
-	if(false == gOnline)
-		return;
-
 	for (let channel in gMyChannel) {
 		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
 			if (true == gIsReconnect[channel])
@@ -1312,9 +1294,6 @@ function syncReconnect() {
 
 /* Online reconnect */
 function onlineReconnect() {
-	if(false == gOnline)
-		return;
-
 	for (let channel in gMyChannel) {
 		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
 			gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
