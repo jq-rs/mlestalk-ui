@@ -60,9 +60,10 @@ let gReconnTimeout = {};
 let gReconnAttempts = {};
 
 let gMultipartDict = {};
+let gMultipartIndex = {};
 let gMultipartSendDict = {};
 let gMultipartContinue = {};
-const MULTIPART_SLICE = 4096; //B
+const MULTIPART_SLICE = 768; //B
 
 const DATELEN = 13;
 
@@ -89,6 +90,7 @@ let gWillNotify = true;
 let gIsPause = false;
 let isCordova = false;
 let gIsReconnect = {};
+let gImageCnt = 0;
 
 //message-list of channels
 let gMsgs = {};
@@ -149,6 +151,10 @@ class Queue {
 
 function hashMessage(uid, channel, data) {
 	return SipHash.hash_hex(gSipKey[channel], uid + data);
+}
+
+function hashImage(uid, channel, data, cnt) {
+	return SipHash.hash_uint(gSipKey[channel], uid + data + cnt);
 }
 
 function uidQueueGet(uid, channel) {
@@ -905,10 +911,15 @@ async function processData(uid, channel, msgTimestamp,
 	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (isMultipart) {
 		//strip index
-		const index = message.substr(0, 4);
-		const numIndex = parseInt(index);
-		message = message.substr(4);
-		//console.log("Received image index " + numIndex);
+		const index = message.substr(0, 8);
+		const numIndex = parseInt(index, 16);
+		message = message.substr(8);
+		//console.log("Received image index " + numIndex + " image sz " + message.length);
+
+		if (message.length > 1024) {
+			//invalid image
+			return 0;
+		}
 
 		if (!gMultipartDict[get_uniq(uid, channel)]) {
 			if (!isFirst) {
@@ -916,11 +927,18 @@ async function processData(uid, channel, msgTimestamp,
 				return 0;
 			}
 			gMultipartDict[get_uniq(uid, channel)] = {};
+			gMultipartIndex[get_uniq(uid, channel)] = numIndex;
+		}
+
+		if (!gMultipartIndex[get_uniq(uid, channel)] || gMultipartIndex[get_uniq(uid, channel)] < 0) {
+			//invalid index
+			return 0;
 		}
 
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-			gMultipartDict[get_uniq(uid, channel)][numIndex] = message;
+			//console.log("Index is " + (numIndex - gMultipartIndex[get_uniq(uid, channel)]));
+			gMultipartDict[get_uniq(uid, channel)][numIndex - gMultipartIndex[get_uniq(uid, channel)]] = message;
 			if (!isLast) {
 				return 0;
 			}
@@ -929,10 +947,11 @@ async function processData(uid, channel, msgTimestamp,
 			gReadMsgDelayedQueueLen[channel]--;
 
 			message = "";
-			for (let i = 0; i <= numIndex; i++) {
+			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(uid, channel)]; i++) {
 				message += gMultipartDict[get_uniq(uid, channel)][i];
 			}
 			gMultipartDict[get_uniq(uid, channel)] = null;
+			gMultipartIndex[get_uniq(uid, channel)] = null;
 		}
 		else
 			return 0;
@@ -1402,41 +1421,56 @@ function sendMessage(channel, message, isFull, isPresence, isPresenceAck = false
 	sendData("send", gMyName[channel], gMyChannel[channel], message, msgtype);
 }
 
-async function sendDataurl(dataUrl, uid, channel) {
+function eightBytesString(val) {
+	return ("00000000" + val.toString(16)).slice(-8);
+}
+
+async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
+	let msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART;
+
+	for (let i = MULTIPART_SLICE; i < dataUrl.length; i += MULTIPART_SLICE) {
+		const hash = image_hash + (i / MULTIPART_SLICE);
+		let data = eightBytesString(hash);
+		//console.log("Sending image index " + (i / MULTIPART_SLICE) + " hash " + data);
+
+		if (i + MULTIPART_SLICE >= dataUrl.length) {
+			msgtype |= MSGISLAST;
+			data += dataUrl.slice(i, dataUrl.length);
+			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+			gMultipartSendDict[get_uniq(uid, channel)] = false;
+			gMultipartContinue[channel] = false;
+			break;
+		}
+		data += dataUrl.slice(i, i + MULTIPART_SLICE);
+		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+		while (false == gMultipartContinue[channel]) {
+			await sleep(ASYNC_IMG_SLEEP);
+		}
+		gMultipartContinue[channel] = false;
+	}
+}
+
+function sendDataurl(dataUrl, uid, channel) {
 	let msgtype = MSGISFULL | MSGISIMAGE;
+	
+	if(!gImageCnt) {
+		gImageCnt = SipHash.hash_uint(gSipKey[channel], uid + Date.now());
+	}
+	else {
+		gImageCnt++;
+	}
+	//console.log("Image cnt " + gImageCnt);
 
 	if (dataUrl.length > MULTIPART_SLICE) {
 		msgtype |= MSGISMULTIPART;
 		gMultipartSendDict[get_uniq(uid, channel)] = true;
-		for (let i = 0; i < dataUrl.length; i += MULTIPART_SLICE) {
-			let data = "";
-			if (i / MULTIPART_SLICE < 10)
-				data += "000";
-			else if (i / MULTIPART_SLICE < 100)
-				data += "00";
-			else if (i / MULTIPART_SLICE < 1000)
-				data += "0";
-			data += (i / MULTIPART_SLICE).toString();
-			//console.log("Adding image index " + data);
-
-			if (0 == i) {
-				msgtype |= MSGISFIRST;
-			}
-			else if (i + MULTIPART_SLICE >= dataUrl.length) {
-				msgtype |= MSGISLAST;
-				data += dataUrl.slice(i, dataUrl.length);
-				sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
-				gMultipartSendDict[get_uniq(uid, channel)] = false;
-				gMultipartContinue[channel] = false;
-				break;
-			}
-			data += dataUrl.slice(i, i + MULTIPART_SLICE);
-			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
-			while (false == gMultipartContinue[channel]) {
-				await sleep(ASYNC_IMG_SLEEP);
-			}
-			gMultipartContinue[channel] = false;
-		}
+		let image_hash = hashImage(uid, channel, dataUrl, gImageCnt);
+		let data = eightBytesString(image_hash);
+		//console.log("Sending image index " + 0 + " hash " + data);
+		msgtype |= MSGISFIRST;
+		data += dataUrl.slice(0, MULTIPART_SLICE);
+		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+		sendDataurlMulti(dataUrl, uid, channel, image_hash);
 	}
 	else {
 		sendData("send", gMyName[channel], gMyChannel[channel], dataUrl, msgtype); /* is not multipart */
