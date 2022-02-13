@@ -1442,6 +1442,7 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 		if (i + MULTIPART_SLICE >= dataUrl.length) {
 			msgtype |= MSGISLAST;
 			data += dataUrl.slice(i, dataUrl.length);
+			await sleep(ASYNC_IMG_SLEEP);
 			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 			gMultipartSendDict[get_uniq(uid, channel)] = false;
 			gMultipartContinue[channel] = false;
