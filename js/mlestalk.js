@@ -954,6 +954,7 @@ async function processData(uid, channel, msgTimestamp,
 			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(uid, channel)]; i++) {
 				if (!gMultipartDict[get_uniq(uid, channel)][i]) {
 					//lost message, ignore image
+					console.log("Lost message: " +i);
 					gMultipartDict[get_uniq(uid, channel)] = null;
 					gMultipartIndex[get_uniq(uid, channel)] = null;
 					return 0;
@@ -1119,7 +1120,7 @@ async function processData(uid, channel, msgTimestamp,
 function processSend(uid, channel, isMultipart) {
 	if (isMultipart) {
 		if (gMultipartSendDict[get_uniq(uid, channel)]) {
-			gMultipartContinue[channel] = true;
+			gMultipartContinue[channel] += 1;
 		}
 	}
 	return 0;
@@ -1446,18 +1447,17 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 		if (i + MULTIPART_SLICE >= dataUrl.length) {
 			msgtype |= MSGISLAST;
 			data += dataUrl.slice(i, dataUrl.length);
-			await sleep(ASYNC_IMG_SLEEP);
+			while(gMultipartContinue[channel] < ( i / MULTIPART_SLICE) ) {
+				await sleep(ASYNC_IMG_SLEEP);
+			}
 			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 			gMultipartSendDict[get_uniq(uid, channel)] = false;
-			gMultipartContinue[channel] = false;
+			gMultipartContinue[channel] = null;
 			break;
 		}
 		data += dataUrl.slice(i, i + MULTIPART_SLICE);
 		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
-		while (false == gMultipartContinue[channel]) {
-			await sleep(ASYNC_IMG_SLEEP);
-		}
-		gMultipartContinue[channel] = false;
+		await sleep(ASYNC_IMG_SLEEP);
 	}
 }
 
@@ -1470,9 +1470,9 @@ function sendDataurl(dataUrl, uid, channel) {
 	else {
 		gImageCnt++;
 	}
-	//console.log("Image cnt " + gImageCnt);
 
 	if (dataUrl.length > MULTIPART_SLICE) {
+		gMultipartContinue[channel] = 0;
 		msgtype |= MSGISMULTIPART;
 		gMultipartSendDict[get_uniq(uid, channel)] = true;
 		let image_hash = hashImage(uid, channel, dataUrl, gImageCnt);
