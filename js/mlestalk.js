@@ -948,6 +948,12 @@ async function processData(uid, channel, msgTimestamp,
 
 			message = "";
 			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(uid, channel)]; i++) {
+				if (!gMultipartDict[get_uniq(uid, channel)][i]) {
+					//lost message, ignore image
+					gMultipartDict[get_uniq(uid, channel)] = null;
+					gMultipartIndex[get_uniq(uid, channel)] = null;
+					return 0;
+				}
 				message += gMultipartDict[get_uniq(uid, channel)][i];
 			}
 			gMultipartDict[get_uniq(uid, channel)] = null;
