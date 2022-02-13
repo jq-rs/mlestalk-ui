@@ -154,7 +154,11 @@ function hashMessage(uid, channel, data) {
 }
 
 function hashImage(uid, channel, data, cnt) {
-	return SipHash.hash_uint(gSipKey[channel], uid + data + cnt);
+	let hash = SipHash.hash_uint(gSipKey[channel], uid + data + cnt);
+	while(hash & 0xffffffff > 0xfffff000) {
+		hash = SipHash.hash_uint(gSipKey[channel], uid + data + cnt + hash);
+	}
+	return hash;
 }
 
 function uidQueueGet(uid, channel) {
