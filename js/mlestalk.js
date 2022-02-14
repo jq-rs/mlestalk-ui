@@ -1476,8 +1476,12 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 			break;
 		}
 		data += dataUrl.slice(i, i + size);
-		await sleep(ASYNC_IMG_SLEEP);
+		let cnt = gMultipartContinue[channel];
 		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+		while(gMultipartContinue[channel] < cnt+1 ) {
+			//console.log("Awaiting index " + (cnt+1) + " now: " + gMultipartContinue[channel]);
+			await sleep(ASYNC_IMG_SLEEP);
+		}
 	}
 }
 
