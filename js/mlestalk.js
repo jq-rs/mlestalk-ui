@@ -1463,8 +1463,16 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 				await sleep(ASYNC_IMG_SLEEP);
 			}
 			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
+
+			do {
+				//console.log("Awaiting index " + (index+1) + " done.. " + gMultipartContinue[channel]);
+				await sleep(ASYNC_IMG_SLEEP);
+			}
+			while(gMultipartContinue[channel] != index+1 );
+
 			gMultipartSendDict[get_uniq(uid, channel)] = false;
 			gMultipartContinue[channel] = null;
+			//console.log("Multipart send done.");
 			break;
 		}
 		data += dataUrl.slice(i, i + size);
@@ -1473,9 +1481,10 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 	}
 }
 
-function sendDataurl(dataUrl, uid, channel) {
-	let msgtype = MSGISFULL | MSGISIMAGE;
-	
+
+async function sendDataurl(dataUrl, uid, channel) {
+	const msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART | MSGISFIRST;
+
 	if(!gImageCnt) {
 		gImageCnt = SipHash.hash_uint(gSipKey[channel], uid + Date.now());
 	}
@@ -1483,13 +1492,18 @@ function sendDataurl(dataUrl, uid, channel) {
 		gImageCnt++;
 	}
 
+	while(gMultipartSendDict[get_uniq(uid, channel)]) {
+		//console.log("Wait for completion.. " + gImageCnt);
+		await sleep(ASYNC_IMG_SLEEP*10);
+	}
+
+	//console.log("Start multipart send for " + gImageCnt);
+
 	gMultipartContinue[channel] = 0;
-	msgtype |= MSGISMULTIPART;
 	gMultipartSendDict[get_uniq(uid, channel)] = true;
 	let image_hash = hashImage(uid, channel, dataUrl, gImageCnt);
 	let data = eightBytesString(image_hash);
 	//console.log("Sending image index " + 0 + " hash " + data);
-	msgtype |= MSGISFIRST;
 	data += dataUrl.slice(0, 1);
 	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 	sendDataurlMulti(dataUrl, uid, channel, image_hash);
