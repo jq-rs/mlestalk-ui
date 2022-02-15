@@ -22,7 +22,6 @@ let gMsgTs = {};
 let gIdLastMsgLen = {};
 let gPrevBdKey = {};
 let gForwardSecrecy = {};
-let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
 
@@ -41,7 +40,7 @@ const HDRLEN = 48;
 
 let gUidQueue = {};
 
-const IMGMAXSIZE = 920; /* px */
+const IMGMAXSIZE = 1280; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = {};
@@ -436,7 +435,6 @@ function joinExistingChannels(channels) {
 				if(null == gOwnAppend[channel])
 					gOwnAppend[channel] = false;
 				gForwardSecrecy[channel] = false;
-				gReadMsgDelayedQueueLen[channel] = 0;
 				gLastMessageSeenTs[channel] = 0;
 				gIsResync[channel] = 0;
 				gInitOk[channel] = true;
@@ -482,7 +480,6 @@ function askChannelNew() {
 		gOwnId[channel] = 0;
 		gOwnAppend[channel] = false;
 		gForwardSecrecy[channel] = false;
-		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
 		gIsResync[channel] = 0;
 		gPrevScrollTop[channel] = 0;
@@ -869,9 +866,9 @@ function checkTime(uid, channel, time, isFull) {
 	return time;
 }
 
-async function processData(uid, channel, msgTimestamp,
-	message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
-	isMultipart, isFirst, isLast, fsEnabled) {
+function processData(uid, channel, msgTimestamp,
+		message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
+		isMultipart, isFirst, isLast, fsEnabled) {
 
 	//update hash
 	let duid = get_duid(uid, channel);
@@ -920,7 +917,7 @@ async function processData(uid, channel, msgTimestamp,
 		message = message.substr(8);
 		//console.log("Received image index " + numIndex + " image sz " + message.length);
 
-		if (message.length > 1024) {
+		if (message.length > 2048) {
 			//invalid image
 			return 0;
 		}
@@ -946,9 +943,6 @@ async function processData(uid, channel, msgTimestamp,
 			if (!isLast) {
 				return 0;
 			}
-
-			await sleep(++gReadMsgDelayedQueueLen[channel] * ASYNC_SLEEP);
-			gReadMsgDelayedQueueLen[channel]--;
 
 			message = "";
 			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(uid, channel)]; i++) {
@@ -1160,15 +1154,15 @@ gWebWorker.onmessage = function (e) {
 				initReconnect(channel);
 
 				let ret = processData(uid, channel, msgTimestamp,
-					message, msgtype & MSGISFULL ? true : false,
-					msgtype & MSGISPRESENCE ? true : false,
-					msgtype & MSGISPRESENCEACK ? true : false,
-					msgtype & MSGPRESACKREQ ? true : false,
-					msgtype & MSGISIMAGE ? true : false,
-					msgtype & MSGISMULTIPART ? true : false,
-					msgtype & MSGISFIRST ? true : false,
-					msgtype & MSGISLAST ? true : false,
-					fsEnabled);
+						message, msgtype & MSGISFULL ? true : false,
+						msgtype & MSGISPRESENCE ? true : false,
+						msgtype & MSGISPRESENCEACK ? true : false,
+						msgtype & MSGPRESACKREQ ? true : false,
+						msgtype & MSGISIMAGE ? true : false,
+						msgtype & MSGISMULTIPART ? true : false,
+						msgtype & MSGISFIRST ? true : false,
+						msgtype & MSGISLAST ? true : false,
+						fsEnabled);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
 				}
@@ -1449,23 +1443,19 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 			power++;
 			limit = 2**power;
 			size = limit - HDRLEN;
-			//console.log("Index " + index + " updated size to " +size);
 		}
 		const hash = image_hash + index;
 		let data = eightBytesString(hash);
-		//console.log("Sending image " + i + " index " + index + " size " + size + " hash " + data);
 
 		if (i + size >= dataUrl.length) {
 			msgtype |= MSGISLAST;
 			data += dataUrl.slice(i, dataUrl.length);
 			while(gMultipartContinue[channel] < index ) {
-				//console.log("Awaiting " + gMultipartContinue[channel]);
 				await sleep(ASYNC_IMG_SLEEP);
 			}
 			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 
 			do {
-				//console.log("Awaiting index " + (index+1) + " done.. " + gMultipartContinue[channel]);
 				await sleep(ASYNC_IMG_SLEEP);
 			}
 			while(gMultipartContinue[channel] != index+1 );
@@ -1476,10 +1466,9 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 			break;
 		}
 		data += dataUrl.slice(i, i + size);
-		let cnt = gMultipartContinue[channel];
+		const cnt = gMultipartContinue[channel];
 		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 		while(gMultipartContinue[channel] < cnt+1 ) {
-			//console.log("Awaiting index " + (cnt+1) + " now: " + gMultipartContinue[channel]);
 			await sleep(ASYNC_IMG_SLEEP);
 		}
 	}
