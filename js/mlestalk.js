@@ -54,15 +54,12 @@ const RESYNC_TIMEOUT = 2000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
-const ASYNC_SLEEP = 2; /* ms */
-const MAX_AWAIT_CNT = 100;
+const ASYNC_SLEEP = 10; /* ms */
 let gReconnTimeout = {};
 let gReconnAttempts = {};
 
 let gMultipartDict = {};
 let gMultipartIndex = {};
-let gMultipartSendDict = {};
-let gMultipartContinue = {};
 
 const DATELEN = 13;
 
@@ -154,7 +151,7 @@ function hashMessage(uid, channel, data) {
 
 function hashImage(uid, channel, data, cnt) {
 	let hash = SipHash.hash_uint(gSipKey[channel], uid + data + cnt);
-	while(hash & 0xffffffff > 0xfffff000) {
+	while(hash & 0xffffffff > 0xfffff000 || hash & 0xf000 == 0xf000) {
 		hash = SipHash.hash_uint(gSipKey[channel], uid + data + cnt + hash);
 	}
 	return hash;
@@ -741,7 +738,6 @@ function closeChannel(channel) {
 	delete gOwnAppend[channel];
 	delete gIsResync[channel];
 	delete gPrevScrollTop[channel];
-	delete gMultipartContinue[channel];
 
 	gActiveChannel = null;
 
@@ -914,51 +910,51 @@ function processData(uid, channel, msgTimestamp,
 	if (isMultipart) {
 		//strip index
 		const index = message.substr(0, 8);
+		const dict = uid + message.substr(0, 4);
 		const numIndex = parseInt(index, 16);
 		message = message.substr(8);
-		//console.log("Received image index " + numIndex + " image sz " + message.length);
 
 		if (message.length > 2048) {
 			//invalid image
 			return 0;
 		}
 
-		if (!gMultipartDict[get_uniq(uid, channel)]) {
+		if (!gMultipartDict[get_uniq(dict, channel)]) {
 			if (!isFirst) {
 				//invalid frame
 				return 0;
 			}
-			gMultipartDict[get_uniq(uid, channel)] = {};
-			gMultipartIndex[get_uniq(uid, channel)] = numIndex;
+			//console.log("Received image index " + numIndex + " dict " + dict);
+			gMultipartDict[get_uniq(dict, channel)] = {};
+			gMultipartIndex[get_uniq(dict, channel)] = numIndex;
 		}
 
-		if (!gMultipartIndex[get_uniq(uid, channel)] || gMultipartIndex[get_uniq(uid, channel)] < 0) {
+		if (!gMultipartIndex[get_uniq(dict, channel)] || gMultipartIndex[get_uniq(dict, channel)] < 0) {
 			//invalid index
 			return 0;
 		}
 
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-			//console.log("Index is " + (numIndex - gMultipartIndex[get_uniq(uid, channel)]));
-			gMultipartDict[get_uniq(uid, channel)][numIndex - gMultipartIndex[get_uniq(uid, channel)]] = message;
+			gMultipartDict[get_uniq(dict, channel)][numIndex - gMultipartIndex[get_uniq(dict, channel)]] = message;
 			if (!isLast) {
 				return 0;
 			}
 
 			message = "";
-			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(uid, channel)]; i++) {
-				const frag = gMultipartDict[get_uniq(uid, channel)][i];
+			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(dict, channel)]; i++) {
+				const frag = gMultipartDict[get_uniq(dict, channel)][i];
 				if (!frag) {
 					//lost message, ignore image
 					console.log("Lost multipart: " +i);
-					gMultipartDict[get_uniq(uid, channel)] = null;
-					gMultipartIndex[get_uniq(uid, channel)] = null;
+					gMultipartDict[get_uniq(dict, channel)] = null;
+					gMultipartIndex[get_uniq(dict, channel)] = null;
 					return 0;
 				}
 				message += frag;
 			}
-			gMultipartDict[get_uniq(uid, channel)] = null;
-			gMultipartIndex[get_uniq(uid, channel)] = null;
+			gMultipartDict[get_uniq(dict, channel)] = null;
+			gMultipartIndex[get_uniq(dict, channel)] = null;
 		}
 		else
 			return 0;
@@ -1114,13 +1110,6 @@ function processData(uid, channel, msgTimestamp,
 }
 
 function processSend(uid, channel, isMultipart) {
-	if (isMultipart) {
-		if (gMultipartSendDict[get_uniq(uid, channel)] &&
-				null != gMultipartContinue[channel])
-		{
-			gMultipartContinue[channel] += 1;
-		}
-	}
 	return 0;
 }
 
@@ -1454,31 +1443,15 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 		if (i + size >= dataUrl.length) {
 			msgtype |= MSGISLAST;
 			data += dataUrl.slice(i, dataUrl.length);
-			let await_cnt = 0;
-			while(gMultipartContinue[channel] < index && await_cnt++ < MAX_AWAIT_CNT ) {
-				await sleep(ASYNC_SLEEP);
-			}
+			await sleep(ASYNC_SLEEP);
 			sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 
-			await_cnt = 0;
-			do {
-				await sleep(ASYNC_SLEEP);
-			}
-			while(gMultipartContinue[channel] != index+1 && await_cnt++ < MAX_AWAIT_CNT);
-
-			gMultipartSendDict[get_uniq(uid, channel)] = false;
-			gMultipartContinue[channel] = null;
 			//console.log("Multipart send done.");
 			break;
 		}
 		data += dataUrl.slice(i, i + size);
-		const cnt = gMultipartContinue[channel];
 		sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
-		let await_cnt = 0;
-		while(gMultipartContinue[channel] < cnt+1 && await_cnt++ < MAX_AWAIT_CNT) {
-			//console.log("Awaiting cnt " + await_cnt);
-			await sleep(ASYNC_SLEEP);
-		}
+		await sleep(ASYNC_SLEEP);
 	}
 }
 
@@ -1493,19 +1466,8 @@ async function sendDataurl(dataUrl, uid, channel) {
 		gImageCnt++;
 	}
 
-	let await_cnt = 0;
-	while(gMultipartSendDict[get_uniq(uid, channel)] && await_cnt++ < MAX_AWAIT_CNT) {
-		//console.log("Wait for completion.. " + gImageCnt);
-		await sleep(ASYNC_SLEEP*50);
-	}
-
-	//console.log("Start multipart send for " + gImageCnt);
-
-	gMultipartContinue[channel] = 0;
-	gMultipartSendDict[get_uniq(uid, channel)] = true;
 	let image_hash = hashImage(uid, channel, dataUrl, gImageCnt);
 	let data = eightBytesString(image_hash);
-	//console.log("Sending image index " + 0 + " hash " + data);
 	data += dataUrl.slice(0, 1);
 	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 	sendDataurlMulti(dataUrl, uid, channel, image_hash);
