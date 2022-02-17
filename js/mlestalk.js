@@ -951,8 +951,10 @@ function processData(uid, channel, msgTimestamp,
 				}
 			}
 			const timed = updateTime(dateString);
-			li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
-			$('#messages').append(li);
+			if(gActiveChannel == channel) {
+				li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
+				$('#messages').append(li);
+			}
 
 			gMultipartDict[get_uniq(dict, channel)] = {};
 			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, gMsgs[channel].getLength(), timed];
