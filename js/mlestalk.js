@@ -13,7 +13,7 @@ let gMyPort = {};
 let gAddrPortInput = {};
 let gOwnId = {};
 let gOwnAppend = {};
-let gIdHash = {};
+let gIndex = {};
 let gIdAppend = {};
 let gIdTimestamp = {};
 let gPresenceTs = {};
@@ -54,7 +54,7 @@ const RESYNC_TIMEOUT = 2000; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
-const ASYNC_SLEEP = 10; /* ms */
+const ASYNC_SLEEP = 4; /* ms */
 let gReconnTimeout = {};
 let gReconnAttempts = {};
 
@@ -726,7 +726,7 @@ function closeChannel(channel) {
 	delete gIdNotifyTs[channel];
 	delete gMsgs[channel];
 	delete gMsgTs[channel];
-	delete gIdHash[channel];
+	delete gIndex[channel];
 	delete gIdAppend[channel];
 
 	delete gLastMessageSeenTs[channel];
@@ -867,14 +867,15 @@ function checkTime(uid, channel, time, isFull) {
 
 function processData(uid, channel, msgTimestamp,
 		message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
-		isMultipart, isFirst, isLast, fsEnabled) {
+		isMultipart, isFirst, isLast, fsEnabled)
+{
 
 	//update hash
 	let duid = get_duid(uid, channel);
-	if(!gIdHash[channel])
-		gIdHash[channel] = {};
-	if (null == gIdHash[channel][uid]) {
-		gIdHash[channel][uid] = 0;
+	if(!gIndex[channel])
+		gIndex[channel] = {};
+	if (null == gIndex[channel][uid]) {
+		gIndex[channel][uid] = 0;
 		if(!gIdAppend[channel])
 			gIdAppend[channel] = {};
 		gIdAppend[channel][uid] = false;
@@ -886,6 +887,7 @@ function processData(uid, channel, msgTimestamp,
 		if(null == gIdNotifyTs[channel][uid])
 			gIdNotifyTs[channel][uid] = 0;
 	}
+	let li;
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
@@ -900,10 +902,11 @@ function processData(uid, channel, msgTimestamp,
 	}
 	else if (gOwnId[channel] > 0 && message.length >= 0 && gLastWrittenMsg[channel].length > 0) {
 		let end = "</li></div>";
-		//console.log("Got presence update from " + uid);
 		gLastWrittenMsg[channel] = gLastWrittenMsg[channel].substring(0, gLastWrittenMsg[channel].length - end.length);
 		gLastWrittenMsg[channel] += " &#x2713;" + end;
-		$('#owner' + (gOwnId[channel] - 1)).replaceWith(gLastWrittenMsg[channel]);
+		if(gActiveChannel == channel) {
+			$('#owner' + (gOwnId[channel] - 1)).replaceWith(gLastWrittenMsg[channel]);
+		}
 		gLastWrittenMsg[channel] = "";
 		//update presence if current time per user is larger than begin presence
 	}
@@ -928,6 +931,24 @@ function processData(uid, channel, msgTimestamp,
 			}
 			gMultipartDict[get_uniq(dict, channel)] = {};
 			gMultipartIndex[get_uniq(dict, channel)] = numIndex;
+
+
+			if(!gMsgs[channel]) {
+				gMsgs[channel] = new Queue();
+				gNewMsgsCnt[channel] = 0;
+			}
+
+			const dated = updateDateval(channel, dateString);
+			if (dated) {
+				/* Update new date header */
+				li = '<li class="new"> - <span class="name">' + dated + '</span> - </li>';
+				gMsgs[channel].push(li);
+				if(gActiveChannel == channel) {
+					$('#messages').append(li);
+				}
+			}
+			li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
+			$('#messages').append(li);
 		}
 
 		if (!gMultipartIndex[get_uniq(dict, channel)] || gMultipartIndex[get_uniq(dict, channel)] < 0) {
@@ -935,15 +956,20 @@ function processData(uid, channel, msgTimestamp,
 			return 0;
 		}
 
+		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+		if (gLastMessageSeenTs[channel] < msgTimestamp)
+			gLastMessageSeenTs[channel] = msgTimestamp;
+
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-			gMultipartDict[get_uniq(dict, channel)][numIndex - gMultipartIndex[get_uniq(dict, channel)]] = message;
+			const nIndex = gMultipartIndex[get_uniq(dict, channel)];
+			gMultipartDict[get_uniq(dict, channel)][numIndex - nIndex] = message;
 			if (!isLast) {
 				return 0;
 			}
 
 			message = "";
-			for (let i = 0; i <= numIndex - gMultipartIndex[get_uniq(dict, channel)]; i++) {
+			for (let i = 0; i <= numIndex - nIndex; i++) {
 				const frag = gMultipartDict[get_uniq(dict, channel)][i];
 				if (!frag) {
 					//lost message, ignore image
@@ -954,11 +980,42 @@ function processData(uid, channel, msgTimestamp,
 				}
 				message += frag;
 			}
+			const timed = updateTime(dateString);
+			if (!fsEnabled) {
+				if (uid != gMyName[channel]) {
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + timed +
+						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
+				else {
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + timed
+						+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
+			} else {
+				if (uid != gMyName[channel]) {
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + timed +
+						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
+				else {
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + timed
+						+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+
+				}
+			}
+			li += '</li></div>';
+			if(gActiveChannel == channel) {
+				$('#' + duid + '' + nIndex.toString(16)).replaceWith(li);
+			}
+			gMsgs[channel].push(li);
+
 			gMultipartDict[get_uniq(dict, channel)] = null;
 			gMultipartIndex[get_uniq(dict, channel)] = null;
+
+			finalize(uid, channel, msgTimestamp, message, isFull, isImage);
 		}
-		else
-			return 0;
+		return 0;
 	}
 
 	if (!gIsResync[channel] && presAckRequired) {
@@ -969,28 +1026,19 @@ function processData(uid, channel, msgTimestamp,
 	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
 		return 0;
 
-	if (isMultipart || msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-		let date;
-		let time;
-		let li;
-
+	if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
-
-		if (gLastMessageSeenTs[channel] < msgTimestamp)
-			gLastMessageSeenTs[channel] = msgTimestamp;
-
 		if (isPresence) {
-			//console.log("Got presence from " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 			return 1;
 		}
 
-		date = updateDateval(channel, dateString);
 
 		if(!gMsgs[channel]) {
 			gMsgs[channel] = new Queue();
 			gNewMsgsCnt[channel] = 0;
 		}
 
+		let date = updateDateval(channel, dateString);
 		if (date) {
 			/* Update new date header */
 			li = '<li class="new"> - <span class="name">' + date + '</span> - </li>';
@@ -998,58 +1046,27 @@ function processData(uid, channel, msgTimestamp,
 			if(gActiveChannel == channel)
 				$('#messages').append(li);
 		}
-		time = updateTime(dateString);
+		let time = updateTime(dateString);
 
 		if (!date)
 			time = checkTime(uid, channel, time, isFull);
 
-		//console.log("Channel " + channel + " uid " + uid + " Duid " + duid + "  hash " + gIdHash[channel][uid]);
-
-		/* Check first is it a text or image */
-		if (isImage) {
-			if (!fsEnabled) {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
-						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
-
-				}
-				else {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"> ' + time
-						+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
-
-				}
-			} else {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
-						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
-
-				}
-				else {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
-						+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
-
-				}
-			}
-			li += '</li></div>';
-		}
-		else {
-			if (!fsEnabled) {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
-						+ time + '' + autolinker.link(message) + '</li></div>';
-				}
-				else {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"> ' + time + '' + autolinker.link(message) + '</li></div>';
-				}
+		if (!fsEnabled) {
+			if (uid != gMyName[channel]) {
+				li = '<div id="' + duid + '' + gIndex[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
+					+ time + '' + autolinker.link(message) + '</li></div>';
 			}
 			else {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
-						+ time + '' + autolinker.link(message) + '</font></li></div>';
-				}
-				else {
-					li = '<div id="' + duid + '' + gIdHash[channel][uid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
-				}
+				li = '<div id="' + duid + '' + gIndex[channel][uid] + '"><li class="own"> ' + time + '' + autolinker.link(message) + '</li></div>';
+			}
+		}
+		else {
+			if (uid != gMyName[channel]) {
+				li = '<div id="' + duid + '' + gIndex[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span><font color="' + FSFONTCOLOR + '"> '
+					+ time + '' + autolinker.link(message) + '</font></li></div>';
+			}
+			else {
+				li = '<div id="' + duid + '' + gIndex[channel][uid] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
 			}
 		}
 
@@ -1059,7 +1076,7 @@ function processData(uid, channel, msgTimestamp,
 				gIdAppend[channel][uid] = true;
 			}
 			else {
-				$('#' + duid + '' + gIdHash[channel][uid]).replaceWith(li);
+				$('#' + duid + '' + gIndex[channel][uid]).replaceWith(li);
 			}
 		}
 		else {
@@ -1068,46 +1085,48 @@ function processData(uid, channel, msgTimestamp,
 
 		if (isFull) {
 			gMsgs[channel].push(li);
-			gIdHash[channel][uid] += 1;
+			gIndex[channel][uid] += 1;
 			gIdAppend[channel][uid] = false;
-
 		}
 
-		if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
-			//if user has scrolled, do not scroll to bottom unless full message
-			if(messages_list.scrollTop >= gPrevScrollTop[channel]-200) { //webview is not accurate in scrolltop
-				scrollToBottom(channel);
-			}
-		}
-
-		if(gActiveChannel == channel) {
-			gMsgTs[channel] = msgTimestamp;
-			setMsgTimestamps();
-		}
-
-		if(isFull && (gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && gMsgTs[channel] < msgTimestamp) {
-			gNewMsgsCnt[channel] += 1;
-			if (isCordova && gIsPause) {
-				cordova.plugins.notification.badge.increase();
-			}
-		}
-
-		const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
-		if (uid != gMyName[channel] && isFull && gIdNotifyTs[channel][uid] < notifyTimestamp)
-		{
-			if(gActiveChannel != channel || gIsPause) {
-				if (gWillNotify && gCanNotify) {
-					if (true == isImage) {
-						message = gImageStr;
-					}
-					doNotify(uid, channel, notifyTimestamp, message);
-				}
-			}
-			gIdNotifyTs[channel][uid] = notifyTimestamp;
-			setNotifyTimestamps();
-		}
+		finalize(uid, channel, msgTimestamp, message, isFull, isImage);
 	}
 	return 0;
+}
+
+function finalize(uid, channel, msgTimestamp, message, isFull, isImage) {
+	if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
+		//if user has scrolled, do not scroll to bottom unless full message
+		if(messages_list.scrollTop >= gPrevScrollTop[channel]-200) { //webview is not accurate in scrolltop
+			scrollToBottom(channel);
+		}
+	}
+
+	if(gActiveChannel == channel) {
+		gMsgTs[channel] = msgTimestamp;
+		setMsgTimestamps();
+	}
+
+	if(isFull && (gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && gMsgTs[channel] < msgTimestamp) {
+		gNewMsgsCnt[channel] += 1;
+		if (isCordova && gIsPause) {
+			cordova.plugins.notification.badge.increase();
+		}
+	}
+
+	const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
+	if (uid != gMyName[channel] && isFull && gIdNotifyTs[channel][uid] < notifyTimestamp)
+	{
+		if(gActiveChannel != channel || gIsPause) {
+			if (gWillNotify && gCanNotify) {
+				if(isImage)
+					message = gImageStr;
+				doNotify(uid, channel, notifyTimestamp, message);
+			}
+		}
+		gIdNotifyTs[channel][uid] = notifyTimestamp;
+		setNotifyTimestamps();
+	}
 }
 
 function processSend(uid, channel, isMultipart) {
@@ -1366,7 +1385,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		gMsgs[channel].push(li);
 	}
 
-	if (!date)
+	if (!date && !isImage)
 		time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
 
 	if (!isImage) {
