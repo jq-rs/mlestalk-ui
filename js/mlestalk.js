@@ -1135,10 +1135,6 @@ function finalize(uid, channel, msgTimestamp, message, isFull, isImage) {
 	}
 }
 
-function processSend(uid, channel, isMultipart) {
-	return 0;
-}
-
 function processClose(uid, channel) {
 	gIsReconnect[channel] = false;
 	if (uid == gMyName[channel] && channel == gMyChannel[channel]) {
@@ -1184,18 +1180,6 @@ gWebWorker.onmessage = function (e) {
 						fsEnabled);
 				if (ret < 0) {
 					console.log("Process data failed: " + ret);
-				}
-			}
-			break;
-		case "send":
-			{
-				let uid = e.data[1];
-				let channel = e.data[2];
-				let isMultipart = e.data[3];
-
-				let ret = processSend(uid, channel, isMultipart);
-				if (ret < 0) {
-					console.log("Process send failed: " + ret);
 				}
 			}
 			break;
