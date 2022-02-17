@@ -936,31 +936,12 @@ function processData(uid, channel, msgTimestamp,
 				return 0;
 			}
 
-			if(!gMsgs[channel]) {
-				gMsgs[channel] = new Queue();
-				gNewMsgsCnt[channel] = 0;
-			}
-
-			const dated = updateDateval(channel, dateString);
-			if (dated) {
-				/* Update new date header */
-				li = '<li class="new"> - <span class="name">' + dated + '</span> - </li>';
-				gMsgs[channel].push(li);
-				if(gActiveChannel == channel) {
-					$('#messages').append(li);
-				}
-			}
 			const timed = updateTime(dateString);
-			if(gActiveChannel == channel) {
-				li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
-				$('#messages').append(li);
-			}
-
 			gMultipartDict[get_uniq(dict, channel)] = {};
 			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, gMsgs[channel].getLength(), timed];
 		}
 
-		if (!gMultipartIndex[get_uniq(dict, channel)] || gMultipartIndex[get_uniq(dict, channel)] < 0) {
+		if (!gMultipartIndex[get_uniq(dict, channel)]) {
 			//invalid index
 			return 0;
 		}
@@ -971,8 +952,30 @@ function processData(uid, channel, msgTimestamp,
 
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+			if (isFirst) {
+				if(!gMsgs[channel]) {
+					gMsgs[channel] = new Queue();
+					gNewMsgsCnt[channel] = 0;
+				}
+
+				const dated = updateDateval(channel, dateString);
+				if (dated) {
+					/* Update new date header */
+					li = '<li class="new"> - <span class="name">' + dated + '</span> - </li>';
+					gMsgs[channel].push(li);
+					if(gActiveChannel == channel) {
+						$('#messages').append(li);
+					}
+				}
+				if(gActiveChannel == channel) {
+					li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
+					$('#messages').append(li);
+				}
+			}
+
 			const [nIndex, msgqlen, timed] = gMultipartIndex[get_uniq(dict, channel)];
 			gMultipartDict[get_uniq(dict, channel)][numIndex - nIndex] = message;
+
 			if (!isLast) {
 				return 0;
 			}
@@ -1039,7 +1042,6 @@ function processData(uid, channel, msgTimestamp,
 		if (isPresence) {
 			return 1;
 		}
-
 
 		if(!gMsgs[channel]) {
 			gMsgs[channel] = new Queue();
