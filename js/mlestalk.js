@@ -55,6 +55,7 @@ const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 4; /* ms */
+const IMG_THUMBSZ = 100; /* px */
 let gReconnTimeout = {};
 let gReconnAttempts = {};
 
@@ -115,6 +116,11 @@ class Queue {
 		if (this.getLength() >= this.maxLength())
 			this.shift();
 		return this.elements.push(...args);
+	}
+	insert(val, obj) {
+		if (val >= 0 && val <= this.getLength()) {
+			this.elements.splice(val, 0, obj);
+		}
 	}
 	get(val) {
 		if (val >= 0 && val < this.getLength()) {
@@ -929,9 +935,6 @@ function processData(uid, channel, msgTimestamp,
 				//invalid frame
 				return 0;
 			}
-			gMultipartDict[get_uniq(dict, channel)] = {};
-			gMultipartIndex[get_uniq(dict, channel)] = numIndex;
-
 
 			if(!gMsgs[channel]) {
 				gMsgs[channel] = new Queue();
@@ -947,8 +950,12 @@ function processData(uid, channel, msgTimestamp,
 					$('#messages').append(li);
 				}
 			}
+			const timed = updateTime(dateString);
 			li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
 			$('#messages').append(li);
+
+			gMultipartDict[get_uniq(dict, channel)] = {};
+			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, gMsgs[channel].getLength(), timed];
 		}
 
 		if (!gMultipartIndex[get_uniq(dict, channel)] || gMultipartIndex[get_uniq(dict, channel)] < 0) {
@@ -962,7 +969,7 @@ function processData(uid, channel, msgTimestamp,
 
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-			const nIndex = gMultipartIndex[get_uniq(dict, channel)];
+			const [nIndex, msgqlen, timed] = gMultipartIndex[get_uniq(dict, channel)];
 			gMultipartDict[get_uniq(dict, channel)][numIndex - nIndex] = message;
 			if (!isLast) {
 				return 0;
@@ -980,27 +987,26 @@ function processData(uid, channel, msgTimestamp,
 				}
 				message += frag;
 			}
-			const timed = updateTime(dateString);
 			if (!fsEnabled) {
 				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + timed +
-						'<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+						'<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 				else {
 					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + timed
-						+ '<img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+						+ '<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 			} else {
 				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + timed +
-						'</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+						'</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 				else {
 					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + timed
-						+ '</font><img class="image" src="' + message + '" height="100px" data-action="zoom" alt="">';
+						+ '</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 			}
@@ -1008,7 +1014,7 @@ function processData(uid, channel, msgTimestamp,
 			if(gActiveChannel == channel) {
 				$('#' + duid + '' + nIndex.toString(16)).replaceWith(li);
 			}
-			gMsgs[channel].push(li);
+			gMsgs[channel].insert(msgqlen, li);
 
 			gMultipartDict[get_uniq(dict, channel)] = null;
 			gMultipartIndex[get_uniq(dict, channel)] = null;
