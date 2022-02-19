@@ -22,6 +22,7 @@ let gMsgTs = {};
 let gIdLastMsgLen = {};
 let gPrevBdKey = {};
 let gForwardSecrecy = {};
+let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
 
@@ -444,6 +445,7 @@ function joinExistingChannels(channels) {
 				if(null == gOwnAppend[channel])
 					gOwnAppend[channel] = false;
 				gForwardSecrecy[channel] = false;
+				gReadMsgDelayedQueueLen[channel] = 0;
 				gLastMessageSeenTs[channel] = 0;
 				gIsResync[channel] = 0;
 				gInitOk[channel] = true;
@@ -489,6 +491,7 @@ function askChannelNew() {
 		gOwnId[channel] = 0;
 		gOwnAppend[channel] = false;
 		gForwardSecrecy[channel] = false;
+		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
 		gIsResync[channel] = 0;
 		gPrevScrollTop[channel] = 0;
@@ -875,7 +878,7 @@ function checkTime(uid, channel, time, isFull) {
 	return time;
 }
 
-function processData(uid, channel, msgTimestamp,
+async function processData(uid, channel, msgTimestamp,
 		message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 		isMultipart, isFirst, isLast, fsEnabled)
 {
@@ -967,6 +970,8 @@ function processData(uid, channel, msgTimestamp,
 				//invalid index
 				return 0;
 			}
+			await sleep(++gReadMsgDelayedQueueLen[channel] * ASYNC_SLEEP);
+			gReadMsgDelayedQueueLen[channel]--;
 
 			if (isFirst) {
 				if (dated) {
