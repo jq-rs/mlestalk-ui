@@ -58,6 +58,8 @@ const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 4; /* ms */
 const IMG_THUMBSZ = 100; /* px */
+const IMG_MAXFRAGSZ = 2048; /* B */
+const IMG_MAXINDEX = 4096;
 let gReconnTimeout = {};
 let gReconnAttempts = {};
 
@@ -924,10 +926,10 @@ function processData(uid, channel, msgTimestamp,
 		//strip index
 		const index = message.substr(0, 8);
 		const dict = uid + message.substr(0, 4);
-		const numIndex = parseInt(index, 16);
+		const numIndex = parseInt(index, 16) >>> 0;
 		message = message.substr(8);
 
-		if (message.length > 2048) {
+		if (message.length > IMG_MAXFRAGSZ) {
 			//invalid image
 			return 0;
 		}
@@ -937,11 +939,15 @@ function processData(uid, channel, msgTimestamp,
 				//invalid frame
 				return 0;
 			}
-
-			const msgqlen= gMsgs[channel].getLength();
+			if(!gMsgs[channel]) {
+				gMsgs[channel] = new Queue();
+				gNewMsgsCnt[channel] = 0;
+			}
+			const msgqlen = gMsgs[channel].getLength();
 			const timed = updateTime(dateString);
+			const dated = updateDateval(channel, dateString);
 			gMultipartDict[get_uniq(dict, channel)] = {};
-			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, timed];
+			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, dated, timed];
 		}
 
 		if (!gMultipartIndex[get_uniq(dict, channel)]) {
@@ -955,13 +961,14 @@ function processData(uid, channel, msgTimestamp,
 
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-			if (isFirst) {
-				if(!gMsgs[channel]) {
-					gMsgs[channel] = new Queue();
-					gNewMsgsCnt[channel] = 0;
-				}
+			const [nIndex, msgqlen, dated, timed] = gMultipartIndex[get_uniq(dict, channel)];
 
-				const dated = updateDateval(channel, dateString);
+			if(numIndex >= nIndex + IMG_MAXINDEX) {
+				//invalid index
+				return 0;
+			}
+
+			if (isFirst) {
 				if (dated) {
 					/* Update new date header */
 					li = DATESTART + ' - <span class="name">' + dated + '</span> - </li>';
@@ -976,7 +983,6 @@ function processData(uid, channel, msgTimestamp,
 				}
 			}
 
-			const [nIndex, msgqlen, timed] = gMultipartIndex[get_uniq(dict, channel)];
 			gMultipartDict[get_uniq(dict, channel)][numIndex - nIndex] = message;
 
 			if (!isLast) {
@@ -1025,9 +1031,8 @@ function processData(uid, channel, msgTimestamp,
 
 			const clen = gMsgs[channel].getLength();
 			if(clen > 0) {
-				/* If current prev entry is date, do not insert before it */
-				const prevli = gMsgs[channel].get(clen-1);
-				if(prevli.substr(0, DATESTART.length) == DATESTART) {
+				/* If current prev entry is date of the first message or there are more messages, do not insert before it */
+				if ((clen == msgqlen + 1 && dated) || (clen != msgqlen + 1)) {
 					gMsgs[channel].push(li);
 				}
 				else {
