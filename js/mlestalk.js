@@ -38,6 +38,8 @@ const MSGISBDONE = (0x1 << 8);
 const MSGISBDACK = (0x1 << 9);
 const HDRLEN = 48;
 
+const DATESTART = '<li class="date">';
+
 let gUidQueue = {};
 
 const IMGMAXSIZE = 960; /* px */
@@ -936,9 +938,10 @@ function processData(uid, channel, msgTimestamp,
 				return 0;
 			}
 
+			const msgqlen= gMsgs[channel].getLength();
 			const timed = updateTime(dateString);
 			gMultipartDict[get_uniq(dict, channel)] = {};
-			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, gMsgs[channel].getLength(), timed];
+			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, timed];
 		}
 
 		if (!gMultipartIndex[get_uniq(dict, channel)]) {
@@ -961,7 +964,7 @@ function processData(uid, channel, msgTimestamp,
 				const dated = updateDateval(channel, dateString);
 				if (dated) {
 					/* Update new date header */
-					li = '<li class="new"> - <span class="name">' + dated + '</span> - </li>';
+					li = DATESTART + ' - <span class="name">' + dated + '</span> - </li>';
 					gMsgs[channel].push(li);
 					if(gActiveChannel == channel) {
 						$('#messages').append(li);
@@ -1019,7 +1022,18 @@ function processData(uid, channel, msgTimestamp,
 			if(gActiveChannel == channel) {
 				$('#' + duid + '' + nIndex.toString(16)).replaceWith(li);
 			}
-			gMsgs[channel].insert(msgqlen, li);
+
+			const clen = gMsgs[channel].getLength();
+			if(clen > 0) {
+				/* If current prev entry is date, do not insert before it */
+				const prevli = gMsgs[channel].get(clen-1);
+				if(prevli.substr(0, DATESTART.length) == DATESTART) {
+					gMsgs[channel].push(li);
+				}
+				else {
+					gMsgs[channel].insert(msgqlen, li);
+				}
+			}
 
 			gMultipartDict[get_uniq(dict, channel)] = null;
 			gMultipartIndex[get_uniq(dict, channel)] = null;
@@ -1051,7 +1065,7 @@ function processData(uid, channel, msgTimestamp,
 		let date = updateDateval(channel, dateString);
 		if (date) {
 			/* Update new date header */
-			li = '<li class="new"> - <span class="name">' + date + '</span> - </li>';
+			li = DATESTART + ' - <span class="name">' + date + '</span> - </li>';
 			gMsgs[channel].push(li);
 			if(gActiveChannel == channel)
 				$('#messages').append(li);
@@ -1374,7 +1388,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 
 	if (date) {
 		/* Update new date header */
-		li = '<li class="own"> - <span class="name">' + date + '</span> - </li>';
+		li = DATESTART + ' - <span class="name">' + date + '</span> - </li>';
 		$('#messages').append(li);
 		gMsgs[channel].push(li);
 	}

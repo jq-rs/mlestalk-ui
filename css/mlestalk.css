@@ -279,7 +279,7 @@ input.channel_list_button:hover {
     padding: 1px 4px;
 }
 
-#messages li.new,#messages li.exit {
+#messages li.new, #messages li.date, #messages li.exit {
     font-style: italic;
     color: #bbbbcf;
 }
