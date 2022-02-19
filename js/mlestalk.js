@@ -40,7 +40,7 @@ const HDRLEN = 48;
 
 let gUidQueue = {};
 
-const IMGMAXSIZE = 1280; /* px */
+const IMGMAXSIZE = 960; /* px */
 const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = {};
