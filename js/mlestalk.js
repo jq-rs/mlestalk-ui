@@ -177,23 +177,23 @@ function uidQueueGet(uid, channel) {
 	return gUidQueue[channel][uid];
 }
 
-function queueFindAndMatch(msgTimestamp, uid, channel, message, isFull) {
+function queueFindAndMatch(msgTimestamp, uid, channel, mHash) {
 	let q = uidQueueGet(uid, channel);
 	if (q) {
 		let lastSeen = -1;
 		const qlen = q.getLength();
 		for (let i = 0; i < qlen ; i++) {
 			let obj = q.get(i);
+			if (obj[0] > msgTimestamp) {
+				break;
+			}
 			if (obj[0] < msgTimestamp) {
 				lastSeen = i + 1;
 				continue;
 			}
-			if (message.length > 0) {
-				let hash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-				if (obj[2] == hash) {
-					lastSeen = i + 1;
-					break;
-				}
+			if (obj[2] == mHash) {
+				lastSeen = i + 1;
+				break;
 			}
 		}
 		if (lastSeen != -1) {
@@ -901,6 +901,7 @@ function processData(uid, channel, msgTimestamp,
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
 
+	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (uid == gMyName[channel]) {
 		if (0 == gIsResync[channel]) {
 			console.log("Resyncing " + channel);
@@ -908,7 +909,7 @@ function processData(uid, channel, msgTimestamp,
 		}
 		gIsResync[channel] += 1;
 		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Match full or presence messages */
-			queueFindAndMatch(msgTimestamp, uid, channel, message, isFull);
+			queueFindAndMatch(msgTimestamp, uid, channel, mHash);
 	}
 	else if (gOwnId[channel] > 0 && message.length >= 0 && gLastWrittenMsg[channel].length > 0) {
 		let end = "</li></div>";
@@ -921,7 +922,6 @@ function processData(uid, channel, msgTimestamp,
 		//update presence if current time per user is larger than begin presence
 	}
 
-	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (isMultipart) {
 		//strip index
 		const index = message.substr(0, 8);
@@ -984,6 +984,7 @@ function processData(uid, channel, msgTimestamp,
 			if (!isLast) {
 				return 0;
 			}
+
 
 			message = "";
 			for (let i = 0; i <= numIndex - nIndex; i++) {
