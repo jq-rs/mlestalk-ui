@@ -22,7 +22,6 @@ let gMsgTs = {};
 let gIdLastMsgLen = {};
 let gPrevBdKey = {};
 let gForwardSecrecy = {};
-let gReadMsgDelayedQueueLen = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
 
@@ -445,7 +444,6 @@ function joinExistingChannels(channels) {
 				if(null == gOwnAppend[channel])
 					gOwnAppend[channel] = false;
 				gForwardSecrecy[channel] = false;
-				gReadMsgDelayedQueueLen[channel] = 0;
 				gLastMessageSeenTs[channel] = 0;
 				gIsResync[channel] = 0;
 				gInitOk[channel] = true;
@@ -491,7 +489,6 @@ function askChannelNew() {
 		gOwnId[channel] = 0;
 		gOwnAppend[channel] = false;
 		gForwardSecrecy[channel] = false;
-		gReadMsgDelayedQueueLen[channel] = 0;
 		gLastMessageSeenTs[channel] = 0;
 		gIsResync[channel] = 0;
 		gPrevScrollTop[channel] = 0;
@@ -878,7 +875,7 @@ function checkTime(uid, channel, time, isFull) {
 	return time;
 }
 
-async function processData(uid, channel, msgTimestamp,
+function processData(uid, channel, msgTimestamp,
 		message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
 		isMultipart, isFirst, isLast, fsEnabled)
 {
@@ -937,41 +934,35 @@ async function processData(uid, channel, msgTimestamp,
 			return 0;
 		}
 
-		if (!gMultipartDict[get_uniq(dict, channel)]) {
-			if (!isFirst) {
-				//invalid frame
-				return 0;
-			}
-			if(!gMsgs[channel]) {
-				gMsgs[channel] = new Queue();
-				gNewMsgsCnt[channel] = 0;
-			}
-			const msgqlen = gMsgs[channel].getLength();
-			const timed = updateTime(dateString);
-			const dated = updateDateval(channel, dateString);
-			gMultipartDict[get_uniq(dict, channel)] = {};
-			gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, dated, timed];
-		}
-
-		if (!gMultipartIndex[get_uniq(dict, channel)]) {
-			//invalid index
-			return 0;
-		}
-
-		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
-		if (gLastMessageSeenTs[channel] < msgTimestamp)
-			gLastMessageSeenTs[channel] = msgTimestamp;
-
 		// handle multipart hashing here
 		if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
+			if (!gMultipartDict[get_uniq(dict, channel)]) {
+				if (!isFirst) {
+					//invalid frame
+					return 0;
+				}
+				if(!gMsgs[channel]) {
+					gMsgs[channel] = new Queue();
+					gNewMsgsCnt[channel] = 0;
+				}
+				const msgqlen = gMsgs[channel].getLength();
+				const timed = updateTime(dateString);
+				const dated = updateDateval(channel, dateString);
+				gMultipartDict[get_uniq(dict, channel)] = {};
+				gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, dated, timed];
+			}
+
+			gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+
+			if (gLastMessageSeenTs[channel] < msgTimestamp)
+				gLastMessageSeenTs[channel] = msgTimestamp;
+
 			const [nIndex, msgqlen, dated, timed] = gMultipartIndex[get_uniq(dict, channel)];
 
 			if(numIndex >= nIndex + IMG_MAXINDEX) {
 				//invalid index
 				return 0;
 			}
-			await sleep(++gReadMsgDelayedQueueLen[channel] * ASYNC_SLEEP);
-			gReadMsgDelayedQueueLen[channel]--;
 
 			if (isFirst) {
 				if (dated) {
