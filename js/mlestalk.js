@@ -562,13 +562,18 @@ function sendInitJoin(channel) {
 	sendMessage(channel, "", true, true);
 }
 
-async function send(isFull) {
+function send(isFull) {
 	const channel = gActiveChannel;
 
 	let message = $('#input_message').val();
 	let file = document.getElementById("input_file").files[0];
 
 	if (file) {
+		//send unsent full message before file
+		if($('#input_message').val().length > 0) {
+			sendMessage(channel, message, true, false);
+			updateAfterSend(channel, message, true, false);
+		}
 		sendImage(channel, file);
 		document.getElementById("input_file").value = "";
 	}
