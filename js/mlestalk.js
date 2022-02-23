@@ -990,6 +990,9 @@ function processData(uid, channel, msgTimestamp,
 				return 0;
 			}
 
+			let time = timed;
+			if (!dated)
+				time = checkTime(uid, channel, timed, isFull);
 
 			message = "";
 			for (let i = 0; i <= numIndex - nIndex; i++) {
@@ -1005,23 +1008,23 @@ function processData(uid, channel, msgTimestamp,
 			}
 			if (!fsEnabled) {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + timed +
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
 						'<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 				else {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + timed
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time
 						+ '<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 			} else {
 				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + timed +
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
 						'</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
 				else {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + timed
+					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
 						+ '</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
 				}
@@ -1400,7 +1403,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		gMsgs[channel].push(li);
 	}
 
-	if (!date && !isImage)
+	if (!date)
 		time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
 
 	if (!isImage) {
