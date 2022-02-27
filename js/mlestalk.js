@@ -24,6 +24,7 @@ let gPrevBdKey = {};
 let gForwardSecrecy = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
+let gPrevTime = {};
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -755,6 +756,7 @@ function closeChannel(channel) {
 	delete gOwnAppend[channel];
 	delete gIsResync[channel];
 	delete gPrevScrollTop[channel];
+	delete gPrevTime[channel];
 
 	gActiveChannel = null;
 
@@ -862,20 +864,17 @@ function msgHashHandle(uid, channel, msgTimestamp, mhash) {
 	return true;
 }
 
-let prevUid = "";
-let prevChannel = "";
-let prevTime = "";
 function checkTime(uid, channel, time, isFull) {
+	if(!gPrevTime[channel]) {
+		gPrevTime[channel] = [uid, ""];
+	}
+	const [ouid, otime] = gPrevTime[channel];
 	/* Skip time output for the same minute */
-	if (prevUid == uid &&
-		prevChannel == channel &&
-		prevTime == time) {
+	if (ouid == uid && otime == time) {
 		return "";
 	}
 	if (isFull) {
-		prevUid = uid;
-		prevChannel = channel;
-		prevTime = time;
+		gPrevTime[channel] = [uid, time];
 	}
 	return time;
 }
@@ -950,11 +949,23 @@ function processData(uid, channel, msgTimestamp,
 					gMsgs[channel] = new Queue();
 					gNewMsgsCnt[channel] = 0;
 				}
-				const msgqlen = gMsgs[channel].getLength();
-				const timed = updateTime(dateString);
-				const dated = updateDateval(channel, dateString);
+				const dat = updateDateval(channel, dateString);
+				if (dat) {
+					/* Update new date header */
+					li = DATESTART + ' - <span class="name">' + dat + '</span> - </li>';
+					gMsgs[channel].push(li);
+					if(gActiveChannel == channel) {
+						$('#messages').append(li);
+					}
+				}
+				if(gActiveChannel == channel) {
+					li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
+					$('#messages').append(li);
+				}
+				const msgql = gMsgs[channel].getLength();
+				const tim = updateTime(dateString);
 				gMultipartDict[get_uniq(dict, channel)] = {};
-				gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgqlen, dated, timed];
+				gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgql, dat, tim];
 			}
 
 			gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
@@ -969,30 +980,13 @@ function processData(uid, channel, msgTimestamp,
 				return 0;
 			}
 
-			if (isFirst) {
-				if (dated) {
-					/* Update new date header */
-					li = DATESTART + ' - <span class="name">' + dated + '</span> - </li>';
-					gMsgs[channel].push(li);
-					if(gActiveChannel == channel) {
-						$('#messages').append(li);
-					}
-				}
-				if(gActiveChannel == channel) {
-					li = '<div id="' + duid + '' + numIndex.toString(16) + '"></div>';
-					$('#messages').append(li);
-				}
-			}
-
 			gMultipartDict[get_uniq(dict, channel)][numIndex - nIndex] = message;
 
 			if (!isLast) {
 				return 0;
 			}
 
-			let time = timed;
-			if (!dated)
-				time = checkTime(uid, channel, timed, isFull);
+			const time = checkTime(uid, channel, timed, isFull);
 
 			message = "";
 			for (let i = 0; i <= numIndex - nIndex; i++) {
@@ -1035,14 +1029,12 @@ function processData(uid, channel, msgTimestamp,
 			}
 
 			const clen = gMsgs[channel].getLength();
-			if(clen > 0) {
-				/* If current prev entry is date of the first message or there are more messages, do not insert before it */
-				if ((clen == msgqlen + 1 && dated) || (clen != msgqlen + 1)) {
-					gMsgs[channel].push(li);
-				}
-				else {
-					gMsgs[channel].insert(msgqlen, li);
-				}
+			/* If current prev entry is date of the first message or there are more messages, do not insert before it */
+			if ((0 == clen) || (clen == msgqlen + 1 && dated) || (clen != msgqlen + 1)) {
+				gMsgs[channel].push(li);
+			}
+			else {
+				gMsgs[channel].insert(msgqlen, li);
 			}
 
 			gMultipartDict[get_uniq(dict, channel)] = null;
@@ -1072,7 +1064,7 @@ function processData(uid, channel, msgTimestamp,
 			gNewMsgsCnt[channel] = 0;
 		}
 
-		let date = updateDateval(channel, dateString);
+		const date = updateDateval(channel, dateString);
 		if (date) {
 			/* Update new date header */
 			li = DATESTART + ' - <span class="name">' + date + '</span> - </li>';
@@ -1081,9 +1073,7 @@ function processData(uid, channel, msgTimestamp,
 				$('#messages').append(li);
 		}
 		let time = updateTime(dateString);
-
-		if (!date)
-			time = checkTime(uid, channel, time, isFull);
+		time = checkTime(uid, channel, time, isFull);
 
 		if (!fsEnabled) {
 			if (uid != gMyName[channel]) {
@@ -1265,7 +1255,7 @@ function updateDateval(channel, dateString) {
 		return null;
 	}
 	else {
-		let dateval = dateString.slice(1, DATELEN + gWeekday[0].length - 1);
+		const dateval = dateString.slice(1, DATELEN + gWeekday[0].length - 1);
 		gLastMessageSendOrRcvdDate[channel] = dateString;
 		return dateval;
 	}
@@ -1403,8 +1393,7 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		gMsgs[channel].push(li);
 	}
 
-	if (!date)
-		time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
+	time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
 
 	if (!isImage) {
 		if (!gForwardSecrecy[channel]) {
