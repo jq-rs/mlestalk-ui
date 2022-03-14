@@ -1055,6 +1055,10 @@ function processData(uid, channel, msgTimestamp,
 
 	if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+
+		if (gLastMessageSeenTs[channel] < msgTimestamp)
+			gLastMessageSeenTs[channel] = msgTimestamp;
+
 		if (isPresence) {
 			return 1;
 		}
