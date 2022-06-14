@@ -819,7 +819,6 @@ function createSipToken(channel) {
 function selectSipToken(channel) {
 	if(gSipKey[channel] && gSipKeyChan[channel]) {
 		let atoken = SipHash.hash_hex(gSipKey[channel], gSipKeyChan[channel]);
-		atoken = atoken + gSipKeyChan[channel];
 		let token = btoa(atoken);
 		document.getElementById("qrcode_link").setAttribute("href", getToken(channel, token));
 		qrcode.clear(); // clear the code.
