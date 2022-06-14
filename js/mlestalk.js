@@ -774,10 +774,10 @@ function initReconnect(channel) {
 	gIsReconnect[channel] = false;
 }
 
-function processInit(uid, channel, mychan) {
+function processInit(uid, channel) {
 	if (uid.length > 0 && channel.length > 0) {
 		gInitOk[channel] = true;
-		createSipToken(channel, mychan);
+		createSipToken(channel);
 		if(gActiveChannel == channel)
 			selectSipToken(channel);
 
@@ -804,9 +804,9 @@ function processInit(uid, channel, mychan) {
 	return -1;
 }
 
-function createSipToken(channel, mychan) {
-	//use channel to create 128 bit secret key
-	let bfchannel = atob(mychan);
+function createSipToken(channel) {
+	//use channel to create 128 bit key
+	let bfchannel = atob(channel);
 	gSipKey[channel] = SipHash.string16_to_key(bfchannel);
 	gSipKeyChan[channel] = bfchannel;
 }
@@ -814,8 +814,11 @@ function createSipToken(channel, mychan) {
 function selectSipToken(channel) {
 	if(gSipKey[channel] && gSipKeyChan[channel]) {
 		let atoken = SipHash.hash_hex(gSipKey[channel], gSipKeyChan[channel]);
+		console.log("Token " + atoken);
 		atoken = atoken + gSipKeyChan[channel];
+		console.log("AToken " + atoken);
 		let token = btoa(atoken);
+		console.log("NToken " + token);
 		document.getElementById("qrcode_link").setAttribute("href", getToken(channel, token));
 		qrcode.clear(); // clear the code.
 		qrcode.makeCode(getToken(channel, token)); // make another code.
@@ -1171,9 +1174,8 @@ gWebWorker.onmessage = function (e) {
 			{
 				let uid = e.data[1];
 				let channel = e.data[2];
-				let mychan = e.data[3]; //encrypted channel for token
 
-				let ret = processInit(uid, channel, mychan);
+				let ret = processInit(uid, channel);
 				if (ret < 0) {
 					console.log("Process init failed: " + ret);
 				}
