@@ -806,7 +806,12 @@ function processInit(uid, channel) {
 
 function createSipToken(channel) {
 	//use channel to create 128 bit key
-	let bfchannel = atob(channel);
+	let len;
+	if(channel.length > 16)
+		len = 16;
+	else
+		len = channel.length;
+	let bfchannel = channel.substring(0, len);
 	gSipKey[channel] = SipHash.string16_to_key(bfchannel);
 	gSipKeyChan[channel] = bfchannel;
 }
@@ -814,11 +819,8 @@ function createSipToken(channel) {
 function selectSipToken(channel) {
 	if(gSipKey[channel] && gSipKeyChan[channel]) {
 		let atoken = SipHash.hash_hex(gSipKey[channel], gSipKeyChan[channel]);
-		console.log("Token " + atoken);
 		atoken = atoken + gSipKeyChan[channel];
-		console.log("AToken " + atoken);
 		let token = btoa(atoken);
-		console.log("NToken " + token);
 		document.getElementById("qrcode_link").setAttribute("href", getToken(channel, token));
 		qrcode.clear(); // clear the code.
 		qrcode.makeCode(getToken(channel, token)); // make another code.
