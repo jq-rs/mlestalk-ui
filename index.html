@@ -5,7 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019 MlesTalk developers
+ * Copyright (c) 2019-2022 MlesTalk developers
  */
 -->
 <html>
@@ -21,6 +21,7 @@
 	<script src="js/Autolinker.js"></script>
 	<script src="js/qrcode.js"></script>
 	<script src="js/siphash.js"></script>
+	<script src="js/RecordRTC.js"></script>
 	<script src="cordova.js"></script>
 	<script src="js/mlestalk.js"></script>
 	<script src="js/language.js"></script>
@@ -91,6 +92,8 @@
 					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
 					<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
 				</div>
+<button id="button-start-recording">Aloita ääniviesti</button>
+<button id="button-stop-recording" disabled>Lopeta ääniviesti</button>
 			</div>
 			<div id="presence_cont" class="box_with_shadow">
 				<div id="presence_list" class="top_section">
@@ -106,5 +109,61 @@
 			</div>
 		</div>
 		<script src="js/zoom-vanilla.js"></script>
+<script>
+
+function captureMicrophone(callback) {
+    navigator.mediaDevices.getUserMedia({audio: true}).then(callback).catch(function(error) {
+        alert('Unable to access your microphone.');
+        console.error(error);
+    });
+}
+
+function dataUrlCallback(dataUrl) {
+    send(true, dataUrl);
+}
+
+function stopRecordingCallback() {
+    recorder.microphone.stop();
+    recorder.getDataURL(dataUrlCallback);
+}
+
+
+let recorder;
+
+let YIELD = false;
+document.getElementById('button-start-recording').onclick = function() {
+    this.disabled = true;
+    captureMicrophone(async function(microphone) {
+        recorder = RecordRTC(microphone, {
+            recorderType: MediaStreamRecorder,
+            type: 'audio/webm',
+            mimeType: 'audio/webm',
+	    disableLogs: true,
+	    audioBitsPerSecond: 32000
+        });
+
+        recorder.startRecording();
+
+        // release microphone on stopRecording
+        recorder.microphone = microphone;
+
+        document.getElementById('button-stop-recording').disabled = false;
+	for(;;) {
+		await sleep(200);
+		if(YIELD) {
+			break;
+		}
+	}
+        recorder.stopRecording(stopRecordingCallback);
+    });
+}
+
+
+document.getElementById('button-stop-recording').onclick = function() {
+    document.getElementById('button-start-recording').disabled = false;
+    this.disabled = true;
+    YIELD = true;
+};
+</script>
 	</body>
 </html>

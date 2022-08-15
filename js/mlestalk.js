@@ -563,7 +563,7 @@ function sendInitJoin(channel) {
 	sendMessage(channel, "", true, true);
 }
 
-function send(isFull) {
+function send(isFull, optData) {
 	const channel = gActiveChannel;
 
 	let message = $('#input_message').val();
@@ -577,6 +577,12 @@ function send(isFull) {
 		}
 		sendImage(channel, file);
 		document.getElementById("input_file").value = "";
+	}
+	else if (optData) {
+		if(channel) {
+			console.log("Sending dataurl to "+ channel);
+			sendDataurl(optData, gMyName[channel], gMyChannel[channel]);
+		}
 	}
 	else {
 		sendMessage(channel, message, isFull, false);
@@ -935,6 +941,7 @@ function processData(uid, channel, msgTimestamp,
 		const index = message.substr(0, 8);
 		const dict = uid + message.substr(0, 4);
 		const numIndex = parseInt(index, 16) >>> 0;
+
 		message = message.substr(8);
 
 		if (message.length > IMG_MAXFRAGSZ) {
@@ -1004,6 +1011,17 @@ function processData(uid, channel, msgTimestamp,
 				}
 				message += frag;
 			}
+
+			//simple proof-of-concept match
+			let msg = message.substring(0,15);
+			if(msg == "data:audio/webm") {
+				var audio = new Audio(message);
+				audio.type = 'audio/webm';
+				audio.loop = false;
+				audio.play();
+				return 0;
+			}
+
 			if (!fsEnabled) {
 				if (uid != gMyName[channel]) {
 					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
@@ -1487,8 +1505,7 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 	}
 }
 
-
-async function sendDataurl(dataUrl, uid, channel) {
+function sendDataurl(dataUrl, uid, channel) {
 	const msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART | MSGISFIRST;
 
 	if(!gImageCnt) {
@@ -1503,8 +1520,6 @@ async function sendDataurl(dataUrl, uid, channel) {
 	data += dataUrl.slice(0, 1);
 	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 	sendDataurlMulti(dataUrl, uid, channel, image_hash);
-
-	updateAfterSend(channel, dataUrl, true, true);
 }
 
 
@@ -1539,12 +1554,14 @@ function sendImage(channel, file) {
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
 				sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]);
+				updateAfterSend(channel, dataUrl, true, true);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
 			sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]);
+			updateAfterSend(channel, dataUrl, true, true);
 		}
 	}
 	fr.readAsDataURL(file);
