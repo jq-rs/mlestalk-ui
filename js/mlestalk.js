@@ -580,7 +580,6 @@ function send(isFull, optData) {
 	}
 	else if (optData) {
 		if(channel) {
-			console.log("Sending dataurl to "+ channel);
 			sendDataurl(optData, gMyName[channel], gMyChannel[channel]);
 		}
 	}
