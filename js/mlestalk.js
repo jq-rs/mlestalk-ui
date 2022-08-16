@@ -108,7 +108,6 @@ gWeekday[5] = "Fri";
 gWeekday[6] = "Sat";
 let gBgTitle = "MlesTalk in the background";
 let gBgText = "Notifications active";
-let gImageStr = "<an image>";
 
 const FSFONTCOLOR = "#8bac89";
 
@@ -588,7 +587,7 @@ function send(isFull, optData) {
 		//send unsent full message before file
 		if($('#input_message').val().length > 0) {
 			sendMessage(channel, message, true, false);
-			updateAfterSend(channel, message, true, false);
+			updateAfterSend(channel, message, true, false, false);
 		}
 		sendImage(channel, file);
 		document.getElementById("input_file").value = "";
@@ -596,11 +595,12 @@ function send(isFull, optData) {
 	else if (optData) {
 		if(channel) {
 			sendDataurl(optData, gMyName[channel], gMyChannel[channel]);
+			updateAfterSend(channel, optData, isFull, true, true);
 		}
 	}
 	else {
 		sendMessage(channel, message, isFull, false);
-		updateAfterSend(channel, message, isFull, false);
+		updateAfterSend(channel, message, isFull, false, false);
 	}
 }
 
@@ -908,6 +908,7 @@ function processData(uid, channel, msgTimestamp,
 		isMultipart, isFirst, isLast, fsEnabled)
 {
 
+	let isAudio = false;
 	//update hash
 	let duid = get_duid(uid, channel);
 	if(!gIndex[channel])
@@ -1029,31 +1030,32 @@ function processData(uid, channel, msgTimestamp,
 			//simple proof-of-concept match
 			let msg = message.substring(0,15);
 			if(msg == "data:audio/webm") {
+				isAudio = true;
 				if (!fsEnabled) {
 					if (uid != gMyName[channel]) {
 						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
-							'🎙';
+							'🎙 <audio controls src="' + message + '" />';
 
 					}
 					else {
-						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time
-							+ '🎙';
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time +
+							'🎙 <audio controls src="' + message + '" />';
 
 					}
 				} else {
 					if (uid != gMyName[channel]) {
 						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
-							+ '🎙'
+							'🎙 <audio controls src="' + message + '" />'
 							+ '</font>';
 
 					}
 					else {
 						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
-							+ '🎙'
+							'🎙 <audio controls src="' + message + '" />'
 							+ '</font>';
 					}
 				}
-				if(gActiveChannel == channel) {
+				if(gActiveChannel == channel && false == gIsPause) {
 					let audio = new Audio(message);
 					audio.loop = false;
 					audio.play();
@@ -1101,7 +1103,7 @@ function processData(uid, channel, msgTimestamp,
 			gMultipartDict[get_uniq(dict, channel)] = null;
 			gMultipartIndex[get_uniq(dict, channel)] = null;
 
-			finalize(uid, channel, msgTimestamp, message, isFull, isImage);
+			finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio);
 		}
 		return 0;
 	}
@@ -1178,12 +1180,12 @@ function processData(uid, channel, msgTimestamp,
 			gIdAppend[channel][uid] = false;
 		}
 
-		finalize(uid, channel, msgTimestamp, message, isFull, isImage);
+		finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio);
 	}
 	return 0;
 }
 
-function finalize(uid, channel, msgTimestamp, message, isFull, isImage) {
+function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio) {
 	if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
 		//if user has scrolled, do not scroll to bottom unless full message
 		if(messages_list.scrollTop >= gPrevScrollTop[channel]-200) { //webview is not accurate in scrolltop
@@ -1208,8 +1210,10 @@ function finalize(uid, channel, msgTimestamp, message, isFull, isImage) {
 	{
 		if(gActiveChannel != channel || gIsPause) {
 			if (gWillNotify && gCanNotify) {
-				if(isImage)
-					message = gImageStr;
+				if(isAudio)
+					message = "🎙";
+				else if(isImage)
+					message = "🖼️";
 				doNotify(uid, channel, notifyTimestamp, message);
 			}
 		}
@@ -1439,7 +1443,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 	}
 }
 
-function updateAfterSend(channel, message, isFull, isImage) {
+function updateAfterSend(channel, message, isFull, isImage, isAudio) {
 	let dateString = "[" + timeNow() + "] ";
 	let date = updateDateval(channel, dateString);
 	let time = updateTime(dateString);
@@ -1465,6 +1469,14 @@ function updateAfterSend(channel, message, isFull, isImage) {
 		}
 		else {
 			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '' + autolinker.link(message) + '</font></li></div>';
+		}
+	}
+	else if(isAudio) {
+		if (!gForwardSecrecy[channel]) {
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"> ' + time + '🎙 <audio controls src="' + message + '" /></li></div>';
+		}
+		else {
+			li = '<div id="owner' + gOwnId[channel] + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time + '🎙 <audio controls src="' + message + '" /></font></li></div>';
 		}
 	}
 	else {
@@ -1593,14 +1605,14 @@ function sendImage(channel, file) {
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
 				sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]);
-				updateAfterSend(channel, dataUrl, true, true);
+				updateAfterSend(channel, dataUrl, true, true, false);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
 			sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]);
-			updateAfterSend(channel, dataUrl, true, true);
+			updateAfterSend(channel, dataUrl, true, true, false);
 		}
 	}
 	fr.readAsDataURL(file);

@@ -34,7 +34,6 @@ function setLanguage() {
 			gWeekday[6] = "la";
 			gBgTitle = "MlesTalk taustalla";
 			gBgText = "Ilmoitukset aktiivisena";
-			gImageStr = "<kuva>";
 			break;
 		case "se":
 			$("#channel_user_name").text("Ditt namn?");
@@ -57,7 +56,6 @@ function setLanguage() {
 			gWeekday[6] = "lö";
 			gBgTitle = "MlesTalk i bakgrunden";
 			gBgText = "Meddelanden aktiva";
-			gImageStr = "<en bild>";
 			break;
 		case "es":
 			$("#channel_user_name").text("¿Su nombre?");
@@ -80,7 +78,6 @@ function setLanguage() {
 			gWeekday[6] = "S";
 			gBgTitle = "MlesTalk en el fondo";
 			gBgText = "Notificaciones activas";
-			gImageStr = "<una imagen>";
 			break;
 		case "de":
 			$("#channel_user_name").text("Dein name?");
@@ -103,7 +100,6 @@ function setLanguage() {
 			gWeekday[6] = "Sa";
 			gBgTitle = "MlesTalk im Hintergrund";
 			gBgText = "Benachrichtigungen aktiv";
-			gImageStr = "<ein Bild>";
 			break;
 		case "fr":
 			$("#channel_user_name").text("Votre nom?");
@@ -126,7 +122,6 @@ function setLanguage() {
 			gWeekday[6] = "sam";
 			gBgTitle = "MlesTalk en arrière-plan";
 			gBgText = "Notifications actives";
-			gImageStr = "<une image>";
 			break;
 		case "pt":
 			$("#channel_user_name").text("Seu nome?");
@@ -149,7 +144,6 @@ function setLanguage() {
 			gWeekday[6] = "Sáb.";
 			gBgTitle = "MlesTalk correndo em segundo plano";
 			gBgText = "Notificações ativas";
-			gImageStr = "<uma imagem>";
 			break;
 		case "ru":
 			$("#channel_user_name").text("Твое имя?");
@@ -172,7 +166,6 @@ function setLanguage() {
 			gWeekday[6] = "СБТ";
 			gBgTitle = "MlesTalk в фоновом режиме";
 			gBgText = "Уведомления активны";
-			gImageStr = "<изображение>";
 			break;
 		case "gb":
 		default:
@@ -196,7 +189,6 @@ function setLanguage() {
 			gWeekday[6] = "Sat";
 			gBgTitle = "MlesTalk in the background";
 			gBgText = "Notifications active";
-			gImageStr = "<an image>";
 			break;
 	}
 
