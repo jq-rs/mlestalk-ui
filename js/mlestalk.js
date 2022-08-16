@@ -29,7 +29,7 @@ let gPrevTime = {};
 /* Msg type flags */
 const MSGISFULL = 0x1;
 const MSGISPRESENCE = (0x1 << 1);
-const MSGISIMAGE = (0x1 << 2);
+const MSGISDATA = (0x1 << 2);
 const MSGISMULTIPART = (0x1 << 3);
 const MSGISFIRST = (0x1 << 4);
 const MSGISLAST = (0x1 << 5);
@@ -38,6 +38,8 @@ const MSGPRESACKREQ = (0x1 << 7);
 const MSGISBDONE = (0x1 << 8);
 const MSGISBDACK = (0x1 << 9);
 const HDRLEN = 48;
+const AUDIODATASTR = "data:audio/webm";
+const IMGDATASTR = "data:image/jpeg";
 
 const DATESTART = '<li class="date">';
 
@@ -60,7 +62,7 @@ const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 4; /* ms */
 const IMG_THUMBSZ = 100; /* px */
 const IMG_MAXFRAGSZ = 2048; /* B */
-const IMG_MAXINDEX = 4096;
+const DATA_MAXINDEX = 4096;
 let gReconnTimeout = {};
 let gReconnAttempts = {};
 
@@ -594,7 +596,7 @@ function send(isFull, optData) {
 	}
 	else if (optData) {
 		if(channel) {
-			if(0 == sendDataurl(optData, gMyName[channel], gMyChannel[channel]))
+			if(sendDataurl(optData, gMyName[channel], gMyChannel[channel]))
 				updateAfterSend(channel, optData, isFull, true, true);
 		}
 	}
@@ -904,11 +906,12 @@ function checkTime(uid, channel, time, isFull) {
 }
 
 function processData(uid, channel, msgTimestamp,
-		message, isFull, isPresence, isPresenceAck, presAckRequired, isImage,
+		message, isFull, isPresence, isPresenceAck, presAckRequired, isData,
 		isMultipart, isFirst, isLast, fsEnabled)
 {
 
 	let isAudio = false;
+	let isImage = false;
 	//update hash
 	let duid = get_duid(uid, channel);
 	if(!gIndex[channel])
@@ -1001,7 +1004,7 @@ function processData(uid, channel, msgTimestamp,
 
 			const [nIndex, msgqlen, dated, timed] = gMultipartIndex[get_uniq(dict, channel)];
 
-			if(numIndex >= nIndex + IMG_MAXINDEX) {
+			if(numIndex >= nIndex + DATA_MAXINDEX) {
 				//invalid index
 				return 0;
 			}
@@ -1027,9 +1030,9 @@ function processData(uid, channel, msgTimestamp,
 				message += frag;
 			}
 
-			//simple proof-of-concept match
+			//match data types
 			let msg = message.substring(0,15);
-			if(msg == "data:audio/webm") {
+			if(msg == AUDIODATASTR) {
 				isAudio = true;
 				if (!fsEnabled) {
 					if (uid != gMyName[channel]) {
@@ -1061,7 +1064,8 @@ function processData(uid, channel, msgTimestamp,
 					audio.play();
 				}
 			}
-			else {
+			else if(msg == IMGDATASTR) {
+				isImage = true;
 				if (!fsEnabled) {
 					if (uid != gMyName[channel]) {
 						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
@@ -1086,6 +1090,10 @@ function processData(uid, channel, msgTimestamp,
 					}
 				}
 			}
+			else { //unknown data type, ignore
+				return 0;
+			}
+
 			li += '</li></div>';
 			if(gActiveChannel == channel) {
 				$('#' + duid + '' + nIndex.toString(16)).replaceWith(li);
@@ -1259,7 +1267,7 @@ gWebWorker.onmessage = function (e) {
 						msgtype & MSGISPRESENCE ? true : false,
 						msgtype & MSGISPRESENCEACK ? true : false,
 						msgtype & MSGPRESACKREQ ? true : false,
-						msgtype & MSGISIMAGE ? true : false,
+						msgtype & MSGISDATA ? true : false,
 						msgtype & MSGISMULTIPART ? true : false,
 						msgtype & MSGISFIRST ? true : false,
 						msgtype & MSGISLAST ? true : false,
@@ -1438,7 +1446,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 			gWebWorker.postMessage(arr);
 		}
 		if (msgtype & MSGISFULL && data.length > 0) {
-			queuePostMsg(uid, channel, [msgDate.valueOf(), arr, mHash, msgtype & MSGISIMAGE ? true : false, gForwardSecrecy[channel]]);
+			queuePostMsg(uid, channel, [msgDate.valueOf(), arr, mHash, msgtype & MSGISDATA ? true : false, gForwardSecrecy[channel]]);
 		}
 	}
 }
@@ -1527,7 +1535,7 @@ function eightBytesString(val) {
 }
 
 async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
-	let msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART;
+	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART;
 	let power = 6;
 	let limit = 2**power;
 	let size = limit - HDRLEN;
@@ -1557,10 +1565,10 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 }
 
 function sendDataurl(dataUrl, uid, channel) {
-	const msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART | MSGISFIRST;
+	const msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
 
 	if(!gSipKey[channel])
-		return 1;
+		return 0;
 
 	if(!gImageCnt) {
 		gImageCnt = SipHash.hash_uint(gSipKey[channel], uid + Date.now());
@@ -1574,7 +1582,7 @@ function sendDataurl(dataUrl, uid, channel) {
 	data += dataUrl.slice(0, 1);
 	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 	sendDataurlMulti(dataUrl, uid, channel, image_hash);
-	return 0;
+	return 1;
 }
 
 
@@ -1608,14 +1616,14 @@ function sendImage(channel, file) {
 				canvas.height = height;
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
-				if(0 == sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]))
+				if(sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]))
 					updateAfterSend(channel, dataUrl, true, true, false);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
-			if(0 == sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]))
+			if(sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]))
 				updateAfterSend(channel, dataUrl, true, true, false);
 		}
 	}
