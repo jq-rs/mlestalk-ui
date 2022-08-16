@@ -336,7 +336,9 @@ input.channel_list_button:hover {
 .field input[type=submit] {
     float: right;
 }
-
+.field input[type=image] {
+    float: right;
+}
 .field input[type=file] {
     float: right;
 	display: none;

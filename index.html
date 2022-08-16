@@ -76,6 +76,7 @@
 				<div id="input_message_cont">
 					<form id="form_send_message" method="post" action="#">
 						<div class="field">
+							<input id="input_rec" type="image" src="img/mic_icon.png" onclick="record();" style="float:right;height:35px;" />
 							<label for="input_file">
 								<img src="img/sendimage.png" alt="sendimage" style="float:right;height:35px;" />
 							</label>
@@ -91,8 +92,6 @@
 					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
 					<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
 				</div>
-<button id="button-start-recording">Aloita ääniviesti</button>
-<button id="button-stop-recording" disabled>Lopeta ääniviesti</button>
 			</div>
 			<div id="presence_cont" class="box_with_shadow">
 				<div id="presence_list" class="top_section">
@@ -129,23 +128,26 @@ function handleDataAvailable(event) {
 	}
 }
 
-document.getElementById('button-start-recording').onclick = function() {
-    this.disabled = true;
+let rec_status = false;
+function record() {
     captureMicrophone(function(microphone) {
-        document.getElementById('button-stop-recording').disabled = false;
-
-	let options = { mimeType: 'audio/webm' };
-	recorder = new MediaRecorder(microphone, options);
-	recorder.ondataavailable = handleDataAvailable;
-	recorder.start();
+	if(!rec_status) {
+		let options = { mimeType: 'audio/webm' };
+		recorder = new MediaRecorder(microphone, options);
+		recorder.ondataavailable = handleDataAvailable;
+		rec_status = true;
+		let img_src = "img/mic_icon_rec.png";
+		$('#input_rec').attr('src',img_src);
+		recorder.start();
+	}
+	else {
+		recorder.stop();
+		let img_src = "img/mic_icon.png";
+		$('#input_rec').attr('src',img_src);
+		rec_status = false;
+	}
     });
 }
-
-document.getElementById('button-stop-recording').onclick = function() {
-    recorder.stop();
-    document.getElementById('button-start-recording').disabled = false;
-    this.disabled = true;
-};
 </script>
 	</body>
 </html>

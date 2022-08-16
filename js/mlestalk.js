@@ -594,8 +594,8 @@ function send(isFull, optData) {
 	}
 	else if (optData) {
 		if(channel) {
-			sendDataurl(optData, gMyName[channel], gMyChannel[channel]);
-			updateAfterSend(channel, optData, isFull, true, true);
+			if(0 == sendDataurl(optData, gMyName[channel], gMyChannel[channel]))
+				updateAfterSend(channel, optData, isFull, true, true);
 		}
 	}
 	else {
@@ -1559,6 +1559,9 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 function sendDataurl(dataUrl, uid, channel) {
 	const msgtype = MSGISFULL | MSGISIMAGE | MSGISMULTIPART | MSGISFIRST;
 
+	if(!gSipKey[channel])
+		return 1;
+
 	if(!gImageCnt) {
 		gImageCnt = SipHash.hash_uint(gSipKey[channel], uid + Date.now());
 	}
@@ -1571,6 +1574,7 @@ function sendDataurl(dataUrl, uid, channel) {
 	data += dataUrl.slice(0, 1);
 	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
 	sendDataurlMulti(dataUrl, uid, channel, image_hash);
+	return 0;
 }
 
 
@@ -1604,15 +1608,15 @@ function sendImage(channel, file) {
 				canvas.height = height;
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
 				let dataUrl = canvas.toDataURL(imgtype);
-				sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]);
-				updateAfterSend(channel, dataUrl, true, true, false);
+				if(0 == sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]))
+					updateAfterSend(channel, dataUrl, true, true, false);
 			}
 			image.src = readerEvent.target.result;
 		}
 		else {
 			//send directly without resize
-			sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]);
-			updateAfterSend(channel, dataUrl, true, true, false);
+			if(0 == sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]))
+				updateAfterSend(channel, dataUrl, true, true, false);
 		}
 	}
 	fr.readAsDataURL(file);
