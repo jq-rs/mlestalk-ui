@@ -1029,35 +1029,59 @@ function processData(uid, channel, msgTimestamp,
 			//simple proof-of-concept match
 			let msg = message.substring(0,15);
 			if(msg == "data:audio/webm") {
+				if (!fsEnabled) {
+					if (uid != gMyName[channel]) {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
+							'🎙';
+
+					}
+					else {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time
+							+ '🎙';
+
+					}
+				} else {
+					if (uid != gMyName[channel]) {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
+							+ '🎙'
+							+ '</font>';
+
+					}
+					else {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+							+ '🎙'
+							+ '</font>';
+					}
+				}
 				if(gActiveChannel == channel) {
 					let audio = new Audio(message);
 					audio.loop = false;
 					audio.play();
 				}
-				return 0;
 			}
+			else {
+				if (!fsEnabled) {
+					if (uid != gMyName[channel]) {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
+							'<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
-			if (!fsEnabled) {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span> ' + time +
-						'<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
+					}
+					else {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time
+							+ '<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
-				}
-				else {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"> ' + time
-						+ '<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
+					}
+				} else {
+					if (uid != gMyName[channel]) {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
+							'</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
-				}
-			} else {
-				if (uid != gMyName[channel]) {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="new"><span class="name">' + uid + '</span><font color="' + FSFONTCOLOR + '"> ' + time +
-						'</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
+					}
+					else {
+						li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
+							+ '</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
 
-				}
-				else {
-					li = '<div id="' + duid + '' + nIndex.toString(16) + '"><li class="own"><font color="' + FSFONTCOLOR + '"> ' + time
-						+ '</font><img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
-
+					}
 				}
 			}
 			li += '</li></div>';
