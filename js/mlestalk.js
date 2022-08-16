@@ -394,6 +394,21 @@ function onLoad() {
 		document.addEventListener("resume", onResume, false);
 		document.addEventListener("backbutton", onBackKeyDown, false);
 
+		var Permission = window.plugins.Permission
+
+		var permission = 'android.permission.RECORD_AUDIO'
+
+		Permission.has(permission, function(results) {
+				if (!results[permission]) {
+				Permission.request(permission, function(results) {
+						if (result[permission]) {
+						// permission is granted
+						console.log("Got permission!");
+						}
+						}, alert)
+				}
+				}, alert)
+
 		isCordova = true;
 	}, false);
 
@@ -1014,10 +1029,11 @@ function processData(uid, channel, msgTimestamp,
 			//simple proof-of-concept match
 			let msg = message.substring(0,15);
 			if(msg == "data:audio/webm") {
-				var audio = new Audio(message);
-				audio.type = 'audio/webm';
-				audio.loop = false;
-				audio.play();
+				if(gActiveChannel == channel) {
+					let audio = new Audio(message);
+					audio.loop = false;
+					audio.play();
+				}
 				return 0;
 			}
 
