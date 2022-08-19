@@ -109,14 +109,19 @@
 		<script src="js/zoom-vanilla.js"></script>
 <script>
 
+let granted = false;
 function captureMicrophone(callback) {
-    navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
-        //no mic, ignore
-    });
+	if(!granted) {
+		if(getPermission())
+			granted = true;
+	}
+
+	navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
+			//no mic, ignore
+			});
 }
 
 let recorder;
-
 function handleDataAvailable(event) {
 	if(event.data.size > 0) {
 		let reader = new FileReader();

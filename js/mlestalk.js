@@ -39,7 +39,7 @@ const MSGISBDONE = (0x1 << 8);
 const MSGISBDACK = (0x1 << 9);
 const HDRLEN = 48;
 const AUDIODATASTR = "data:audio/webm";
-const IMGDATASTR = "data:image/jpeg";
+const IMGDATASTR = "data:image";
 
 const DATESTART = '<li class="date">';
 
@@ -395,25 +395,32 @@ function onLoad() {
 		document.addEventListener("resume", onResume, false);
 		document.addEventListener("backbutton", onBackKeyDown, false);
 
-		var Permission = window.plugins.Permission
-
-		var permission = 'android.permission.RECORD_AUDIO'
-
-		Permission.has(permission, function(results) {
-				if (!results[permission]) {
-				Permission.request(permission, function(results) {
-						if (result[permission]) {
-						// permission is granted
-						console.log("Got permission!");
-						}
-						}, alert)
-				}
-				}, alert)
-
 		isCordova = true;
 	}, false);
 
 	getFront();
+}
+
+function getPermission() {
+	let granted = false;
+
+	if(isCordova) {
+		var Permission = window.plugins.Permission;
+
+		var permission = 'android.permission.RECORD_AUDIO';
+
+		Permission.has(permission, function(results) {
+			if (!results[permission]) {
+				Permission.request(permission, function(results) {
+					if (result[permission]) {
+						// permission is granted
+						granted = true;
+					}
+				}, alert);
+			}
+		}, alert);
+	}
+	return granted;
 }
 
 $(document).ready(function () {
@@ -1031,8 +1038,7 @@ function processData(uid, channel, msgTimestamp,
 			}
 
 			//match data types
-			let msg = message.substring(0,15);
-			if(msg == AUDIODATASTR) {
+			if(message.substring(0,AUDIODATASTR.length) == AUDIODATASTR) {
 				isAudio = true;
 				if (!fsEnabled) {
 					if (uid != gMyName[channel]) {
@@ -1064,7 +1070,7 @@ function processData(uid, channel, msgTimestamp,
 					audio.play();
 				}
 			}
-			else if(msg == IMGDATASTR) {
+			else if(message.substring(0,IMGDATASTR.length) == IMGDATASTR) {
 				isImage = true;
 				if (!fsEnabled) {
 					if (uid != gMyName[channel]) {
@@ -1590,10 +1596,6 @@ function sendImage(channel, file) {
 	let fr = new FileReader();
 	fr.onload = function (readerEvent) {
 		if (file.size >= IMGFRAGSIZE) {
-			let imgtype = 'image/jpeg';
-			if (file.type.match('image/png')) {
-				imgtype = 'image/png';
-			}
 			//resize the image
 			let image = new Image();
 			image.onload = function (imageEvent) {
@@ -1615,7 +1617,7 @@ function sendImage(channel, file) {
 				canvas.width = width;
 				canvas.height = height;
 				canvas.getContext('2d').drawImage(image, 0, 0, width, height);
-				let dataUrl = canvas.toDataURL(imgtype);
+				let dataUrl = canvas.toDataURL(file.type);
 				if(sendDataurl(dataUrl, gMyName[channel], gMyChannel[channel]))
 					updateAfterSend(channel, dataUrl, true, true, false);
 			}
@@ -1624,7 +1626,7 @@ function sendImage(channel, file) {
 		else {
 			//send directly without resize
 			if(sendDataurl(fr.result, gMyName[channel], gMyChannel[channel]))
-				updateAfterSend(channel, dataUrl, true, true, false);
+				updateAfterSend(channel, fr.result, true, true, false);
 		}
 	}
 	fr.readAsDataURL(file);
