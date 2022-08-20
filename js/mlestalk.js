@@ -402,8 +402,6 @@ function onLoad() {
 }
 
 function getPermission() {
-	let granted = false;
-
 	if(isCordova) {
 		var Permission = window.plugins.Permission;
 
@@ -414,13 +412,11 @@ function getPermission() {
 				Permission.request(permission, function(results) {
 					if (result[permission]) {
 						// permission is granted
-						granted = true;
 					}
 				}, alert);
 			}
 		}, alert);
 	}
-	return granted;
 }
 
 $(document).ready(function () {

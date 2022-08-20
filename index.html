@@ -74,11 +74,11 @@
 					</ul>
 				</div>
 				<div id="input_message_cont">
-							<input id="input_rec" type="image" src="img/mic_icon.png" onclick="record();" style="float:right;height:35px;" />
+					<input id="input_rec" type="image" src="img/mic_icon.png" onclick="record();" style="float:right;height:34px;" />
 					<form id="form_send_message" method="post" action="#">
 						<div class="field">
 							<label for="input_file">
-								<img src="img/sendimage.png" alt="sendimage" style="float:right;height:35px;" />
+								<img src="img/imgicon.png" alt="sendimage" style="float:right;height:34px;" />
 							</label>
 							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
 							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
@@ -109,16 +109,11 @@
 		<script src="js/zoom-vanilla.js"></script>
 <script>
 
-let granted = false;
 function captureMicrophone(callback) {
-	if(!granted) {
-		if(getPermission())
-			granted = true;
-	}
-
+	getPermission();
 	navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
 			//no mic, ignore
-			});
+	});
 }
 
 let recorder;
