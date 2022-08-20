@@ -20,6 +20,7 @@ Sure, quite easily with the roughly the following steps (at least you get the id
      * cordova-plugin-androidx-adapter
      * cordova-plugin-console
      * cordova-plugin-device
+     * cordova-plugin-permission
      * https://github.com/jq-rs/cordova-plugin-background-mode
      * https://github.com/jq-rs/cordova-plugin-local-notifications
  4. Clone this repository and its submodules under your Cordova project's www-directory. Remember to add your own graphics and modifications to the lot. You can even make your own webworker, if you like - just implement the API properly.
