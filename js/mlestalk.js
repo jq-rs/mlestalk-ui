@@ -1742,8 +1742,7 @@ function handleDataAvailable(event) {
 		let reader = new FileReader();
 		reader.readAsDataURL(event.data);
 		reader.onload = function() {
-			const clone = structuredClone(reader.result);
-			send(true, clone);
+			send(true, reader.result);
 			if(gRecorder) {
 				gRecorder.ondataavailable = null;
 				gRecorder = null;
