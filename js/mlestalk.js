@@ -1732,7 +1732,7 @@ function clearLocalBdKey(channel) {
 
 function captureMicrophone(callback) {
 	getPermission();
-	navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
+	navigator.mediaDevices.getUserMedia({audio: true, video: false}).then(callback).catch(function(error) {
 			//no mic, ignore
 	});
 }
@@ -1762,8 +1762,10 @@ function record() {
 		gRecStatus = true;
 		gRecorder.onstop = (e) => {
 			if(gRecorder) {
+				microphone.getTracks().forEach(t => t.stop());
 				gRecorder.ondataavailable = null;
 				gRecorder = null;
+				microphone = null;
 			}
 		}
 		let img_src = "img/mic_icon_rec.png";
