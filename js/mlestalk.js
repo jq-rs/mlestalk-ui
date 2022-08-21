@@ -25,6 +25,8 @@ let gForwardSecrecy = {};
 let gActiveChannel = null;
 let gActiveChannels = {};
 let gPrevTime = {};
+let gRecStatus = false;
+let gRecorder = null;
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -754,12 +756,17 @@ async function channelListShow() {
 	let cnt;
 	gIsChannelListView = true;
 	gActiveChannel = null;
+	if(true == gRecStatus)
+		record(); //stop recording
 	presenceChannelListShow();
 }
 
 function closeChannel(channel) {
 	initReconnect(channel);
 	gInitOk[channel] = false;
+
+	if(true == gRecStatus)
+		record(); //stop recording
 
 	//init all databases
 	delete gIdTimestamp[channel];
@@ -1721,5 +1728,54 @@ function setLocalBdKey(channel, bdKey) {
 
 function clearLocalBdKey(channel) {
 	window.localStorage.removeItem('gPrevBdKey' + channel);
+}
+
+function captureMicrophone(callback) {
+	getPermission();
+	navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
+			//no mic, ignore
+	});
+}
+
+function handleDataAvailable(event) {
+	if(event.data.size > 0) {
+		let reader = new FileReader();
+		reader.readAsDataURL(event.data);
+		reader.onload = function() {
+			const clone = structuredClone(reader.result);
+			send(true, clone);
+			if(gRecorder) {
+				gRecorder.ondataavailable = null;
+				gRecorder = null;
+			}
+		};
+	}
+}
+
+
+function record() {
+    if(false == gRecStatus) {
+	    captureMicrophone(function(microphone) {
+		let options = { mimeType: 'audio/webm' };
+		gRecorder = new MediaRecorder(microphone, options);
+		gRecorder.ondataavailable = handleDataAvailable;
+		gRecStatus = true;
+		gRecorder.onstop = (e) => {
+			if(gRecorder) {
+				gRecorder.ondataavailable = null;
+				gRecorder = null;
+			}
+		}
+		let img_src = "img/mic_icon_rec.png";
+		$('#input_rec').attr('src',img_src);
+		gRecorder.start();
+	     });
+    }
+    else {
+	gRecorder.stop();
+	let img_src = "img/mic_icon.png";
+	$('#input_rec').attr('src',img_src);
+	gRecStatus = false;
+    }
 }
 

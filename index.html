@@ -107,46 +107,5 @@
 			</div>
 		</div>
 		<script src="js/zoom-vanilla.js"></script>
-<script>
-
-function captureMicrophone(callback) {
-	getPermission();
-	navigator.mediaDevices.getUserMedia({audio: {echoCancelling: true}}).then(callback).catch(function(error) {
-			//no mic, ignore
-	});
-}
-
-let recorder;
-function handleDataAvailable(event) {
-	if(event.data.size > 0) {
-		let reader = new FileReader();
-		reader.readAsDataURL(event.data);
-		reader.onload = function() {
-			send(true, reader.result);
-		};
-	}
-}
-
-let rec_status = false;
-function record() {
-    captureMicrophone(function(microphone) {
-	if(!rec_status) {
-		let options = { mimeType: 'audio/webm' };
-		recorder = new MediaRecorder(microphone, options);
-		recorder.ondataavailable = handleDataAvailable;
-		rec_status = true;
-		let img_src = "img/mic_icon_rec.png";
-		$('#input_rec').attr('src',img_src);
-		recorder.start();
-	}
-	else {
-		recorder.stop();
-		let img_src = "img/mic_icon.png";
-		$('#input_rec').attr('src',img_src);
-		rec_status = false;
-	}
-    });
-}
-</script>
 	</body>
 </html>
