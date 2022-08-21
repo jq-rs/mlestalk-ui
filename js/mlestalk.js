@@ -752,7 +752,7 @@ async function presenceChannelListShow() {
 	}
 }
 
-async function channelListShow() {
+function channelListShow() {
 	let cnt;
 	gIsChannelListView = true;
 	gActiveChannel = null;
@@ -1405,6 +1405,7 @@ async function reconnect(uid, channel) {
 	}
 
 	gIsReconnect[channel] = true;
+	//console.log("Sleeping " + gReconnTimeout[channel]);
 	await sleep(gReconnTimeout[channel]);
 	gReconnTimeout[channel] *= 2;
 	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
@@ -1416,16 +1417,6 @@ function syncReconnect() {
 		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
 			if (true == gIsReconnect[channel])
 				continue;
-			gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
-			sendEmptyJoin(gMyChannel[channel]);
-		}
-	}
-}
-
-/* Online reconnect */
-function onlineReconnect() {
-	for (let channel in gMyChannel) {
-		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
 			gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
 			sendEmptyJoin(gMyChannel[channel]);
 		}
