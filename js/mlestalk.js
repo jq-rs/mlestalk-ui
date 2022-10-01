@@ -942,6 +942,7 @@ function processData(uid, channel, msgTimestamp,
 	let li;
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
+	message = LZString.decompress(message);
 
 	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (uid == gMyName[channel]) {
@@ -969,7 +970,6 @@ function processData(uid, channel, msgTimestamp,
 		const index = message.substr(0, 8);
 		const dict = uid + message.substr(0, 4);
 		const numIndex = parseInt(index, 16) >>> 0;
-
 		message = message.substr(8);
 
 		if (message.length > IMG_MAXFRAGSZ) {
@@ -1130,8 +1130,9 @@ function processData(uid, channel, msgTimestamp,
 		sendPresAck(channel);
 	}
 
-	if (isFull && 0 == message.length) /* Ignore init messages in timestamp processing */
+	if (isFull && 0 == message.length) { /* Ignore init messages in timestamp processing */
 		return 0;
+	}
 
 	if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
 		gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
@@ -1435,7 +1436,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 		const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
 		let mHash;
 
-		let arr = [cmd, data, uid, channel, msgtype, msgDate.valueOf()];
+		let arr = [cmd, LZString.compress(data), uid, channel, msgtype, msgDate.valueOf()];
 
 		if (!(msgtype & MSGISPRESENCE) && gSipKey[channel]) {
 			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
