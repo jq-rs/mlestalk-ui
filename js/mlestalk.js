@@ -1537,7 +1537,7 @@ function eightBytesString(val) {
 
 async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
 	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
-	let power = 7;
+	let power = 6;
 	let limit = 2**power;
 	let size = limit - HDRLEN;
 	let index = 0;
