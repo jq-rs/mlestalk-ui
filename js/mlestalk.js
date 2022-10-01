@@ -1535,22 +1535,25 @@ function eightBytesString(val) {
 	return ("00000000" + val.toString(16)).slice(-8);
 }
 
-async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
-	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART;
-	let power = 6;
+async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
+	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
+	let power = 7;
 	let limit = 2**power;
 	let size = limit - HDRLEN;
 	let index = 0;
 
-	for (let i = 1; i < dataUrl.length; i += size) {
+	const image_hash = hashImage(uid, channel, dataUrl, image_cnt);
+	for (let i = 0; i < dataUrl.length; i += size) {
+		const hash = image_hash + index;
+		let data = eightBytesString(hash);
+		if(1 == i)
+			msgtype &= ~MSGISFIRST;
 		index++;
 		if(index >= limit) {
 			power++;
 			limit = 2**power;
 			size = limit - HDRLEN;
 		}
-		const hash = image_hash + index;
-		let data = eightBytesString(hash);
 
 		if (i + size >= dataUrl.length) {
 			msgtype |= MSGISLAST;
@@ -1566,8 +1569,6 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_hash) {
 }
 
 function sendDataurl(dataUrl, uid, channel) {
-	const msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
-
 	if(!gSipKey[channel])
 		return 0;
 
@@ -1577,12 +1578,7 @@ function sendDataurl(dataUrl, uid, channel) {
 	else {
 		gImageCnt++;
 	}
-
-	let image_hash = hashImage(uid, channel, dataUrl, gImageCnt);
-	let data = eightBytesString(image_hash);
-	data += dataUrl.slice(0, 1);
-	sendData("send", gMyName[channel], gMyChannel[channel], data, msgtype);
-	sendDataurlMulti(dataUrl, uid, channel, image_hash);
+	sendDataurlMulti(dataUrl, uid, channel, gImageCnt);
 	return 1;
 }
 
