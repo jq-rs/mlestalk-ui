@@ -39,7 +39,6 @@ const MSGISPRESENCEACK = (0x1 << 6);
 const MSGPRESACKREQ = (0x1 << 7);
 const MSGISBDONE = (0x1 << 8);
 const MSGISBDACK = (0x1 << 9);
-const HDRLEN = 48;
 const AUDIODATASTR = "data:audio/webm";
 const IMGDATASTR = "data:image";
 
@@ -942,7 +941,6 @@ function processData(uid, channel, msgTimestamp,
 	let li;
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
-	message = LZString.decompress(message);
 
 	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (uid == gMyName[channel]) {
@@ -1436,7 +1434,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 		const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
 		let mHash;
 
-		let arr = [cmd, LZString.compress(data), uid, channel, msgtype, msgDate.valueOf()];
+		let arr = [cmd, data, uid, channel, msgtype, msgDate.valueOf()];
 
 		if (!(msgtype & MSGISPRESENCE) && gSipKey[channel]) {
 			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
@@ -1537,9 +1535,8 @@ function eightBytesString(val) {
 
 async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
 	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
-	let power = 6;
-	let limit = 2**power;
-	let size = limit - HDRLEN;
+	let limit = 2**6;
+	let size = limit;
 	let index = 0;
 
 	const image_hash = hashImage(uid, channel, dataUrl, image_cnt);
@@ -1550,9 +1547,8 @@ async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
 			msgtype &= ~MSGISFIRST;
 		index++;
 		if(index >= limit) {
-			power++;
-			limit = 2**power;
-			size = limit - HDRLEN;
+			limit += 8;
+			size = limit;
 		}
 
 		if (i + size >= dataUrl.length) {
