@@ -18,7 +18,6 @@ Sure, quite easily with the roughly the following steps (at least you get the id
  3. Install the needed plugins with ```cordova plugin install <plugin>```
      * cordova-plugin-badge
      * cordova-plugin-androidx-adapter
-     * cordova-plugin-console
      * cordova-plugin-device
      * cordova-plugin-permission
      * https://github.com/jq-rs/cordova-plugin-background-mode
