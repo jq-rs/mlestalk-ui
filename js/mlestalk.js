@@ -377,6 +377,8 @@ function onLoad() {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			gCanNotify = granted;
 		});
+		cordova.plugins.notification.local.setDummyNotifications();
+		gCanNotify = true;
 
 		cordova.plugins.backgroundMode.setDefaults({
 			title: gBgTitle,
@@ -402,7 +404,7 @@ function onLoad() {
 	getFront();
 }
 
-function getPermission() {
+function getAudioPermission() {
 	if(isCordova) {
 		var Permission = window.plugins.Permission;
 
@@ -420,15 +422,19 @@ function getPermission() {
 	}
 }
 
+let wasReady = false;
 $(document).ready(function () {
-	getFront();
-	getActiveChannels();
-	if(gActiveChannels)
+	if(false == wasReady) {
+		getFront();
+		getActiveChannels();
+		if(gActiveChannels)
 		joinExistingChannels(gActiveChannels)
-	$("#channel_submit, #form_send_message").submit(function (e) {
-		e.preventDefault();
-		askChannelNew();
-	});
+		$("#channel_submit, #form_send_message").submit(function (e) {
+			e.preventDefault();
+			askChannelNew();
+		});
+		wasReady = true;
+	}
 });
 
 function addrsplit(channel, addrport) {
@@ -1715,7 +1721,7 @@ function clearLocalBdKey(channel) {
 }
 
 function captureMicrophone(callback) {
-	getPermission();
+	getAudioPermission();
 	navigator.mediaDevices.getUserMedia({audio: true, video: false}).then(callback).catch(function(error) {
 			//no mic, ignore
 	});
