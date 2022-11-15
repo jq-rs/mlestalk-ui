@@ -306,7 +306,6 @@ function onPause() {
 			text: gBgText
 		});
 		cordova.plugins.backgroundMode.toBackground();
-		cordova.plugins.notification.badge.clear();
 		cordova.plugins.notification.local.clearAll();
 	}
 }
@@ -316,7 +315,6 @@ function onResume() {
 	gIsPause = false;
 	if (isCordova) {
 		cordova.plugins.notification.local.clearAll();
-		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.fromBackground();
 	}
 	if(gActiveChannel)
@@ -376,9 +374,13 @@ function onLoad() {
 	document.addEventListener("deviceready", function () {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			gCanNotify = granted;
-		});
+		}); 
 		cordova.plugins.notification.local.setDummyNotifications();
 		gCanNotify = true;
+
+		// sets a recurring alarm that keeps things rolling
+		cordova.plugins.backgroundMode.disableWebViewOptimizations();
+		cordova.plugins.backgroundMode.enable();
 
 		cordova.plugins.backgroundMode.setDefaults({
 			title: gBgTitle,
@@ -389,10 +391,6 @@ function onLoad() {
 			led: { color: '#77407B', on: LED_ON_TIME, off: LED_OFF_TIME },
 			vibrate: true
 		});
-
-		// sets a recurring alarm that keeps things rolling
-		cordova.plugins.backgroundMode.disableWebViewOptimizations();
-		cordova.plugins.backgroundMode.enable();
 
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
@@ -1222,9 +1220,6 @@ function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio)
 
 	if(isFull && (gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && gMsgTs[channel] < msgTimestamp) {
 		gNewMsgsCnt[channel] += 1;
-		if (isCordova && gIsPause) {
-			cordova.plugins.notification.badge.increase();
-		}
 	}
 
 	const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
