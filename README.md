@@ -16,12 +16,11 @@ Sure, quite easily with the roughly the following steps (at least you get the id
  1. Install [Apache Cordova](https://cordova.apache.org/)
  2. Install Cordova Android platform
  3. Install the needed plugins with ```cordova plugin install <plugin>```
-     * cordova-plugin-badge
      * cordova-plugin-androidx-adapter
      * cordova-plugin-device
      * cordova-plugin-permission
      * https://github.com/jq-rs/cordova-plugin-background-mode
-     * https://github.com/jq-rs/cordova-plugin-local-notifications
+     * https://github.com/jq-rs/cordova-plugin-local-notifications-12
  4. Clone this repository and its submodules under your Cordova project's www-directory. Remember to add your own graphics and modifications to the lot. You can even make your own webworker, if you like - just implement the API properly.
  5. Build with ```cordova build android --release -- --packageType=apk```, copy the resulting apk to your device and install it. Well done!
  
