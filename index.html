@@ -77,11 +77,11 @@
 					<form id="form_send_message" method="post" action="#">
 						<div class="field">
 							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
+							<input id="input_rec" type="image" src="img/mic_icon.png" onchange="record();" style="float:right;height:34px;" />
 							<label for="input_file">
 								<img src="img/imgicon.png" alt="sendimage" style="float:right;height:34px;" />
 							</label>
 							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
-							<input id="input_rec" type="image" src="img/mic_icon.png" onclick="record();" style="float:right;height:34px;" />
 							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer()" autocomplete="off" autofocus /></span>
 							<br />
 						</div>
