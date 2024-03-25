@@ -114,6 +114,9 @@ let gBgText = "Notifications active";
 
 const FSFONTCOLOR = "#8bac89";
 
+let gRecTimeoutId = 0;
+const REC_TIMEOUT = 1000 * 60 * 3; // Limit max recording to 3 mins
+
 class Queue {
 	constructor(...elements) {
 		this.elements = [...elements];
@@ -1258,7 +1261,6 @@ gWebWorker.onmessage = function (e) {
 			{
 				let uid = e.data[1];
 				let channel = e.data[2];
-
 				let ret = processInit(uid, channel);
 				if (ret < 0) {
 					console.log("Process init failed: " + ret);
@@ -1741,32 +1743,42 @@ function handleDataAvailable(event) {
 	}
 }
 
-
 function record() {
     if(false == gRecStatus) {
 	    captureMicrophone(function(microphone) {
-		let options = { mimeType: 'audio/webm' };
-		gRecorder = new MediaRecorder(microphone, options);
-		gRecorder.ondataavailable = handleDataAvailable;
-		gRecStatus = true;
-		gRecorder.onstop = (e) => {
-			if(gRecorder) {
-				microphone.getTracks().forEach(t => t.stop());
-				gRecorder.ondataavailable = null;
-				gRecorder = null;
-				microphone = null;
+			let options = { mimeType: 'audio/webm' };
+			gRecorder = new MediaRecorder(microphone, options);
+			gRecorder.ondataavailable = handleDataAvailable;
+			gRecStatus = true;
+			gRecorder.onstop = (e) => {
+				if(gRecorder) {
+					microphone.getTracks().forEach(t => t.stop());
+					gRecorder.ondataavailable = null;
+					gRecorder = null;
+					microphone = null;
+				}
 			}
-		}
-		let img_src = "img/mic_icon_rec.png";
-		$('#input_rec').attr('src',img_src);
-		gRecorder.start();
+			let img_src = "img/mic_icon_rec.png";
+			$('#input_rec').attr('src',img_src);
+			gRecorder.start();
+			gRecTimeoutId = setTimeout(function(){
+				gRecorder.stop()
+				gRecTimeoutId = 0;
+				let img_src = "img/mic_icon.png";
+				$('#input_rec').attr('src',img_src);
+				gRecStatus = false;
+			}, REC_TIMEOUT);
 	     });
     }
     else {
-	gRecorder.stop();
-	let img_src = "img/mic_icon.png";
-	$('#input_rec').attr('src',img_src);
-	gRecStatus = false;
+		gRecorder.stop();
+		if (gRecTimeoutId) {
+			clearTimeout(gRecTimeoutId);
+			gRecTimeoutId = 0;
+		}
+		let img_src = "img/mic_icon.png";
+		$('#input_rec').attr('src',img_src);
+		gRecStatus = false;
     }
 }
 
