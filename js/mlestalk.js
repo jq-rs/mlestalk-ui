@@ -3,8 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019-2022 MlesTalk developers
+ * Copyright (c) 2019-2024 MlesTalk developers
  */
+const VERSION = "3.0.0beta2";
+const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk.version";
+
 let gMyName = {};
 let gMyChannel = {};
 let gMyKey = {};
@@ -295,7 +298,7 @@ function get_uniq(uid, channel) {
 	return SipHash.hash_hex(gSipKey[channel], uid + channel);
 }
 
-let gWebWorker = new Worker('webworker/js/webworker.js');
+let gWebWorker = new Worker('zpinc-webworker/js/webworker.js');
 
 function onPause() {
 	gWillNotify = true;
@@ -630,7 +633,7 @@ function chanExitAll() {
 	}
 	$("#input_channel").val('');
 	$("#input_key").val('');
-	$('#qrcode').fadeOut();
+	//$('#qrcode').fadeOut();
 
 	clearActiveChannels();
 	clearNotifyTimestamps();
@@ -651,7 +654,7 @@ function chanExit() {
 
 	$("#input_channel").val('');
 	$("#input_key").val('');
-	$('#qrcode').fadeOut();
+	//$('#qrcode').fadeOut();
 
 	if (Object.keys(gMyChannel).length > 0) {
 		channelListShow();
@@ -678,9 +681,9 @@ function outputPresenceChannelList() {
 
 				cnt++;
 				if(gMsgs[channel])
-					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
+					li = '<li class="new" id="' + channel + '"><span class="name">&#128274;' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
 				else
-					li = '<li class="new" id="' + channel + '"><span class="name">#' + channel + ' (<b>-</b>/-)</span></li>';
+					li = '<li class="new" id="' + channel + '"><span class="name">&#128274;' + channel + ' (<b>-</b>/-)</span></li>';
 
 				$('#presence_avail').append(li);
 				if(gIsPresenceView) {
@@ -857,6 +860,7 @@ function createSipToken(channel) {
 }
 
 function selectSipToken(channel) {
+	/*
 	if(gSipKey[channel] && gSipKeyChan[channel]) {
 		let atoken = SipHash.hash_hex(gSipKey[channel], gSipKeyChan[channel]);
 		let token = btoa(atoken);
@@ -867,6 +871,7 @@ function selectSipToken(channel) {
 	}
 	else
 		$('#qrcode').fadeOut();
+	*/
 }
 
 function get_duid(uid, channel) {
@@ -1780,5 +1785,31 @@ function record() {
 		$('#input_rec').attr('src',img_src);
 		gRecStatus = false;
     }
+}
+
+function checkUpgrades() {
+	fetch(UPGINFO_URL)
+	.then(response => {
+		if (!response.ok) {
+			throw new Error('Network response was not ok');
+		}
+		return response.json();
+	})
+	.then(data => {
+		// Parse the JSON data and extract the version item
+		const version = data.version;
+		const dlurl = data.url;
+		const b2sum = data.b2sum;
+
+		if (version != VERSION) {
+		    verAlert(true, version, dlurl, b2sum);
+		}
+		else {
+			verAlert(false);
+		}
+	})
+	.catch(error => {
+		console.error('There was a problem fetching the data:', error);
+	});
 }
 

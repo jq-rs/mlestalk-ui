@@ -83,6 +83,23 @@ input.new_channel_button:hover {
         text-decoration: underline;
 }
 
+input.check_upgrades_button {
+	padding: 1px;
+	cursor: pointer;
+	font-size: 90%;
+	float: left;
+    position: relative;
+    left: 37%;
+	background: transparent;
+	color: #77407b;
+	border: 0px solid #77407b;
+	border-radius: 0px;
+}
+
+input.check_upgrades_button:hover {
+        text-decoration: underline;
+}
+
 input.channel_list_button {
 	padding: 1px;
 	cursor: pointer;

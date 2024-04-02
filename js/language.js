@@ -21,6 +21,7 @@ function setLanguage() {
 			$("#channel_exit").val("poistu");
 			$("#channel_exit_all").val("poistu kaikista");
 			$("#new_channel").val("uusi kanava");
+			$("#check_upgrades").val("päivitä sovellus");
 			$("#channel_list").val("kanavat");
 			$("#channel_list_new").val("kanavat");
 			$("#app_info").text("lisätietoja sovelluksesta");
@@ -43,6 +44,7 @@ function setLanguage() {
 			$("#channel_exit").val("utgång");
 			$("#channel_exit_all").val("utgång alla");
 			$("#new_channel").val("ny kanal");
+			$("#check_upgrades").val("uppgradera appen");
 			$("#channel_list").val("kanaler");
 			$("#channel_list_new").val("kanaler");
 			$("#app_info").text("appinfo");
@@ -65,6 +67,7 @@ function setLanguage() {
 			$("#channel_exit").val("salida");
 			$("#channel_exit_all").val("salir de todo");
 			$("#new_channel").text("nuevo canal");
+			$("#check_upgrades").val("actualizar la aplicación");
 			$("#channel_list").val("canales");
 			$("#channel_list_new").val("canales");
 			$("#app_info").text("info de la app");
@@ -87,6 +90,7 @@ function setLanguage() {
 			$("#channel_exit").val("verlassen");
 			$("#channel_exit_all").val("alle verlassen");
 			$("#new_channel").text("neuer Kanal");
+			$("#check_upgrades").val("upgrade-App");
 			$("#channel_list").val("Kanäle");
 			$("#channel_list_new").val("Kanäle");
 			$("#app_info").text("app info");
@@ -109,6 +113,7 @@ function setLanguage() {
 			$("#channel_exit").val("sortie");
 			$("#channel_exit_all").val("tout quitter");
 			$("#new_channel").val("nouveau canal");
+			$("#check_upgrades").val("mise à niveau de l'application");
 			$("#channel_list").val("canaux");
 			$("#channel_list_new").val("canaux");
 			$("#app_info").text("info sur l'app");
@@ -131,6 +136,7 @@ function setLanguage() {
 			$("#channel_exit").val("saída");
 			$("#channel_exit_all").val("saia de tudo");
 			$("#new_channel").val("novo canal");
+			$("#check_upgrades").val("atualizar aplicativo");
 			$("#channel_list").val("canais");
 			$("#channel_list_new").val("canais");
 			$("#app_info").text("informação da aplicação");
@@ -153,6 +159,7 @@ function setLanguage() {
 			$("#channel_exit").val("выход");
 			$("#channel_exit_all").val("выйти из всего");
 			$("#new_channel").val("новый канал");
+			$("#check_upgrades").val("Обновление приложения");
 			$("#channel_list").val("каналами");
 			$("#channel_list_new").val("каналами");
 			$("#app_info").text("информация о приложении");
@@ -176,6 +183,7 @@ function setLanguage() {
 			$("#channel_exit").val("exit");
 			$("#channel_exit_all").val("exit all");
 			$("#new_channel").val("new channel");
+			$("#check_upgrades").val("upgrade");
 			$("#channel_list").val("channels");
 			$("#channel_list_new").val("channels");
 			$("#app_info").text("app info");
@@ -258,6 +266,61 @@ function popChannelAlert() {
         	case "gb":
 		default:
 			alert('Channel already exists');
+			break;
+	}
+}
+
+function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
+	let language = $("#channel_localization").val();
+	switch (language) {
+		case "fi":
+			if (newVersionExists)
+				alert("Uusi versio " + version + " saatavilla:\n" + dlurl);
+			else
+				alert("Uutta versiota ei saatavilla");			
+			break;
+		case "se":
+			if (newVersionExists)
+				alert("Ny version " + version + " tillgänglig:\n" + dlurl);
+			else
+				alert("Ingen ny version tillgänglig");			
+			break;
+		case "es":
+			if (newVersionExists)
+				alert("Nueva versión " + version + " disponible:\n" + dlurl);
+			else
+				alert("No hay nueva versión disponible");			
+			break;	
+		case "de":
+			if (newVersionExists)
+				alert("Neue Version " + version + " verfügbar:\n" + dlurl);
+			else
+				alert("Keine neue Version verfügbar");			
+			break;
+		case "fr":
+			if (newVersionExists)
+				alert("Nouvelle version " + version + " disponible:\n" + dlurl);
+			else
+				alert("Aucune nouvelle version disponible");			
+			break;		
+        case "pt":
+			if (newVersionExists)
+				alert("Nova versão " + version + " disponível:\n" + dlurl);
+			else
+				alert("Nenhuma nova versão disponível");			
+			break;
+        case "ru":
+			if (newVersionExists)
+				alert("Доступна новая " + version + " версия:\n" + dlurl);
+			else
+				alert("Новая версия недоступна");			
+			break;
+        case "gb":
+		default:
+			if (newVersionExists)
+				alert("New version " + version + " available:\n" + dlurl);
+			else
+				alert("No new version available");			
 			break;
 	}
 }
