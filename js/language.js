@@ -66,7 +66,7 @@ function setLanguage() {
 			$("#channel_server").text("Dirección del servidor Websocket");
 			$("#channel_exit").val("salida");
 			$("#channel_exit_all").val("salir de todo");
-			$("#new_channel").text("nuevo canal");
+			$("#new_channel").val("nuevo canal");
 			$("#check_upgrades").val("actualizar la aplicación");
 			$("#channel_list").val("canales");
 			$("#channel_list_new").val("canales");
@@ -89,7 +89,7 @@ function setLanguage() {
 			$("#channel_server").text("WebSocket Serveradresse");
 			$("#channel_exit").val("verlassen");
 			$("#channel_exit_all").val("alle verlassen");
-			$("#new_channel").text("neuer Kanal");
+			$("#new_channel").val("neuer Kanal");
 			$("#check_upgrades").val("upgrade-App");
 			$("#channel_list").val("Kanäle");
 			$("#channel_list_new").val("Kanäle");
@@ -277,50 +277,50 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists)
 				alert("Uusi versio " + version + " saatavilla:\n" + dlurl);
 			else
-				alert("Uutta versiota ei saatavilla");			
+				alert("Uutta versiota ei saatavilla.");			
 			break;
 		case "se":
 			if (newVersionExists)
 				alert("Ny version " + version + " tillgänglig:\n" + dlurl);
 			else
-				alert("Ingen ny version tillgänglig");			
+				alert("Ingen ny version tillgänglig.");			
 			break;
 		case "es":
 			if (newVersionExists)
 				alert("Nueva versión " + version + " disponible:\n" + dlurl);
 			else
-				alert("No hay nueva versión disponible");			
+				alert("No hay nueva versión disponible.");			
 			break;	
 		case "de":
 			if (newVersionExists)
 				alert("Neue Version " + version + " verfügbar:\n" + dlurl);
 			else
-				alert("Keine neue Version verfügbar");			
+				alert("Keine neue Version verfügbar.");			
 			break;
 		case "fr":
 			if (newVersionExists)
 				alert("Nouvelle version " + version + " disponible:\n" + dlurl);
 			else
-				alert("Aucune nouvelle version disponible");			
+				alert("Aucune nouvelle version disponible.");			
 			break;		
         case "pt":
 			if (newVersionExists)
 				alert("Nova versão " + version + " disponível:\n" + dlurl);
 			else
-				alert("Nenhuma nova versão disponível");			
+				alert("Nenhuma nova versão disponível.");			
 			break;
         case "ru":
 			if (newVersionExists)
 				alert("Доступна новая " + version + " версия:\n" + dlurl);
 			else
-				alert("Новая версия недоступна");			
+				alert("Новая версия недоступна.");			
 			break;
         case "gb":
 		default:
 			if (newVersionExists)
 				alert("New version " + version + " available:\n" + dlurl);
 			else
-				alert("No new version available");			
+				alert("No new version available.");			
 			break;
 	}
 }
