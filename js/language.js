@@ -274,51 +274,83 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 	let language = $("#channel_localization").val();
 	switch (language) {
 		case "fi":
-			if (newVersionExists)
-				alert("Uusi versio " + version + " saatavilla:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Uusi versio " + version + " saatavilla, haluatko ladata?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Uutta versiota ei saatavilla.");			
 			break;
 		case "se":
-			if (newVersionExists)
-				alert("Ny version " + version + " tillgänglig:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Ny version " + version + " tillgänglig, vill du ladda ner?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Ingen ny version tillgänglig.");			
 			break;
 		case "es":
-			if (newVersionExists)
-				alert("Nueva versión " + version + " disponible:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Nueva versión " + version + " disponible, ¿quieres descargar?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("No hay nueva versión disponible.");			
 			break;	
 		case "de":
-			if (newVersionExists)
-				alert("Neue Version " + version + " verfügbar:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Neue Version " + version + " verfügbar, möchten Sie herunterladen?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Keine neue Version verfügbar.");			
 			break;
 		case "fr":
-			if (newVersionExists)
-				alert("Nouvelle version " + version + " disponible:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Nouvelle version " + version + " disponible, tu veux télécharger?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Aucune nouvelle version disponible.");			
 			break;		
         case "pt":
-			if (newVersionExists)
-				alert("Nova versão " + version + " disponível:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Nova versão " + version + " disponível, você quer baixar?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Nenhuma nova versão disponível.");			
 			break;
         case "ru":
-			if (newVersionExists)
-				alert("Доступна новая " + version + " версия:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("Доступна новая " + version + " версия, хочешь скачать?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("Новая версия недоступна.");			
 			break;
         case "gb":
 		default:
-			if (newVersionExists)
-				alert("New version " + version + " available:\n" + dlurl);
+			if (newVersionExists) {
+				const confirmed = confirm("New version " + version + " available, do you want to download?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
 			else
 				alert("No new version available.");			
 			break;
