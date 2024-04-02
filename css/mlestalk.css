@@ -88,8 +88,8 @@ input.check_upgrades_button {
 	cursor: pointer;
 	font-size: 90%;
 	float: left;
-    position: relative;
-    left: 37%;
+    position: bottom;
+    padding-left: 20px;
 	background: transparent;
 	color: #77407b;
 	border: 0px solid #77407b;
