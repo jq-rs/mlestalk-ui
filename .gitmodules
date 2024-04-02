@@ -1,6 +1,3 @@
-[submodule "webworker"]
-	path = webworker
-	url = ssh://git@github.com/jq-rs/mlestalk-webworker.git
 [submodule "zpinc-webworker"]
 	path = zpinc-webworker
 	url = ./zpinc-webworker
