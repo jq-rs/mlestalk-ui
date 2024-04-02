@@ -1799,10 +1799,11 @@ function checkUpgrades() {
 		// Parse the JSON data and extract the version item
 		const version = data.version;
 		const dlurl = data.url;
+		const filename = data.filename;
 		const b2sum = data.b2sum;
 
 		if (version != VERSION) {
-		    verAlert(true, version, dlurl, b2sum);
+		    verAlert(true, version, dlurl, filename, b2sum);
 		}
 		else {
 			verAlert(false);
@@ -1813,10 +1814,11 @@ function checkUpgrades() {
 	});
 }
 
-function downloadFile(url) {
+function downloadFile(url, filename) {
     // Programmatically create a link element
     const link = document.createElement('a');
     link.href = url;
+	link.download = filename; 
 
     // Simulate a click on the link element to initiate the download
     document.body.appendChild(link);

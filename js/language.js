@@ -270,14 +270,14 @@ function popChannelAlert() {
 	}
 }
 
-function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
+function verAlert(newVersionExists, version = "", dlurl = "", filename="", b2sum="") {
 	let language = $("#channel_localization").val();
 	switch (language) {
 		case "fi":
 			if (newVersionExists) {
 				const confirmed = confirm("Uusi versio " + version + " saatavilla, haluatko ladata?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -287,7 +287,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Ny version " + version + " tillgänglig, vill du ladda ner?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -297,7 +297,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Nueva versión " + version + " disponible, ¿quieres descargar?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -307,7 +307,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Neue Version " + version + " verfügbar, möchten Sie herunterladen?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -317,7 +317,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Nouvelle version " + version + " disponible, tu veux télécharger?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -327,7 +327,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Nova versão " + version + " disponível, você quer baixar?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -337,7 +337,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("Доступна новая " + version + " версия, хочешь скачать?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
@@ -348,7 +348,7 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
 			if (newVersionExists) {
 				const confirmed = confirm("New version " + version + " available, do you want to download?");
 				if (confirmed) {
-					downloadFile(dlurl);
+					downloadFile(dlurl, filename);
 				}
 			}
 			else
