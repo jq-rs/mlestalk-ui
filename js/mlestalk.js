@@ -64,6 +64,7 @@ const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 4; /* ms */
+const CHECKUPG_SLEEP = 5000; /* ms */
 const IMG_THUMBSZ = 100; /* px */
 const IMG_MAXFRAGSZ = 2048; /* B */
 const DATA_MAXINDEX = 4096;
@@ -403,6 +404,8 @@ function onLoad() {
 		document.addEventListener("pause", onPause, false);
 		document.addEventListener("resume", onResume, false);
 		document.addEventListener("backbutton", onBackKeyDown, false);
+
+		checkUpgrades();
 
 		isCordova = true;
 	}, false);
@@ -1787,7 +1790,8 @@ function record() {
     }
 }
 
-function checkUpgrades() {
+async function checkUpgrades() {
+	await sleep(CHECKUPG_SLEEP);
 	fetch(UPGINFO_URL)
 	.then(response => {
 		if (!response.ok) {
@@ -1804,12 +1808,9 @@ function checkUpgrades() {
 		if (version != VERSION) {
 		    verAlert(true, version, dlurl, b2sum);
 		}
-		else {
-			verAlert(false);
-		}
 	})
 	.catch(error => {
-		console.error('There was a problem fetching the data:', error);
+		console.error("Upgrade check error: ", error);
 	});
 }
 
