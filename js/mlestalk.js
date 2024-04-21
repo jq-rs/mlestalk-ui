@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.0beta";
+const VERSION = "3.0.1beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1082,11 +1082,11 @@ function processData(uid, channel, msgTimestamp,
 							+ '</font>';
 					}
 				}
-				if(gActiveChannel == channel && false == gIsPause) {
-					let audio = new Audio(message);
-					audio.loop = false;
-					audio.play();
-				}
+				//if(gActiveChannel == channel && false == gIsPause) {
+				//	let audio = new Audio(message);
+				//	audio.loop = false;
+				//	audio.play();
+				//}
 			}
 			else if(message.substring(0,IMGDATASTR.length) == IMGDATASTR) {
 				isImage = true;
