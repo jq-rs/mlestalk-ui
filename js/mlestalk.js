@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.1beta";
+const VERSION = "3.0.5beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1221,7 +1221,7 @@ function processData(uid, channel, msgTimestamp,
 function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio) {
 	if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
 		//if user has scrolled, do not scroll to bottom unless full message
-		if(messages_list.scrollTop >= gPrevScrollTop[channel]-200) { //webview is not accurate in scrolltop
+		if(messages_list.scrollTop >= gPrevScrollTop[channel]) { //webview is not accurate in scrolltop
 			scrollToBottom(channel);
 		}
 	}
@@ -1551,7 +1551,7 @@ function eightBytesString(val) {
 
 async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
 	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
-	let limit = 2**6;
+	let limit = 2**8;
 	let size = limit;
 	let index = 0;
 
