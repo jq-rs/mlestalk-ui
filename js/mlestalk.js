@@ -258,7 +258,6 @@ function queuePostMsg(uid, channel, arr) {
 let autolinker = new Autolinker({
 	urls: {
 		schemeMatches: true,
-		wwwMatches: true,
 		tldMatches: true
 	},
 	email: true,
