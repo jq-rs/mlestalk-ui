@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.5beta";
+const VERSION = "3.0.6beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1221,7 +1221,7 @@ function processData(uid, channel, msgTimestamp,
 function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio) {
 	if(gActiveChannel == channel && (isFull || 0 == $('#input_message').val().length)) {
 		//if user has scrolled, do not scroll to bottom unless full message
-		if(messages_list.scrollTop >= gPrevScrollTop[channel]) { //webview is not accurate in scrolltop
+		if(messages_list.scrollTop >= gPrevScrollTop[channel]-400) { //webview is not accurate in scrolltop
 			scrollToBottom(channel);
 		}
 	}
