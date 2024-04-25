@@ -486,7 +486,7 @@ function joinExistingChannels(channels) {
 				initReconnect(channel);
 
 				getLocalBdKey(channel);
-				gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+				gWebWorker.postMessage(["init", null, utf8Encode(gMyAddr[channel]), utf8Encode(gMyPort[channel]), utf8Encode(gMyName[channel]), utf8Encode(gMyChannel[channel]), utf8Encode(gMyKey[channel]), gPrevBdKey[channel]]);
 			}
 		}
 	}
@@ -566,7 +566,7 @@ function askChannelNew() {
 
 		/* Load keys from local storage */
 		getLocalBdKey(channel);
-		gWebWorker.postMessage(["init", null, gMyAddr[channel], gMyPort[channel], gMyName[channel], gMyChannel[channel], gMyKey[channel], gPrevBdKey[channel]]);
+		gWebWorker.postMessage(["init", null, utf8Encode(gMyAddr[channel]), utf8Encode(gMyPort[channel]), utf8Encode(gMyName[channel]), utf8Encode(gMyChannel[channel]), utf8Encode(gMyKey[channel]), gPrevBdKey[channel]]);
 		if(!gActiveChannels)
 			gActiveChannels = {};
 		gActiveChannels[channel] = channel;
@@ -619,7 +619,7 @@ function send(isFull, optData) {
 		}
 	}
 	else {
-		sendMessage(channel, message, isFull, false);
+		sendMessage(channel, utf8Encode(message), isFull, false);
 		updateAfterSend(channel, message, isFull, false, false);
 	}
 }
@@ -810,7 +810,7 @@ function closeChannel(channel) {
 	let tmpchannel = gMyChannel[channel];
 	delete gMyName[channel];
 	delete gMyChannel[channel];
-	gWebWorker.postMessage(["close", null, tmpname, tmpchannel]);
+	gWebWorker.postMessage(["close", null, utf8Encode(tmpname), utf8Encode(tmpchannel)]);
 }
 
 function initReconnect(channel) {
@@ -1174,6 +1174,9 @@ function processData(uid, channel, msgTimestamp,
 		let time = updateTime(dateString);
 		time = checkTime(uid, channel, time, isFull);
 
+		if (false == isData)
+			message = utf8Decode(message); 
+
 		if (!fsEnabled) {
 			if (uid != gMyName[channel]) {
 				li = '<div id="' + duid + '' + gIndex[channel][uid] + '"><li class="new"><span class="name"> ' + uid + '</span> '
@@ -1266,8 +1269,8 @@ gWebWorker.onmessage = function (e) {
 	switch (cmd) {
 		case "init":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
+				let uid = utf8Decode(e.data[1]);
+				let channel = utf8Decode(e.data[2]);
 				let ret = processInit(uid, channel);
 				if (ret < 0) {
 					console.log("Process init failed: " + ret);
@@ -1276,8 +1279,8 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "data":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
+				let uid = utf8Decode(e.data[1]);
+				let channel = utf8Decode(e.data[2]);
 				let msgTimestamp = e.data[3];
 				let message = e.data[4];
 				let msgtype = e.data[5];
@@ -1302,8 +1305,8 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "close":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
+				let uid = utf8Decode(e.data[1]);
+				let channel = utf8Decode(e.data[2]);
 
 				let ret = processClose(uid, channel);
 				if (ret < 0) {
@@ -1313,8 +1316,8 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "forwardsecrecy":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
+				let uid = utf8Decode(e.data[1]);
+				let channel = utf8Decode(e.data[2]);
 				const prevBdKey = e.data[3];
 
 				//console.log("Got forward secrecy on!")
@@ -1326,8 +1329,8 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "forwardsecrecyoff":
 			{
-				let uid = e.data[1];
-				let channel = e.data[2];
+				let uid = utf8Decode(e.data[1]);
+				let channel = utf8Decode(e.data[2]);
 
 				let ret = processForwardSecrecyOff(uid, channel);
 				//console.log("Got forward secrecy off!")
@@ -1338,7 +1341,7 @@ gWebWorker.onmessage = function (e) {
 			break;
 		case "resync":
 			{
-				let channel = e.data[2];
+				let channel = utf8Decode(e.data[2]);
 				sendEmptyJoin(channel);
 			}
 			break;
@@ -1407,7 +1410,7 @@ async function resync(uid, channel) {
 
 async function reconnect(uid, channel) {
 	if (null == gMyChannel[channel]) {
-		gWebWorker.postMessage(["close", null, uid, channel]);
+		gWebWorker.postMessage(["close", null, utf8Encode(uid), utf8Encode(channel)]);
 		return;
 	}
 	if (true == gIsReconnect[channel]) {
@@ -1422,7 +1425,7 @@ async function reconnect(uid, channel) {
 	//console.log("Sleeping " + gReconnTimeout[channel]);
 	await sleep(gReconnTimeout[channel]);
 	gReconnTimeout[channel] *= 2;
-	gWebWorker.postMessage(["reconnect", null, uid, channel, gPrevBdKey[channel]]);
+	gWebWorker.postMessage(["reconnect", null, utf8Encode(uid), utf8Encode(channel), gPrevBdKey[channel]]);
 }
 
 /* Called from the background thread */
@@ -1431,7 +1434,7 @@ function syncReconnect() {
 		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
 			if (true == gIsReconnect[channel])
 				continue;
-			gWebWorker.postMessage(["reconnect", null, gMyName[channel], gMyChannel[channel], gPrevBdKey[channel]]);
+			gWebWorker.postMessage(["reconnect", null, utf8Encode(gMyName[channel]), utf8Encode(gMyChannel[channel]), gPrevBdKey[channel]]);
 			sendEmptyJoin(gMyChannel[channel]);
 		}
 	}
@@ -1449,7 +1452,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
 		const msgDate = parseInt(Date.now() / 1000) * 1000; //in seconds
 		let mHash;
 
-		let arr = [cmd, data, uid, channel, msgtype, msgDate.valueOf()];
+		let arr = [cmd, data, utf8Encode(uid), utf8Encode(channel), msgtype, msgDate.valueOf()];
 
 		if (!(msgtype & MSGISPRESENCE) && gSipKey[channel]) {
 			mHash = hashMessage(uid, channel, msgtype & MSGISFULL ? msgDate.valueOf() + data + '\n' : msgDate.valueOf() + data);
@@ -1820,4 +1823,12 @@ function downloadFile(url) {
 
     // Clean up: remove the link element from the DOM
     document.body.removeChild(link);
+}
+
+function utf8Decode(string) {
+	return decodeURIComponent(string);
+}
+
+function utf8Encode(utftext) {
+	return encodeURIComponent(utftext);
 }
