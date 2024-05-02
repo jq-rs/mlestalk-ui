@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.10beta";
+const VERSION = "3.0.12beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -63,7 +63,7 @@ const RESYNC_TIMEOUT = 2500; /* ms */
 const LED_ON_TIME = 500; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
-const ASYNC_SLEEP = 4; /* ms */
+const ASYNC_SLEEP = 1; /* ms */
 const CHECKUPG_SLEEP = 5000; /* ms */
 const IMG_THUMBSZ = 100; /* px */
 const IMG_MAXFRAGSZ = 2048; /* B */
@@ -98,7 +98,6 @@ let gCanNotify = false;
 let gWillNotify = true;
 let gIsPause = false;
 let isCordova = false;
-let gIsReconnect = {};
 let gImageCnt = 0;
 
 //message-list of channels
@@ -816,7 +815,6 @@ function closeChannel(channel) {
 function initReconnect(channel) {
 	gReconnTimeout[channel] = RETIMEOUT;
 	gReconnAttempts[channel] = 0;
-	gIsReconnect[channel] = false;
 }
 
 function processInit(uid, channel) {
@@ -833,12 +831,11 @@ function processInit(uid, channel) {
 			gNewMsgsCnt[channel] = 0;
 		}
 
-		let li;
-		if (gIsReconnect[channel] && gLastMessageSeenTs[channel] > 0) {
+		if (gLastMessageSeenTs[channel] > 0) {
 			//do nothing
 		}
 		else {
-			li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
+			let li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
 			if(gActiveChannel == channel)
 				$('#messages').append(li);
 			gMsgs[channel].push(li);
@@ -1258,7 +1255,6 @@ function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio)
 }
 
 function processClose(uid, channel) {
-	gIsReconnect[channel] = false;
 	if (uid == gMyName[channel] && channel == gMyChannel[channel]) {
 		reconnect(uid, channel);
 	}
@@ -1413,15 +1409,11 @@ async function reconnect(uid, channel) {
 		gWebWorker.postMessage(["close", null, utf8Encode(uid), utf8Encode(channel)]);
 		return;
 	}
-	if (true == gIsReconnect[channel]) {
-		return;
-	}
 	if (gReconnTimeout[channel] > MAXTIMEOUT) {
 		gReconnTimeout[channel] = MAXTIMEOUT;
 		gReconnAttempts[channel] += 1;
 	}
 
-	gIsReconnect[channel] = true;
 	//console.log("Sleeping " + gReconnTimeout[channel]);
 	await sleep(gReconnTimeout[channel]);
 	gReconnTimeout[channel] *= 2;
@@ -1432,8 +1424,6 @@ async function reconnect(uid, channel) {
 function syncReconnect() {
 	for (let channel in gMyChannel) {
 		if (gInitOk[channel] && gMyName[channel] && gMyChannel[channel]) {
-			if (true == gIsReconnect[channel])
-				continue;
 			gWebWorker.postMessage(["reconnect", null, utf8Encode(gMyName[channel]), utf8Encode(gMyChannel[channel]), gPrevBdKey[channel]]);
 			sendEmptyJoin(gMyChannel[channel]);
 		}
@@ -1553,7 +1543,7 @@ function eightBytesString(val) {
 
 async function sendDataurlMulti(dataUrl, uid, channel, image_cnt) {
 	let msgtype = MSGISFULL | MSGISDATA | MSGISMULTIPART | MSGISFIRST;
-	let limit = 2**9;
+	let limit = 2**10;
 	let size = limit;
 	let index = 0;
 
