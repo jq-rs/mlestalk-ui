@@ -218,7 +218,7 @@ function queueFlush(uid, channel) {
 	}
 }
 
-function queueSweepAndSend(uid, channel) {
+async function queueSweepAndSend(uid, channel) {
 	let q = uidQueueGet(uid, channel);
 	let cnt = 0;
 	if (q) {
@@ -238,6 +238,7 @@ function queueSweepAndSend(uid, channel) {
 					i -= 1;
 					len -= 1;
 				}
+				await sleep(ASYNC_SLEEP);
 			}
 		}
 	}
