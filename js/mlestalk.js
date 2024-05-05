@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.13beta";
+const VERSION = "3.0.14beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -833,13 +833,17 @@ function processInit(uid, channel) {
 		}
 
 		if (gLastMessageSeenTs[channel] > 0) {
-			//do nothing
+			//console.log("last message not zero")
 		}
 		else {
 			let li = '<li class="new"> - <span class="name">' + uid + "@" + channel + '</span> - </li>';
 			if(gActiveChannel == channel)
 				$('#messages').append(li);
 			gMsgs[channel].push(li);
+		}
+		if (0 == gIsResync[channel]) {
+			console.log("Resyncing " + channel);
+			resync(uid, channel);
 		}
 
 		return 0;
@@ -955,14 +959,10 @@ function processData(uid, channel, msgTimestamp,
 	let li;
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
+	gIsResync[channel] += 1;
 
 	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
 	if (uid == gMyName[channel]) {
-		if (0 == gIsResync[channel]) {
-			console.log("Resyncing " + channel);
-			resync(uid, channel);
-		}
-		gIsResync[channel] += 1;
 		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Match full or presence messages */
 			queueFindAndMatch(msgTimestamp, uid, channel, mHash);
 	}
@@ -1320,7 +1320,7 @@ gWebWorker.onmessage = function (e) {
 				//console.log("Got forward secrecy on!")
 				let ret = processForwardSecrecy(uid, channel, prevBdKey);
 				if (ret < 0) {
-					console.log("Process close failed: " + ret);
+					console.log("Process forward secrecy failed: " + ret);
 				}
 			}
 			break;
@@ -1332,7 +1332,7 @@ gWebWorker.onmessage = function (e) {
 				let ret = processForwardSecrecyOff(uid, channel);
 				//console.log("Got forward secrecy off!")
 				if (ret < 0) {
-					console.log("Process close failed: " + ret);
+					console.log("Process forward secrecy off failed: " + ret);
 				}
 			}
 			break;
