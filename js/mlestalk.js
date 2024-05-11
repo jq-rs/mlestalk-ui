@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.15beta";
+const VERSION = "3.0.16beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
