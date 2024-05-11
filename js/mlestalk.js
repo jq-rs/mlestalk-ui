@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2024 MlesTalk developers
  */
-const VERSION = "3.0.14beta";
+const VERSION = "3.0.15beta";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -242,7 +242,6 @@ async function queueSweepAndSend(uid, channel) {
 			}
 		}
 	}
-	gIsResync[channel] = 0;
 	console.log("Resync for " + channel + " complete: swept " + cnt + " msgs.");
 }
 
@@ -841,8 +840,10 @@ function processInit(uid, channel) {
 				$('#messages').append(li);
 			gMsgs[channel].push(li);
 		}
+
 		if (0 == gIsResync[channel]) {
-			console.log("Resyncing " + channel);
+			console.log("Resyncing init " + channel);
+			gIsResync[channel] += 1
 			resync(uid, channel);
 		}
 
@@ -959,12 +960,21 @@ function processData(uid, channel, msgTimestamp,
 	let li;
 
 	let dateString = "[" + stampTime(new Date(msgTimestamp)) + "] ";
-	gIsResync[channel] += 1;
 
+	if (gIsResync[channel] > 0)
+	{
+		gIsResync[channel] += 1;
+	}
 	const mHash = hashMessage(uid, channel, isFull ? msgTimestamp + message + '\n' : msgTimestamp + message);
-	if (uid == gMyName[channel]) {
-		if ((isFull && message.length > 0) || (!isFull && message.length == 0)) /* Match full or presence messages */
+	if ((isFull && message.length > 0) || (!isFull && message.length == 0)) { /* Match full or presence messages */
+		if (gLastMessageSeenTs[channel] > msgTimestamp && 0 == gIsResync[channel]) {
+			console.log("Resyncing msg " + channel);
+			gIsResync[channel] += 1;
+			resync(uid, channel);
+		}
+		if (uid == gMyName[channel]) {
 			queueFindAndMatch(msgTimestamp, uid, channel, mHash);
+		}
 	}
 	else if (gOwnId[channel] > 0 && message.length >= 0 && gLastWrittenMsg[channel].length > 0) {
 		let end = "</li></div>";
@@ -1137,7 +1147,7 @@ function processData(uid, channel, msgTimestamp,
 		return 0;
 	}
 
-	if (!gIsResync[channel] && presAckRequired) {
+	if (0 == gIsResync[channel] && presAckRequired) {
 		//console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
 		sendPresAck(channel);
 	}
@@ -1403,6 +1413,7 @@ async function resync(uid, channel) {
 	}
 	while(cnt < gIsResync[channel]);
 	queueSweepAndSend(uid, channel);
+	gIsResync[channel] = 0;
 }
 
 async function reconnect(uid, channel) {
