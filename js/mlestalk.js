@@ -196,12 +196,9 @@ function queueFindAndMatch(msgTimestamp, uid, channel, mHash) {
 			if (obj[0] > msgTimestamp) {
 				break;
 			}
-			if (obj[0] < msgTimestamp) {
-				lastSeen = i + 1;
-				continue;
-			}
 			if (obj[2] == mHash) {
 				lastSeen = i + 1;
+				//console.log("Last seen hash update: " + lastSeen + " ts " + msgTimestamp);
 				break;
 			}
 		}
