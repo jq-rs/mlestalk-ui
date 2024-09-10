@@ -21,6 +21,7 @@ function setLanguage() {
 			$("#channel_exit").val("poistu");
 			$("#channel_exit_all").val("poistu kaikista");
 			$("#new_channel").val("uusi kanava");
+			$("#check_upgrades").val("päivitä sovellus");
 			$("#channel_list").val("kanavat");
 			$("#channel_list_new").val("kanavat");
 			$("#app_info").text("lisätietoja sovelluksesta");
@@ -43,6 +44,7 @@ function setLanguage() {
 			$("#channel_exit").val("utgång");
 			$("#channel_exit_all").val("utgång alla");
 			$("#new_channel").val("ny kanal");
+			$("#check_upgrades").val("uppgradera appen");
 			$("#channel_list").val("kanaler");
 			$("#channel_list_new").val("kanaler");
 			$("#app_info").text("appinfo");
@@ -64,7 +66,8 @@ function setLanguage() {
 			$("#channel_server").text("Dirección del servidor Websocket");
 			$("#channel_exit").val("salida");
 			$("#channel_exit_all").val("salir de todo");
-			$("#new_channel").text("nuevo canal");
+			$("#new_channel").val("nuevo canal");
+			$("#check_upgrades").val("actualizar la aplicación");
 			$("#channel_list").val("canales");
 			$("#channel_list_new").val("canales");
 			$("#app_info").text("info de la app");
@@ -86,7 +89,8 @@ function setLanguage() {
 			$("#channel_server").text("WebSocket Serveradresse");
 			$("#channel_exit").val("verlassen");
 			$("#channel_exit_all").val("alle verlassen");
-			$("#new_channel").text("neuer Kanal");
+			$("#new_channel").val("neuer Kanal");
+			$("#check_upgrades").val("upgrade-App");
 			$("#channel_list").val("Kanäle");
 			$("#channel_list_new").val("Kanäle");
 			$("#app_info").text("app info");
@@ -109,6 +113,7 @@ function setLanguage() {
 			$("#channel_exit").val("sortie");
 			$("#channel_exit_all").val("tout quitter");
 			$("#new_channel").val("nouveau canal");
+			$("#check_upgrades").val("mise à niveau de l'application");
 			$("#channel_list").val("canaux");
 			$("#channel_list_new").val("canaux");
 			$("#app_info").text("info sur l'app");
@@ -131,6 +136,7 @@ function setLanguage() {
 			$("#channel_exit").val("saída");
 			$("#channel_exit_all").val("saia de tudo");
 			$("#new_channel").val("novo canal");
+			$("#check_upgrades").val("atualizar aplicativo");
 			$("#channel_list").val("canais");
 			$("#channel_list_new").val("canais");
 			$("#app_info").text("informação da aplicação");
@@ -153,6 +159,7 @@ function setLanguage() {
 			$("#channel_exit").val("выход");
 			$("#channel_exit_all").val("выйти из всего");
 			$("#new_channel").val("новый канал");
+			$("#check_upgrades").val("Обновление приложения");
 			$("#channel_list").val("каналами");
 			$("#channel_list_new").val("каналами");
 			$("#app_info").text("информация о приложении");
@@ -176,6 +183,7 @@ function setLanguage() {
 			$("#channel_exit").val("exit");
 			$("#channel_exit_all").val("exit all");
 			$("#new_channel").val("new channel");
+			$("#check_upgrades").val("upgrade");
 			$("#channel_list").val("channels");
 			$("#channel_list_new").val("channels");
 			$("#app_info").text("app info");
@@ -258,6 +266,93 @@ function popChannelAlert() {
         	case "gb":
 		default:
 			alert('Channel already exists');
+			break;
+	}
+}
+
+function verAlert(newVersionExists, version = "", dlurl = "", b2sum="") {
+	let language = $("#channel_localization").val();
+	switch (language) {
+		case "fi":
+			if (newVersionExists) {
+				const confirmed = confirm("Uusi versio " + version + " saatavilla, haluatko ladata?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Uutta versiota ei saatavilla.");			
+			break;
+		case "se":
+			if (newVersionExists) {
+				const confirmed = confirm("Ny version " + version + " tillgänglig, vill du ladda ner?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Ingen ny version tillgänglig.");			
+			break;
+		case "es":
+			if (newVersionExists) {
+				const confirmed = confirm("Nueva versión " + version + " disponible, ¿quieres descargar?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("No hay nueva versión disponible.");			
+			break;	
+		case "de":
+			if (newVersionExists) {
+				const confirmed = confirm("Neue Version " + version + " verfügbar, möchten Sie herunterladen?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Keine neue Version verfügbar.");			
+			break;
+		case "fr":
+			if (newVersionExists) {
+				const confirmed = confirm("Nouvelle version " + version + " disponible, tu veux télécharger?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Aucune nouvelle version disponible.");			
+			break;		
+        case "pt":
+			if (newVersionExists) {
+				const confirmed = confirm("Nova versão " + version + " disponível, você quer baixar?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Nenhuma nova versão disponível.");			
+			break;
+        case "ru":
+			if (newVersionExists) {
+				const confirmed = confirm("Доступна новая " + version + " версия, хочешь скачать?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("Новая версия недоступна.");			
+			break;
+        case "gb":
+		default:
+			if (newVersionExists) {
+				const confirmed = confirm("New version " + version + " available, do you want to download?");
+				if (confirmed) {
+					downloadFile(dlurl);
+				}
+			}
+			else
+				alert("No new version available.");			
 			break;
 	}
 }
