@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019-2024 MlesTalk developers
+ * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.0.17beta";
+const VERSION = "3.0.18";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -379,7 +379,6 @@ function onLoad() {
 		cordova.plugins.notification.local.requestPermission(function (granted) {
 			gCanNotify = granted;
 		});
-		cordova.plugins.notification.local.setDummyNotifications();
 		gCanNotify = true;
 
 		cordova.plugins.backgroundMode.setDefaults({
