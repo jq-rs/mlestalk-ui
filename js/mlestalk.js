@@ -297,7 +297,6 @@ function get_uniq(uid, channel) {
 let gWebWorker = new Worker('zpinc-webworker/js/webworker.js');
 
 function onPause() {
-	gWillNotify = true;
 	gIsPause = true;
 	if (isCordova) {
 		if (!cordova.plugins.backgroundMode.isActive()) {
@@ -307,22 +306,21 @@ function onPause() {
 			title: gBgTitle,
 			text: gBgText
 		});
-		cordova.plugins.backgroundMode.toBackground();
-		cordova.plugins.notification.badge.clear();
 		cordova.plugins.notification.local.clearAll();
+		cordova.plugins.backgroundMode.toBackground();
 	}
 }
 
 function onResume() {
-	gWillNotify = true;
 	gIsPause = false;
 	if (isCordova) {
 		cordova.plugins.notification.local.clearAll();
-		cordova.plugins.notification.badge.clear();
 		cordova.plugins.backgroundMode.fromBackground();
 	}
 	if(gActiveChannel)
 		scrollToBottom(gActiveChannel);
+	else if(gIsPresenceView || gIsChannelListView) 
+		presenceChannelListShow();
 }
 
 function onBackKeyDown() {
@@ -387,7 +385,6 @@ function onLoad() {
 		});
 
 		cordova.plugins.notification.local.setDefaults({
-			led: { color: '#77407B', on: LED_ON_TIME, off: LED_OFF_TIME },
 			androidAllowWhileIdle: true,
                         androidChannelEnableLights: true,
                         androidChannelEnableVibration: true
@@ -689,6 +686,7 @@ function chanExit() {
 
 function outputPresenceChannelList() {
 	let date = Date.now();
+	let msgcnt = 0;
 	let cnt = 0;
 
 	for (let val in gMyChannel) {
@@ -698,8 +696,10 @@ function outputPresenceChannelList() {
 				let li;
 
 				cnt++;
-				if(gMsgs[channel])
+				if(gMsgs[channel]) {
+					msgcnt += gMsgs[channel].getLength();
 					li = '<li class="new" id="' + channel + '"><span class="name">&#128274;' + channel + ' (<b>' + gNewMsgsCnt[channel] + '</b>/' + gMsgs[channel].getLength() + ')</span></li>';
+				}
 				else
 					li = '<li class="new" id="' + channel + '"><span class="name">&#128274;' + channel + ' (<b>-</b>/-)</span></li>';
 
@@ -769,12 +769,12 @@ function outputPresenceChannelList() {
 	}
 	else
                 newChannelShow();
+
+	return msgcnt;
 }
 
 async function presenceChannelListShow() {
-	let cnt;
-	while (gIsPresenceView || gIsChannelListView) {
-		//console.log("Building presence list..");
+	while ((gIsPresenceView || gIsChannelListView) && gIsPause == false) { 
 		$('#presence_avail').html('');
 		outputPresenceChannelList();
 		await sleep(LISTING_SHOW_TIMER);
@@ -782,7 +782,6 @@ async function presenceChannelListShow() {
 }
 
 function channelListShow() {
-	let cnt;
 	gIsChannelListView = true;
 	gActiveChannel = null;
 	if(true == gRecStatus)
@@ -1260,9 +1259,6 @@ function finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio)
 
 	if(isFull && (gActiveChannel != channel || gIsPause) && uid != gMyName[channel] && gMsgTs[channel] < msgTimestamp) {
 		gNewMsgsCnt[channel] += 1;
-		if (isCordova && gIsPause) {
-			cordova.plugins.notification.badge.increase();
-		}
 	}
 
 	const notifyTimestamp = parseInt(msgTimestamp / 1000 / 60); //one notify per minute
