@@ -401,7 +401,6 @@ function onLoad() {
 		checkUpgrades();
 
 		isCordova = true;
-		getExactAlarmPermission();
 	}, false);
 
 	getFront();
@@ -412,24 +411,6 @@ function getAudioPermission() {
 		var Permission = window.plugins.Permission;
 
 		var permission = 'android.permission.RECORD_AUDIO';
-
-		Permission.has(permission, function(results) {
-			if (!results[permission]) {
-				Permission.request(permission, function(results) {
-					if (result[permission]) {
-						// permission is granted
-					}
-				}, alert);
-			}
-		}, alert);
-	}
-}
-
-function getExactAlarmPermission() {
-	if(isCordova) {
-		var Permission = window.plugins.Permission;
-
-		var permission = 'android.permission.SCHEDULE_EXACT_ALARM';
 
 		Permission.has(permission, function(results) {
 			if (!results[permission]) {
