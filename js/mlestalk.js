@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.0.22";
+const VERSION = "3.0.23";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -54,6 +54,7 @@ const IMGFRAGSIZE = 512 * 1024;
 
 let gInitOk = {};
 const PRESENCETIME = (3 * 60 + 1) * 1000; /* ms */
+const PRESENCEACKTIME = PRESENCETIME; /* ms */
 const IDLETIME = (11 * 60 + 1) * 1000; /* ms */
 const LISTING_SHOW_TIMER = 2000; /* ms */
 const RETIMEOUT = 1500; /* ms */
@@ -1270,16 +1271,6 @@ function processData(
     return 0;
   }
 
-  if (0 == gIsResync[channel] && presAckRequired) {
-    //console.log("Sending presence ack to " + uid + " timestamp " + stampTime(new Date(msgTimestamp)) + "!");
-    sendPresAck(channel);
-  }
-
-  if (isFull && 0 == message.length) {
-    /* Ignore init messages in timestamp processing */
-    return 0;
-  }
-
   if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
     gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
@@ -1287,6 +1278,14 @@ function processData(
       gLastMessageSeenTs[channel] = msgTimestamp;
 
     if (isPresence) {
+      let datenow = Date.now();
+      let doSndPresAck = false;
+
+      if (msgTimestamp.valueOf() < datenow.valueOf() - PRESENCEACKTIME)
+        doSndPresAck = true;
+
+      if (0 == gIsResync[channel] && presAckRequired && doSndPresAck)
+        sendPresAck(channel);
       return 1;
     }
 
