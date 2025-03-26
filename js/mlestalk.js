@@ -39,7 +39,7 @@ const MSGISMULTIPART = 0x1 << 3;
 const MSGISFIRST = 0x1 << 4;
 const MSGISLAST = 0x1 << 5;
 const MSGISPRESENCEACK = 0x1 << 6;
-const MSGPRESACKREQ = 0x1 << 7;
+const RESERVED = 0x1 << 7;
 const MSGISBDONE = 0x1 << 8;
 const MSGISBDACK = 0x1 << 9;
 const AUDIODATASTR = "data:audio/webm";
@@ -977,7 +977,6 @@ function processData(
   isFull,
   isPresence,
   isPresenceAck,
-  presAckRequired,
   isData,
   isMultipart,
   isFirst,
@@ -1281,11 +1280,13 @@ function processData(
       let datenow = Date.now();
       let doSndPresAck = false;
 
-      if (msgTimestamp.valueOf() < datenow.valueOf() - PRESENCEACKTIME)
+      if (
+        !isPresenceAck &&
+        msgTimestamp.valueOf() < datenow.valueOf() - PRESENCEACKTIME
+      )
         doSndPresAck = true;
 
-      if (0 == gIsResync[channel] && presAckRequired && doSndPresAck)
-        sendPresAck(channel);
+      if (0 == gIsResync[channel] && doSndPresAck) sendPresAck(channel);
       return 1;
     }
 
@@ -1476,7 +1477,6 @@ gWebWorker.onmessage = function (e) {
           msgtype & MSGISFULL ? true : false,
           msgtype & MSGISPRESENCE ? true : false,
           msgtype & MSGISPRESENCEACK ? true : false,
-          msgtype & MSGPRESACKREQ ? true : false,
           msgtype & MSGISDATA ? true : false,
           msgtype & MSGISMULTIPART ? true : false,
           msgtype & MSGISFIRST ? true : false,
