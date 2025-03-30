@@ -1283,10 +1283,14 @@ function processData(
       if (
         !isPresenceAck &&
         msgTimestamp.valueOf() < datenow.valueOf() - PRESENCEACKTIME
-      )
+      ) {
         doSndPresAck = true;
+      }
 
-      if (0 == gIsResync[channel] && doSndPresAck) sendPresAck(channel);
+      if (0 == gIsResync[channel] && doSndPresAck) {
+        console.log("Sending presence ack for channel " + channel);
+        sendPresAck(channel);
+      }
       return 1;
     }
 
