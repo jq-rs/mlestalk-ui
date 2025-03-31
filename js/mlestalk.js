@@ -1710,7 +1710,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"> ' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        "</span> " +
         time +
         "" +
         autolinker.link(message) +
@@ -1719,7 +1721,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><font color="' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        '</span><font color="' +
         FSFONTCOLOR +
         '"> ' +
         time +
@@ -1732,7 +1736,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"> ' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        "</span> " +
         time +
         '🎙 <audio controls src="' +
         message +
@@ -1741,7 +1747,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><font color="' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        '</span><font color="' +
         FSFONTCOLOR +
         '"> ' +
         time +
@@ -1750,11 +1758,14 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         '" /></font></li></div>';
     }
   } else {
+    // This is for images
     if (!gForwardSecrecy[channel]) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"> ' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        "</span> " +
         time +
         '<img class="image" src="' +
         message +
@@ -1763,7 +1774,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><font color="' +
+        '"><li class="own"><span class="name">' +
+        gMyName[channel] +
+        '</span><font color="' +
         FSFONTCOLOR +
         '"> ' +
         time +
