@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.0.23";
+const VERSION = "3.0.24";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1136,7 +1136,9 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"> ' +
+              '"><li class="own"><span class="name">' +
+              uid +
+              "</span> " +
               time +
               '🎙 <audio controls src="' +
               message +
@@ -1165,18 +1167,18 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"><font color="' +
+              '"><li class="own"><span class="name">' +
+              uid +
+              '</span><font color="' +
               FSFONTCOLOR +
               '"> ' +
-              time;
-            '🎙 <audio controls src="' + message + '" />' + "</font>";
+              time +
+              '🎙 <audio controls src="' +
+              message +
+              '" />' +
+              "</font>";
           }
         }
-        //if(gActiveChannel == channel && false == gIsPause) {
-        //	let audio = new Audio(message);
-        //	audio.loop = false;
-        //	audio.play();
-        //}
       } else if (message.substring(0, IMGDATASTR.length) == IMGDATASTR) {
         isImage = true;
         if (!fsEnabled) {
@@ -1201,7 +1203,9 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"> ' +
+              '"><li class="own"><span class="name">' +
+              uid +
+              "</span> " +
               time +
               '<img class="image" src="' +
               message +
@@ -1233,7 +1237,9 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"><font color="' +
+              '"><li class="own"><span class="name">' +
+              uid +
+              '</span><font color="' +
               FSFONTCOLOR +
               '"> ' +
               time +
@@ -1318,7 +1324,7 @@ function processData(
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="new"><span class="name"> ' +
+          '"><li class="new"><span class="name">' +
           uid +
           "</span> " +
           time +
@@ -1331,7 +1337,9 @@ function processData(
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="own"> ' +
+          '"><li class="own"><span class="name">' +
+          uid +
+          "</span> " +
           time +
           "" +
           autolinker.link(message) +
@@ -1344,7 +1352,7 @@ function processData(
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="new"><span class="name"> ' +
+          '"><li class="new"><span class="name">' +
           uid +
           '</span><font color="' +
           FSFONTCOLOR +
@@ -1359,7 +1367,9 @@ function processData(
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="own"><font color="' +
+          '"><li class="own"><span class="name">' +
+          uid +
+          '</span><font color="' +
           FSFONTCOLOR +
           '"> ' +
           time +
