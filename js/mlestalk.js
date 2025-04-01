@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.0.24";
+const VERSION = "3.1.0";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -413,29 +413,47 @@ function onLoad() {
   getFront();
 }
 
-function getAudioPermission() {
+async function requestAudioPermission() {
   if (isCordova) {
-    var Permission = window.plugins.Permission;
+    return new Promise((resolve, reject) => {
+      var Permission = window.plugins.Permission;
+      var permission = "android.permission.RECORD_AUDIO";
 
-    var permission = "android.permission.RECORD_AUDIO";
-
-    Permission.has(
-      permission,
-      function (results) {
-        if (!results[permission]) {
-          Permission.request(
-            permission,
-            function (results) {
-              if (result[permission]) {
-                // permission is granted
-              }
-            },
-            alert,
-          );
-        }
-      },
-      alert,
-    );
+      Permission.has(
+        permission,
+        function (results) {
+          if (!results[permission]) {
+            Permission.request(
+              permission,
+              function (results) {
+                if (results[permission]) {
+                  resolve(true); // Permission granted
+                } else {
+                  resolve(false); // Permission denied
+                }
+              },
+              function (error) {
+                resolve(false); // Error during request
+              },
+            );
+          } else {
+            resolve(true); // Already had permission
+          }
+        },
+        function (error) {
+          resolve(false); // Error checking permission
+        },
+      );
+    });
+  } else {
+    // Browser environment
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -2019,14 +2037,23 @@ function clearLocalBdKey(channel) {
   window.localStorage.removeItem("gPrevBdKey" + channel);
 }
 
-function captureMicrophone(callback) {
-  getAudioPermission();
-  navigator.mediaDevices
-    .getUserMedia({ audio: true, video: false })
-    .then(callback)
-    .catch(function (error) {
-      //no mic, ignore
+async function captureMicrophone(callback) {
+  const audioPerm = await requestAudioPermission();
+  if (!audioPerm) {
+    throw new Error("Microphone permission denied");
+  }
+  // Try to get the audio stream
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
     });
+
+    // Success - call the callback with the stream
+    callback(stream);
+  } catch (streamError) {
+    throw new Error("Failed to access microphone: " + streamError.message);
+  }
 }
 
 function handleDataAvailable(event) {
@@ -2178,21 +2205,37 @@ function toggleQRCode() {
   }
 }
 
-function requestCameraPermission() {
+async function requestCameraPermission() {
   if (isCordova) {
     return new Promise((resolve, reject) => {
-      const permissions = cordova.plugins.permissions;
-      permissions.hasPermission(permissions.CAMERA, (status) => {
-        if (!status.hasPermission) {
-          permissions.requestPermission(
-            permissions.CAMERA,
-            (status) => resolve(status.hasPermission),
-            (error) => reject(error),
-          );
-        } else {
-          resolve(true);
-        }
-      });
+      var Permission = window.plugins.Permission;
+      var permission = "android.permission.CAMERA";
+
+      Permission.has(
+        permission,
+        function (results) {
+          if (!results[permission]) {
+            Permission.request(
+              permission,
+              function (results) {
+                if (results[permission]) {
+                  resolve(true); // Permission granted
+                } else {
+                  resolve(false); // Permission denied
+                }
+              },
+              function (error) {
+                resolve(false); // Error during request
+              },
+            );
+          } else {
+            resolve(true); // Already had permission
+          }
+        },
+        function (error) {
+          resolve(false); // Error checking permission
+        },
+      );
     });
   } else {
     // Browser environment
@@ -2204,20 +2247,6 @@ function requestCameraPermission() {
       })
       .catch(() => false);
   }
-}
-
-// Camera selection UI
-function createCameraSelect(cameras) {
-  const select = document.createElement("select");
-  select.id = "camera-select";
-  select.className = "camera-select";
-  cameras.forEach((camera, idx) => {
-    const option = document.createElement("option");
-    option.value = camera.deviceId;
-    option.text = camera.label || `Camera ${idx + 1}`;
-    select.appendChild(option);
-  });
-  return select;
 }
 
 async function startQRScanner(event) {
@@ -2263,30 +2292,9 @@ async function startQRScanner(event) {
       box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     `;
 
-    // Get available cameras
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter((device) => device.kind === "videoinput");
-
-    // Add camera selection if multiple cameras available
-    if (cameras.length > 1) {
-      const controlsDiv = document.getElementById("camera-controls");
-      const cameraSelect = createCameraSelect(cameras);
-      controlsDiv.appendChild(cameraSelect);
-
-      // Handle camera switch
-      cameraSelect.onchange = () => {
-        const selectedCamera = cameraSelect.value;
-        startCamera(selectedCamera);
-      };
-
-      // Start with first camera
-      await startCamera(cameras[0].deviceId);
-    } else {
-      // Just start with default camera
-      await startCamera();
-    }
+    // Just start with default camera
+    await startCamera();
   } catch (error) {
-    console.error("QR Scanner error:", error);
     alert("Could not start camera: " + error.message);
     stopQRScanner();
   }
