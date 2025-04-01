@@ -2136,8 +2136,8 @@ function showQRCode() {
     // Initialize QR code if not already done
     if (!qrcode) {
       qrcode = new QRCode(document.getElementById("qrcode"), {
-        width: 320,
-        height: 320,
+        width: 256,
+        height: 256,
         colorDark: "#000000",
         colorLight: "#ffffff",
         correctLevel: QRCode.CorrectLevel.M,
