@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.0.24";
+const VERSION = "3.1.0";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -120,6 +120,15 @@ const FSFONTCOLOR = "#8bac89";
 
 let gRecTimeoutId = 0;
 const REC_TIMEOUT = 1000 * 60 * 3; // Limit max recording to 3 mins
+
+let qrcode = null;
+const CAMERA_CONSTRAINTS = {
+  video: {
+    facingMode: { ideal: "environment" }, // Prefer back camera
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+};
 
 class Queue {
   constructor(...elements) {
@@ -404,29 +413,47 @@ function onLoad() {
   getFront();
 }
 
-function getAudioPermission() {
+async function requestAudioPermission() {
   if (isCordova) {
-    var Permission = window.plugins.Permission;
+    return new Promise((resolve, reject) => {
+      var Permission = window.plugins.Permission;
+      var permission = "android.permission.RECORD_AUDIO";
 
-    var permission = "android.permission.RECORD_AUDIO";
-
-    Permission.has(
-      permission,
-      function (results) {
-        if (!results[permission]) {
-          Permission.request(
-            permission,
-            function (results) {
-              if (result[permission]) {
-                // permission is granted
-              }
-            },
-            alert,
-          );
-        }
-      },
-      alert,
-    );
+      Permission.has(
+        permission,
+        function (results) {
+          if (!results[permission]) {
+            Permission.request(
+              permission,
+              function (results) {
+                if (results[permission]) {
+                  resolve(true); // Permission granted
+                } else {
+                  resolve(false); // Permission denied
+                }
+              },
+              function (error) {
+                resolve(false); // Error during request
+              },
+            );
+          } else {
+            resolve(true); // Already had permission
+          }
+        },
+        function (error) {
+          resolve(false); // Error checking permission
+        },
+      );
+    });
+  } else {
+    // Browser environment
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -2010,14 +2037,23 @@ function clearLocalBdKey(channel) {
   window.localStorage.removeItem("gPrevBdKey" + channel);
 }
 
-function captureMicrophone(callback) {
-  getAudioPermission();
-  navigator.mediaDevices
-    .getUserMedia({ audio: true, video: false })
-    .then(callback)
-    .catch(function (error) {
-      //no mic, ignore
+async function captureMicrophone(callback) {
+  const audioPerm = await requestAudioPermission();
+  if (!audioPerm) {
+    throw new Error("Microphone permission denied");
+  }
+  // Try to get the audio stream
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
     });
+
+    // Success - call the callback with the stream
+    callback(stream);
+  } catch (streamError) {
+    throw new Error("Failed to access microphone: " + streamError.message);
+  }
 }
 
 function handleDataAvailable(event) {
@@ -2115,4 +2151,315 @@ function utf8Decode(string) {
 
 function utf8Encode(utftext) {
   return encodeURIComponent(utftext);
+}
+
+function showQRCode() {
+  if (!gActiveChannel) return;
+
+  try {
+    // Create QR code content with channel details
+    const channelDetails = {
+      channel: gMyChannel[gActiveChannel],
+      key: gMyKey[gActiveChannel],
+      server: gAddrPortInput[gActiveChannel],
+    };
+
+    // Encode the content
+    const encodedContent = "mlestalk:" + btoa(JSON.stringify(channelDetails));
+
+    // Initialize QR code if not already done
+    if (!qrcode) {
+      qrcode = new QRCode(document.getElementById("qrcode"), {
+        width: 256,
+        height: 256,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+    } else {
+      qrcode.clear();
+    }
+
+    // Generate QR code
+    qrcode.makeCode(encodedContent);
+
+    // Show QR code section
+    document.getElementById("qrcode_section").style.display = "block";
+  } catch (e) {
+    console.error("Error generating QR code:", e);
+  }
+}
+
+function toggleQRCode() {
+  const qrSection = document.getElementById("qrcode_section");
+  if (qrSection) {
+    if (qrSection.style.display === "none") {
+      showQRCode();
+    } else {
+      qrSection.style.display = "none";
+      // Clear QR code when hiding
+      if (qrcode) {
+        qrcode.clear();
+      }
+    }
+  }
+}
+
+async function requestCameraPermission() {
+  if (isCordova) {
+    return new Promise((resolve, reject) => {
+      var Permission = window.plugins.Permission;
+      var permission = "android.permission.CAMERA";
+
+      Permission.has(
+        permission,
+        function (results) {
+          if (!results[permission]) {
+            Permission.request(
+              permission,
+              function (results) {
+                if (results[permission]) {
+                  resolve(true); // Permission granted
+                } else {
+                  resolve(false); // Permission denied
+                }
+              },
+              function (error) {
+                resolve(false); // Error during request
+              },
+            );
+          } else {
+            resolve(true); // Already had permission
+          }
+        },
+        function (error) {
+          resolve(false); // Error checking permission
+        },
+      );
+    });
+  } else {
+    // Browser environment
+    return navigator.mediaDevices
+      .getUserMedia(CAMERA_CONSTRAINTS)
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop());
+        return true;
+      })
+      .catch(() => false);
+  }
+}
+
+async function startQRScanner(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  try {
+    // Check camera permission first
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      throw new Error("Camera permission denied");
+    }
+
+    // Create scanner UI
+    let scannerDiv = document.getElementById("qr-scanner");
+    if (!scannerDiv) {
+      scannerDiv = document.createElement("div");
+      scannerDiv.id = "qr-scanner";
+      scannerDiv.innerHTML = `
+        <div style="position:relative;">
+          <video id="qr-video" style="width:100%;max-width:400px;" playsinline></video>
+          <div id="camera-controls" style="position:absolute;top:10px;left:10px;"></div>
+          <button onclick="stopQRScanner()" class="btn close-btn"
+            style="position:absolute;right:10px;top:10px;border-radius:50%;width:30px;height:30px;padding:0;">✕</button>
+        </div>
+      `;
+      document.body.appendChild(scannerDiv);
+    }
+
+    // Style scanner overlay
+    scannerDiv.style.cssText = `
+      display: block;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    `;
+
+    // Just start with default camera
+    await startCamera();
+  } catch (error) {
+    alert("Could not start camera: " + error.message);
+    stopQRScanner();
+  }
+}
+
+async function startCamera(deviceId = null) {
+  const video = document.getElementById("qr-video");
+  if (!video) return;
+
+  // Stop any existing stream
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach((track) => track.stop());
+  }
+
+  // Configure constraints
+  const constraints = {
+    ...CAMERA_CONSTRAINTS,
+    video: {
+      ...CAMERA_CONSTRAINTS.video,
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+    },
+  };
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+
+    // Start QR scanning
+    requestAnimationFrame(scan);
+  } catch (error) {
+    console.error("Camera start error:", error);
+    throw error;
+  }
+}
+
+// Modified stopQRScanner function
+function stopQRScanner() {
+  const scanner = document.getElementById("qr-scanner");
+  if (scanner) {
+    const video = document.getElementById("qr-video");
+    if (video && video.srcObject) {
+      video.srcObject.getTracks().forEach((track) => track.stop());
+    }
+    scanner.remove(); // Remove completely instead of just hiding
+  }
+}
+
+// Modified scan function
+function scan() {
+  const video = document.getElementById("qr-video");
+  if (!video) return;
+
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code && code.data) {
+        if (!code.data.startsWith("mlestalk:")) {
+          requestAnimationFrame(scan);
+          return;
+        }
+
+        handleQRCode(code.data);
+        return;
+      }
+    } catch (error) {
+      console.error("QR scan error:", error);
+    }
+  }
+  requestAnimationFrame(scan);
+}
+
+// Handle scanned QR code
+function handleQRCode(data) {
+  try {
+    const encodedData = data.substring(9); // Remove "mlestalk:"
+    const decodedData = atob(encodedData);
+    const channelDetails = JSON.parse(decodedData);
+
+    if (!channelDetails || !channelDetails.channel) {
+      throw new Error("Invalid QR code format");
+    }
+
+    // Fill in the form fields
+    if (channelDetails.channel) {
+      document.getElementById("input_channel").value = channelDetails.channel;
+    }
+    if (channelDetails.key) {
+      document.getElementById("input_key").value = channelDetails.key;
+    }
+    if (channelDetails.server) {
+      document.getElementById("input_addr_port").value = channelDetails.server;
+    }
+
+    // Stop scanning
+    stopQRScanner();
+  } catch (error) {
+    console.error("QR code handling error:", error);
+    // Continue scanning
+    requestAnimationFrame(scan);
+  }
+}
+
+function generateStrongKey(event) {
+  // Prevent form submission
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const passwdLength = 24;
+  // Characters to use for password generation
+  const upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowerCase = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const special = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+  // Combine all characters
+  const allChars = upperCase + lowerCase + numbers + special;
+
+  // Create array to store password characters
+  let password = new Uint8Array(passwdLength);
+
+  // Fill with secure random values
+  crypto.getRandomValues(password);
+
+  // Convert to string ensuring at least one of each required character type
+  let result = "";
+
+  // Add one of each required type first
+  result +=
+    upperCase[crypto.getRandomValues(new Uint8Array(1))[0] % upperCase.length];
+  result +=
+    lowerCase[crypto.getRandomValues(new Uint8Array(1))[0] % lowerCase.length];
+  result +=
+    numbers[crypto.getRandomValues(new Uint8Array(1))[0] % numbers.length];
+  result +=
+    special[crypto.getRandomValues(new Uint8Array(1))[0] % special.length];
+
+  // Fill the rest with random characters
+  for (let i = result.length; i < passwdLength; i++) {
+    const randomValue = crypto.getRandomValues(new Uint8Array(1))[0];
+    result += allChars[randomValue % allChars.length];
+  }
+
+  // Secure shuffle using Fisher-Yates with crypto random
+  const shuffleArray = (array) => {
+    for (let i = array.length - 1; i > 0; i--) {
+      const randomValues = crypto.getRandomValues(new Uint8Array(1));
+      const j = randomValues[0] % (i + 1);
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  };
+
+  // Shuffle the password
+  const finalPassword = shuffleArray(result.split("")).join("");
+
+  // Set the generated password to the key input
+  document.getElementById("input_key").value = finalPassword;
 }

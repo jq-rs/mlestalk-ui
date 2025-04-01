@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <!--
 /**
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -9,103 +9,248 @@
  */
 -->
 <html>
-	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; media-src 'self' data:; img-src 'self' data:; connect-src https://* wss://*;" />
-		<title>Mles WebSocket Channels</title>
-		<link href="css/zoom.css" rel="stylesheet">
-		<link href="css/mlestalk.css" rel="stylesheet">
-		<meta charset="utf-8" />
-		<meta name="viewport" content="user-scalable=yes, initial-scale=1, maximum-scale=2, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
-	</head>
-	<script src="js/jquery-3.7.1.min.js"></script>
-	<script src="js/Autolinker.js"></script>
-	<!-- <script src="js/qrcode.js"></script> -->
-	<script src="js/siphash.js"></script>
-	<script src="cordova.js"></script>
-	<script src="js/mlestalk.js"></script>
-	<script src="js/language.js"></script>
+    <head>
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; media-src 'self' data:; img-src 'self' data:; connect-src https://* wss://*;"
+        />
+        <title>Mles WebSocket Channels</title>
+        <link href="css/zoom.css" rel="stylesheet" />
+        <link href="css/mlestalk.css" rel="stylesheet" />
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="user-scalable=yes, initial-scale=1, maximum-scale=2, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi"
+        />
+    </head>
+    <script src="js/jquery-3.7.1.min.js"></script>
+    <script src="js/Autolinker.js"></script>
+    <script src="js/qrcode.js"></script>
+    <script src="js/jsQR.js"></script>
+    <script src="js/siphash.js"></script>
+    <script src="cordova.js"></script>
+    <script src="js/mlestalk.js"></script>
+    <script src="js/language.js"></script>
 
-	<body onload="onLoad()">
-		<div class="body_cont">
-			<div id="name_channel_cont" class="box_with_shadow">
-				<form id="channel_submit" method="post">
-					<div style="float:right;"><select id="channel_localization" onchange="setLanguage()">
-						<option value="gb">🇬🇧</option>
-						<option value="de">🇩🇪</option>
-						<option value="es">🇪🇸</option>
-						<option value="fi">🇫🇮</option>
-						<option value="fr">🇫🇷</option>
-						<option value="pt">🇵🇹</option>
-						<option value="ru">🇷🇺</option>
-						<option value="se">🇸🇪</option>
-					</select></div><br />
-					<p id="channel_user_name">Your name?</p>
-					<input type="text" id="input_name" />
-					<p id="channel_name">Channel?</p>
-					<input type="text" id="input_channel" />
-					<p id="channel_key">Shared key?</p>
-					<input type="password" id="input_key" autocomplete="off">
-					<input type="submit" value="&rarr;" id="the_join">
-					<div id="server_cont" class="box_with_shadow">
-						<p id="channel_server">Mles WebSocket server address</p>
-						<input type="text" id="input_addr_port" value="" />
-					</div>
-				</form>
-				<div class="field">
-					<input id="channel_list_new" class="channel_list_button" type="button" value="channels" onclick="channelListShow()" />
-					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
-				<a href="https://mles.io/app.html" id="app_info">app info</a> <a href="https://mles.io/legal.html" id="legal">legal</a>
-				</div>
-			</div>
-			<div id="message_cont" class="box_with_shadow">
-				<div id="messages_list" class="top_section">
-					<!-- <a id="qrcode_link"><div id="qrcode" style="float:right;margin:5px 5px 5px 5px;"></div></a>
-					<script type="text/javascript">
-						var qrcode = new QRCode(document.getElementById("qrcode"), {
-							text: "undefined",
-							width: 70,
-							height: 70,
-							colorDark : "#000000",
-							colorLight : "#ffffff",
-							correctLevel : QRCode.CorrectLevel.L
-						});
-					</script> -->
-					<ul id="messages">
-					</ul>
-				</div>
-				<div id="input_message_cont">
-					<form id="form_send_message" method="post" action="#">
-						<div class="field">
-							<input type="submit" id="the_send" onclick="send(true);" value="&#9166;" />
-							<input id="input_rec" type="image" src="img/mic_icon.png" onclick="record();" style="float:right;height:34px;" />
-							<label for="input_file">
-								<img src="img/imgicon.png" alt="sendimage" style="float:right;height:34px;" />
-							</label>
-							<input id="input_file" type="file" onchange="send(true);" accept="image/*"  />
-							<span><input type="text" id="input_message" oninput="send(false);" onfocus="scrollToBottomWithTimer()" autocomplete="off" autofocus /></span>
-							<br />
-						</div>
-					</form>
-				</div>
-				<div class="field">
-					<input id="channel_list" class="channel_list_button" type="button" value="channels" onclick="channelListShow()" />
-					<!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
-					<input id="channel_exit" class="exit_button" type="button" value="exit" onclick="chanExit()" />
-				</div>
-			</div>
-			<div id="presence_cont" class="box_with_shadow">
-				<div id="presence_list" class="top_section">
-					<!-- <ul id="presence_hdr"><li id="presence_header" class="new"> - Channels (new/total msgs) - </li></ul> -->
-					<ul id="presence_avail">
-					</ul>
-				</div>
-				<div class="field">
-					<input id="new_channel" class="new_channel_button" type="button" value="new_channel" onclick="newChannelShow()" />
-					<!-- <input id="check_upgrades" class="check_upgrades_button" type="button" value="check_upgrades" onclick="checkUpgrades()" /> -->
-					<input id="channel_exit_all" class="exit_button" type="button" value="channel_exit_all" onclick="chanExitAll()" />
-				</div>
-			</div>
-		</div>
-		<script src="js/zoom-vanilla.js"></script>
-	</body>
+    <body onload="onLoad()">
+        <div class="body_cont">
+            <div id="name_channel_cont" class="box_with_shadow">
+                <form id="channel_submit" method="post">
+                    <div style="float: right">
+                        <select
+                            id="channel_localization"
+                            onchange="setLanguage()"
+                        >
+                            <option value="gb">🇬🇧</option>
+                            <option value="de">🇩🇪</option>
+                            <option value="es">🇪🇸</option>
+                            <option value="fi">🇫🇮</option>
+                            <option value="fr">🇫🇷</option>
+                            <option value="pt">🇵🇹</option>
+                            <option value="ru">🇷🇺</option>
+                            <option value="se">🇸🇪</option>
+                        </select>
+                    </div>
+                    <br />
+                    <p id="channel_user_name">Your name?</p>
+                    <input type="text" id="input_name" />
+                    <div class="center-flex">
+                        <p id="channel_name" style="margin: 0">Channel?</p>
+                        <button
+                            type="button"
+                            onclick="startQRScanner(event)"
+                            class="key-btn"
+                            title="Scan QR code"
+                        >
+                            🔳
+                        </button>
+                    </div>
+                    <input type="text" id="input_channel" />
+                    <div class="center-flex">
+                        <p id="channel_key" style="margin: 0">Shared key?</p>
+                        <button
+                            onclick="generateStrongKey(event)"
+                            class="key-btn"
+                            title="Generate strong encryption key"
+                        >
+                            🔐
+                        </button>
+                    </div>
+
+                    <!-- <input type="password" id="input_key" autocomplete="off" /> -->
+                    <input type="password" id="input_key" autocomplete="off" />
+                    <input type="submit" value="&rarr;" id="the_join" />
+                    <div id="server_cont" class="box_with_shadow">
+                        <p id="channel_server">Mles WebSocket server address</p>
+                        <input type="text" id="input_addr_port" value="" />
+                    </div>
+                </form>
+                <div class="field">
+                    <input
+                        id="channel_list_new"
+                        class="channel_list_button"
+                        type="button"
+                        value="channels"
+                        onclick="channelListShow()"
+                    />
+                    <!-- <input id="presence" class="exit_button" type="button" value="presence" onclick="onBackKeyDown()" /> -->
+                    <a href="https://mles.io/app.html" id="app_info"
+                        >app info</a
+                    >
+                    <a href="https://mles.io/legal.html" id="legal">legal</a>
+                </div>
+            </div>
+            <div id="message_cont" class="box_with_shadow">
+                <div id="messages_list" class="top_section">
+                    <div
+                        id="qrcode_section"
+                        style="
+                            display: none;
+                            position: fixed;
+                            top: 40%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            background: white;
+                            padding: 20px;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                            z-index: 1000;
+                        "
+                    >
+                        <button
+                            onclick="toggleQRCode()"
+                            style="
+                                position: absolute;
+                                right: 0px;
+                                top: -2px;
+                                background: transparent;
+                                border: none;
+                                font-size: 20px;
+                                cursor: pointer;
+                                color: #666;
+                                padding: 5px;
+                                line-height: 1;
+                            "
+                        >
+                            ✕
+                        </button>
+                        <div
+                            id="qrcode"
+                            style="
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                            "
+                        ></div>
+                    </div>
+                    <ul id="messages"></ul>
+                </div>
+                <div id="input_message_cont">
+                    <form id="form_send_message" method="post" action="#">
+                        <div class="field">
+                            <input
+                                type="submit"
+                                id="the_send"
+                                onclick="send(true);"
+                                value="&#9166;"
+                            />
+                            <input
+                                id="input_rec"
+                                type="image"
+                                src="img/mic_icon.png"
+                                onclick="record();"
+                                style="float: right; height: 34px"
+                            />
+                            <label for="input_file">
+                                <img
+                                    src="img/imgicon.png"
+                                    alt="sendimage"
+                                    style="float: right; height: 34px"
+                                />
+                            </label>
+                            <input
+                                id="input_file"
+                                type="file"
+                                onchange="send(true);"
+                                accept="image/*"
+                            />
+                            <span
+                                ><input
+                                    type="text"
+                                    id="input_message"
+                                    oninput="send(false);"
+                                    onfocus="scrollToBottomWithTimer()"
+                                    autocomplete="off"
+                                    autofocus
+                            /></span>
+                            <br />
+                        </div>
+                    </form>
+                </div>
+                <div
+                    class="field"
+                    style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-end;
+                        margin-bottom: 0;
+                        padding-bottom: 0;
+                    "
+                >
+                    <div style="flex: 1">
+                        <input
+                            id="channel_list"
+                            class="channel_list_button"
+                            type="button"
+                            value="channels"
+                            onclick="channelListShow()"
+                        />
+                    </div>
+                    <div style="flex: 1; text-align: center">
+                        <input
+                            id="qrcode"
+                            class="qrcode_button"
+                            type="button"
+                            value="qr code"
+                            onclick="showQRCode()"
+                        />
+                    </div>
+                    <div style="flex: 1; text-align: right">
+                        <input
+                            id="channel_exit"
+                            class="exit_button"
+                            type="button"
+                            value="exit"
+                            onclick="chanExit()"
+                        />
+                    </div>
+                </div>
+            </div>
+            <div id="presence_cont" class="box_with_shadow">
+                <div id="presence_list" class="top_section">
+                    <!-- <ul id="presence_hdr"><li id="presence_header" class="new"> - Channels (new/total msgs) - </li></ul> -->
+                    <ul id="presence_avail"></ul>
+                </div>
+                <div class="field">
+                    <input
+                        id="new_channel"
+                        class="new_channel_button"
+                        type="button"
+                        value="new_channel"
+                        onclick="newChannelShow()"
+                    />
+
+                    <input
+                        id="channel_exit_all"
+                        class="exit_button"
+                        type="button"
+                        value="channel_exit_all"
+                        onclick="chanExitAll()"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <script src="js/zoom-vanilla.js"></script>
+    </body>
 </html>
