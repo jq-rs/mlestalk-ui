@@ -122,6 +122,13 @@ let gRecTimeoutId = 0;
 const REC_TIMEOUT = 1000 * 60 * 3; // Limit max recording to 3 mins
 
 let qrcode = null;
+const CAMERA_CONSTRAINTS = {
+  video: {
+    facingMode: { ideal: "environment" }, // Prefer back camera
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+};
 
 class Queue {
   constructor(...elements) {
@@ -2171,109 +2178,152 @@ function toggleQRCode() {
   }
 }
 
-function startQRScanner(event) {
+function requestCameraPermission() {
+  if (isCordova) {
+    return new Promise((resolve, reject) => {
+      const permissions = cordova.plugins.permissions;
+      permissions.hasPermission(permissions.CAMERA, (status) => {
+        if (!status.hasPermission) {
+          permissions.requestPermission(
+            permissions.CAMERA,
+            (status) => resolve(status.hasPermission),
+            (error) => reject(error),
+          );
+        } else {
+          resolve(true);
+        }
+      });
+    });
+  } else {
+    // Browser environment
+    return navigator.mediaDevices
+      .getUserMedia(CAMERA_CONSTRAINTS)
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop());
+        return true;
+      })
+      .catch(() => false);
+  }
+}
+
+// Camera selection UI
+function createCameraSelect(cameras) {
+  const select = document.createElement("select");
+  select.id = "camera-select";
+  select.className = "camera-select";
+  cameras.forEach((camera, idx) => {
+    const option = document.createElement("option");
+    option.value = camera.deviceId;
+    option.text = camera.label || `Camera ${idx + 1}`;
+    select.appendChild(option);
+  });
+  return select;
+}
+
+async function startQRScanner(event) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
   }
-  // Create scanner elements if they don't exist
-  let scannerDiv = document.getElementById("qr-scanner");
-  if (!scannerDiv) {
-    scannerDiv = document.createElement("div");
-    scannerDiv.id = "qr-scanner";
-    scannerDiv.innerHTML = `
-            <div style="position:relative;">
-                <video id="qr-video" style="width:100%;max-width:400px;"></video>
-                <button onclick="stopQRScanner()" class="btn"
-                    style="position:absolute;right:10px;top:10px;border-radius:50%;width:30px;height:30px;padding:0;">✕</button>
-            </div>
-        `;
-    document.body.appendChild(scannerDiv);
-  }
 
-  // Style for scanner overlay
-  scannerDiv.style.cssText = `
-        display: block;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1000;
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  try {
+    // Check camera permission first
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      throw new Error("Camera permission denied");
+    }
+
+    // Create scanner UI
+    let scannerDiv = document.getElementById("qr-scanner");
+    if (!scannerDiv) {
+      scannerDiv = document.createElement("div");
+      scannerDiv.id = "qr-scanner";
+      scannerDiv.innerHTML = `
+        <div style="position:relative;">
+          <video id="qr-video" style="width:100%;max-width:400px;" playsinline></video>
+          <div id="camera-controls" style="position:absolute;top:10px;left:10px;"></div>
+          <button onclick="stopQRScanner()" class="btn close-btn"
+            style="position:absolute;right:10px;top:10px;border-radius:50%;width:30px;height:30px;padding:0;">✕</button>
+        </div>
+      `;
+      document.body.appendChild(scannerDiv);
+    }
+
+    // Style scanner overlay
+    scannerDiv.style.cssText = `
+      display: block;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     `;
 
-  // Get video element
-  const video = document.getElementById("qr-video");
+    // Get available cameras
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter((device) => device.kind === "videoinput");
 
-  // Start video stream
-  navigator.mediaDevices
-    .getUserMedia({ video: { facingMode: "environment" } })
-    .then(function (stream) {
-      video.srcObject = stream;
-      video.setAttribute("playsinline", true); // required for iOS
-      video.play();
-      requestAnimationFrame(scan);
-    });
+    // Add camera selection if multiple cameras available
+    if (cameras.length > 1) {
+      const controlsDiv = document.getElementById("camera-controls");
+      const cameraSelect = createCameraSelect(cameras);
+      controlsDiv.appendChild(cameraSelect);
 
-  function scan() {
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Handle camera switch
+      cameraSelect.onchange = () => {
+        const selectedCamera = cameraSelect.value;
+        startCamera(selectedCamera);
+      };
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-      if (code && code.data) {
-        try {
-          if (!code.data.startsWith("mlestalk:")) {
-            // Not our QR code, continue scanning
-            requestAnimationFrame(scan);
-            return;
-          }
-
-          const encodedData = code.data.substring(9); // Remove "mlestalk:"
-          const decodedData = atob(encodedData);
-          const channelDetails = JSON.parse(decodedData);
-
-          if (!channelDetails || !channelDetails.channel) {
-            throw new Error("Invalid QR code format");
-          }
-
-          // Fill in the form fields
-          if (channelDetails.channel) {
-            document.getElementById("input_channel").value =
-              channelDetails.channel;
-          }
-          if (channelDetails.key) {
-            document.getElementById("input_key").value = channelDetails.key;
-          }
-          if (channelDetails.server) {
-            document.getElementById("input_addr_port").value =
-              channelDetails.server;
-          }
-
-          // Stop scanning
-          stopQRScanner();
-          return;
-        } catch (e) {
-          // Silently continue scanning if there's an error
-          requestAnimationFrame(scan);
-          return;
-        }
-      }
-      requestAnimationFrame(scan);
+      // Start with first camera
+      await startCamera(cameras[0].deviceId);
     } else {
-      requestAnimationFrame(scan);
+      // Just start with default camera
+      await startCamera();
     }
+  } catch (error) {
+    console.error("QR Scanner error:", error);
+    alert("Could not start camera: " + error.message);
+    stopQRScanner();
   }
 }
 
+async function startCamera(deviceId = null) {
+  const video = document.getElementById("qr-video");
+  if (!video) return;
+
+  // Stop any existing stream
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach((track) => track.stop());
+  }
+
+  // Configure constraints
+  const constraints = {
+    ...CAMERA_CONSTRAINTS,
+    video: {
+      ...CAMERA_CONSTRAINTS.video,
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+    },
+  };
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+
+    // Start QR scanning
+    requestAnimationFrame(scan);
+  } catch (error) {
+    console.error("Camera start error:", error);
+    throw error;
+  }
+}
+
+// Modified stopQRScanner function
 function stopQRScanner() {
   const scanner = document.getElementById("qr-scanner");
   if (scanner) {
@@ -2281,7 +2331,70 @@ function stopQRScanner() {
     if (video && video.srcObject) {
       video.srcObject.getTracks().forEach((track) => track.stop());
     }
-    scanner.style.display = "none";
+    scanner.remove(); // Remove completely instead of just hiding
+  }
+}
+
+// Modified scan function
+function scan() {
+  const video = document.getElementById("qr-video");
+  if (!video) return;
+
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code && code.data) {
+        if (!code.data.startsWith("mlestalk:")) {
+          requestAnimationFrame(scan);
+          return;
+        }
+
+        handleQRCode(code.data);
+        return;
+      }
+    } catch (error) {
+      console.error("QR scan error:", error);
+    }
+  }
+  requestAnimationFrame(scan);
+}
+
+// Handle scanned QR code
+function handleQRCode(data) {
+  try {
+    const encodedData = data.substring(9); // Remove "mlestalk:"
+    const decodedData = atob(encodedData);
+    const channelDetails = JSON.parse(decodedData);
+
+    if (!channelDetails || !channelDetails.channel) {
+      throw new Error("Invalid QR code format");
+    }
+
+    // Fill in the form fields
+    if (channelDetails.channel) {
+      document.getElementById("input_channel").value = channelDetails.channel;
+    }
+    if (channelDetails.key) {
+      document.getElementById("input_key").value = channelDetails.key;
+    }
+    if (channelDetails.server) {
+      document.getElementById("input_addr_port").value = channelDetails.server;
+    }
+
+    // Stop scanning
+    stopQRScanner();
+  } catch (error) {
+    console.error("QR code handling error:", error);
+    // Continue scanning
+    requestAnimationFrame(scan);
   }
 }
 
