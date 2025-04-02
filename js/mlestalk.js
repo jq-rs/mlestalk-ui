@@ -2158,7 +2158,6 @@ function utf8Encode(utftext) {
 }
 
 function showQRCodeFor(channel) {
-  console.log("Channel " + channel);
   try {
     // Create QR code content with channel details
     const channelDetails = {
