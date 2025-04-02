@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.1.0";
+const VERSION = "3.1.1";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -731,7 +731,9 @@ function outputPresenceChannelList() {
           li =
             '<li class="new" id="' +
             channel +
-            '"><span class="name">&#128274;' +
+            '"><button onclick="showQRCodeFor(\'' +
+            channel +
+            '\')" class="key-btn" title="QR code">🔳</button><span class="name">&#128274;' +
             channel +
             " (<b>" +
             gNewMsgsCnt[channel] +
@@ -742,7 +744,9 @@ function outputPresenceChannelList() {
           li =
             '<li class="new" id="' +
             channel +
-            '"><span class="name">&#128274;' +
+            '"><button onclick="showQRCodeFor(\'' +
+            channel +
+            '\')" class="key-btn" title="QR code">🔳</button><span class="name">&#128274;' +
             channel +
             " (<b>-</b>/-)</span></li>";
 
@@ -2153,21 +2157,18 @@ function utf8Encode(utftext) {
   return encodeURIComponent(utftext);
 }
 
-function showQRCode() {
-  if (!gActiveChannel) return;
-
+function showQRCodeFor(channel) {
+  console.log("Channel " + channel);
   try {
     // Create QR code content with channel details
     const channelDetails = {
-      channel: gMyChannel[gActiveChannel],
-      key: gMyKey[gActiveChannel],
-      server: gAddrPortInput[gActiveChannel],
+      channel: gMyChannel[channel],
+      key: gMyKey[channel],
+      server: gAddrPortInput[channel],
     };
 
-    // Encode the content
     const encodedContent = "mlestalk:" + btoa(JSON.stringify(channelDetails));
 
-    // Initialize QR code if not already done
     if (!qrcode) {
       qrcode = new QRCode(document.getElementById("qrcode"), {
         width: 256,
@@ -2180,27 +2181,27 @@ function showQRCode() {
       qrcode.clear();
     }
 
-    // Generate QR code
     qrcode.makeCode(encodedContent);
-
-    // Show QR code section
     document.getElementById("qrcode_section").style.display = "block";
   } catch (e) {
     console.error("Error generating QR code:", e);
   }
 }
 
-function toggleQRCode() {
+function toggleQRCode(channel = null) {
   const qrSection = document.getElementById("qrcode_section");
   if (qrSection) {
-    if (qrSection.style.display === "none") {
-      showQRCode();
-    } else {
+    // If we're already showing the QR code, just hide it
+    if (qrSection.style.display !== "none") {
       qrSection.style.display = "none";
       // Clear QR code when hiding
       if (qrcode) {
         qrcode.clear();
       }
+    }
+    // Only show QR code if we have a channel
+    else if (channel) {
+      showQRCodeFor(channel);
     }
   }
 }

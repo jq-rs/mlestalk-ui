@@ -187,47 +187,66 @@
                         </div>
                     </form>
                 </div>
-                <div
-                    class="field"
-                    style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: flex-end;
-                        margin-bottom: 0;
-                        padding-bottom: 0;
-                    "
-                >
-                    <div style="flex: 1">
-                        <input
-                            id="channel_list"
-                            class="channel_list_button"
-                            type="button"
-                            value="channels"
-                            onclick="channelListShow()"
-                        />
-                    </div>
-                    <div style="flex: 1; text-align: center">
-                        <input
-                            id="qrcode"
-                            class="qrcode_button"
-                            type="button"
-                            value="qr code"
-                            onclick="showQRCode()"
-                        />
-                    </div>
-                    <div style="flex: 1; text-align: right">
-                        <input
-                            id="channel_exit"
-                            class="exit_button"
-                            type="button"
-                            value="exit"
-                            onclick="chanExit()"
-                        />
-                    </div>
+                <div class="field">
+                    <input
+                        id="channel_list"
+                        class="channel_list_button"
+                        type="button"
+                        value="channels"
+                        onclick="channelListShow()"
+                    />
+                    <input
+                        id="channel_exit"
+                        class="exit_button"
+                        type="button"
+                        value="exit"
+                        onclick="chanExit()"
+                    />
                 </div>
             </div>
             <div id="presence_cont" class="box_with_shadow">
                 <div id="presence_list" class="top_section">
+                    <div
+                        id="qrcode_section"
+                        style="
+                            display: none;
+                            position: fixed;
+                            top: 40%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            background: white;
+                            padding: 20px;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                            z-index: 1000;
+                        "
+                    >
+                        <button
+                            onclick="toggleQRCode('${channel}')"
+                            style="
+                                position: absolute;
+                                right: 8px;
+                                top: 8px;
+                                background: transparent;
+                                border: none;
+                                font-size: 20px;
+                                cursor: pointer;
+                                color: #666;
+                                padding: 5px;
+                                line-height: 1;
+                            "
+                        >
+                            ✕
+                        </button>
+                        <div
+                            id="qrcode"
+                            style="
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                            "
+                        ></div>
+                    </div>
                     <!-- <ul id="presence_hdr"><li id="presence_header" class="new"> - Channels (new/total msgs) - </li></ul> -->
                     <ul id="presence_avail"></ul>
                 </div>
