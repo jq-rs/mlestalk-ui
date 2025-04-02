@@ -1325,7 +1325,7 @@ function processData(
       }
 
       if (0 == gIsResync[channel] && doSndPresAck) {
-        console.log("Sending presence ack for channel " + channel);
+        //console.log("Sending presence ack for channel " + channel);
         sendPresAck(channel);
       }
       return 1;
