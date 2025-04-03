@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2025 MlesTalk developers
  */
-const VERSION = "3.1.1";
+const VERSION = "3.1.2";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -115,6 +115,8 @@ gWeekday[5] = "Fri";
 gWeekday[6] = "Sat";
 let gBgTitle = "MlesTalk in the background";
 let gBgText = "Notifications active";
+let gExitConfirmText = "Are you sure you want to exit the channel?";
+let gExitAllConfirmText = "Are you sure you want to exit all channels?";
 
 const FSFONTCOLOR = "#8bac89";
 
@@ -670,6 +672,9 @@ function send(isFull, optData) {
 }
 
 function chanExitAll() {
+  if (!confirm(gExitAllConfirmText)) {
+    return;
+  }
   for (let val in gMyChannel) {
     if (val) {
       let channel = gMyChannel[val];
@@ -692,6 +697,10 @@ function chanExitAll() {
 }
 
 function chanExit() {
+  if (!confirm(gExitConfirmText)) {
+    return;
+  }
+
   const channel = gActiveChannel;
   closeChannel(channel);
 
