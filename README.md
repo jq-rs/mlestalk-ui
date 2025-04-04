@@ -12,7 +12,7 @@ Please see more details at https://mles.io/app.html and check Lemmy [/c/mles](ht
 
 ## It is open source, can I build it myself?
 
-Sure, quite easily with the roughly the following steps (at least you get the idea anyway):
+Sure, quite easily with roughly the following steps (at least you get the idea anyway):
  1. Install [Apache Cordova](https://cordova.apache.org/)
  2. Install Cordova Android platform
  3. Install the needed plugins with ```cordova plugin add <plugin>```
