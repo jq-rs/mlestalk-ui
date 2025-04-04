@@ -1340,6 +1340,10 @@ function processData(
       return 1;
     }
 
+    if (0 == message.length) {
+      return 0;
+    }
+
     if (!gMsgs[channel]) {
       gMsgs[channel] = new Queue();
       gNewMsgsCnt[channel] = 0;
