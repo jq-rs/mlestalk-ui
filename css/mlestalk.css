@@ -208,6 +208,10 @@ input.channel_list_button:hover {
     font-size: 14px;
 }
 
+#name_channel_cont #input_key.invalid {
+    border-color: red;
+}
+
 #message_cont {
     display: none;
     width: auto;

@@ -132,6 +132,8 @@ const CAMERA_CONSTRAINTS = {
   },
 };
 
+const MIN_PASSWORD_LENGTH = 12;
+
 class Queue {
   constructor(...elements) {
     this.elements = [...elements];
@@ -469,6 +471,16 @@ $(document).ready(function () {
       e.preventDefault();
       askChannelNew();
     });
+
+    $("#input_key").on("input", function () {
+      const password = $(this).val().trim();
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        $(this).addClass("invalid");
+      } else {
+        $(this).removeClass("invalid");
+      }
+    });
+
     wasReady = true;
   }
 });
@@ -547,7 +559,7 @@ function askChannelNew() {
   if (
     $("#input_name").val().trim().length <= 0 ||
     $("#input_channel").val().trim().length <= 0 ||
-    $("#input_key").val().trim().length <= 0
+    $("#input_key").val().trim().length < MIN_PASSWORD_LENGTH
   ) {
     //not enough input, alert
     popAlert();
@@ -2425,7 +2437,7 @@ function generateStrongKey(event) {
     event.preventDefault();
     event.stopPropagation();
   }
-  const passwdLength = 24;
+  const passwdLength = Math.max(24, MIN_PASSWORD_LENGTH);
   // Characters to use for password generation
   const upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const lowerCase = "abcdefghijklmnopqrstuvwxyz";
