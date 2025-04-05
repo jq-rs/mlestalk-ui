@@ -404,29 +404,50 @@ function popAlert() {
   let language = $("#channel_localization").val();
   switch (language) {
     case "fi":
-      alert("Nimi, kanava ja jaettu avain?");
+      alert("Nimi, kanava ja jaettu avain (>= 12 merkkiä)?");
       break;
     case "se":
-      alert("Namn, kanal och delad nyckel?");
+      alert("Namn, kanal och delad nyckel (>= 12 tecken)?");
       break;
     case "es":
-      alert("Nombre, canal y clave compartida?");
+      alert("Nombre, canal y clave compartida (>= 12 caracteres)?");
       break;
     case "de":
-      alert("Name, Kanal und gemeinsamer Schlüssel?");
+      alert("Name, Kanal und gemeinsamer Schlüssel (>= 12 Zeichen)?");
       break;
     case "fr":
-      alert("Nom, canal et clé partagée?");
+      alert("Nom, canal et clé partagée (>= 12 caractères)?");
       break;
     case "pt":
-      alert("Seu nome, canal e chave compartilhada?");
+      alert("Seu nome, canal e chave compartilhada (>= 12 caracteres)?");
       break;
     case "ru":
-      alert("Твое имя, канал и общий ключ?");
+      alert("Твое имя, канал и общий ключ (>= 12 символов)?");
+      break;
+    case "zh":
+      alert("名称、频道和共享密钥 (>= 12 个字符)?");
+      break;
+    case "ja":
+      alert("名前、チャンネルと共有キー (>= 12 文字)?");
+      break;
+    case "ko":
+      alert("이름, 채널 및 공유 키 (>= 12 자)?");
+      break;
+    case "it":
+      alert("Nome, canale e chiave condivisa (>= 12 caratteri)?");
+      break;
+    case "ar":
+      alert("الاسم والقناة والمفتاح المشترك (>= 12 حرفًا)؟");
+      break;
+    case "uk":
+      alert("Ім'я, канал та спільний ключ (>= 12 символів)?");
+      break;
+    case "pl":
+      alert("Imię, kanał i wspólny klucz (>= 12 znaków)?");
       break;
     case "gb":
     default:
-      alert("Name, channel and shared key?");
+      alert("Name, channel and shared key (>= 12 chars)?");
       break;
   }
 }
