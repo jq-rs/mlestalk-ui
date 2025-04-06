@@ -1,3 +1,5 @@
+# Zpinc in Practice: Zero-Trust Security in the MlesTalk Application
+
 ## Abstract
 
 Modern secure messaging applications face a critical challenge: how to provide comprehensive security features without requiring users to trust server infrastructure. While many popular solutions offer robust encryption, they still depend on servers for key management and message delivery, creating potential vulnerabilities. This article explores how the Zpinc protocol addresses this challenge through its zero-trust approach, and specifically examines its practical implementation in the MlesTalk Android messaging application. By analyzing the source code of MlesTalk's Zpinc protocol implementation, we reveal how theoretical security concepts translate into working software that protects user communications.
