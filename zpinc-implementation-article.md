@@ -1,82 +1,3 @@
-## Theoretical Components and Implementation Analysis
-
-This section examines how the theoretical security components described in the Zpinc protocol paper are implemented in MlesTalk, analyzing the fidelity of the implementation to the original design.
-
-### Cryptographic Primitives Implementation
-
-The Zpinc protocol employs several established cryptographic primitives, each of which is carefully implemented in MlesTalk:
-
-#### Memory-Hard Function (MHF)
-
-The protocol specifies a memory-hard function for deriving high-entropy keys from passwords. As outlined in the paper, the implementation uses scrypt for this purpose. Scrypt is particularly well-suited for this application as it is designed to be resistant to hardware acceleration, making brute-force attacks more resource-intensive.
-
-#### Authenticated Encryption with Associated Data (AEAD)
-
-The protocol requires that "all channel communications are secured using authenticated encryption with associated data." The implementation uses TweetNaCl's secretbox, which provides XSalsa20-Poly1305 authenticated encryption as specified in the protocol. 
-
-This implementation properly separates encryption keys from authentication keys, maintaining the theoretical security guarantees. The dual-purpose approach provides both confidentiality (through encryption) and integrity (through authentication) for all transmitted data.
-
-#### Key Derivation Function (KDF)
-
-The paper specifies "Blake2 keyed hash with variable input for different keys" as the KDF. The implementation consistently uses BLAKE2b for key derivation and HMACs, with proper domain separation through different information strings for different key types.
-
-### Ristretto255 and Map2Point Implementation
-
-The protocol paper references the use of a deterministic function to derive a base point for elliptic curve operations, called Map2Point. In the implementation, this is realized through the pointFromHash function in the Ristretto255 module.
-
-The implementation takes a comprehensive approach to this critical security operation:
-
-1. The pointFromHash function accepts a 64-byte array (typically from SHA-512) and converts it to a valid curve point
-2. It employs the Elligator technique twice, mapping to two curve points which are then added together
-3. This two-point approach provides stronger security guarantees than single-point mapping
-
-The implementation includes references to academic research that establishes the security of this approach:
-- Brier et al. "Efficient Indifferentiable Hashing into Ordinary Elliptic Curves"
-- Farashahi et al. "Indifferentiable deterministic hashing to elliptic and hyperelliptic curves"
-- Tibouchi and Kim "Improved elliptic curve hashing and point representation"
-
-The use of two points and addition addresses concerns about the random oracle model, as detailed in the comments within the code. This demonstrates a careful translation of cryptographic theory into practice.
-
-### Burmester-Desmedt Key Exchange Implementation
-
-The protocol employs the Burmester-Desmedt (BD) key exchange system for group messaging. The implementation contains a dedicated BD key manager with several components that directly map to the theoretical design:
-
-1. **processBd**: Handles incoming BD messages and updates key state
-2. **calculateBdKey**: Computes BD keys based on participant information
-3. **calculateKeyIndices**: Determines the indices needed for the BD protocol
-4. **calculateSecretKey**: Derives shared secrets in a secure manner
-
-The implementation maintains constant-time operations for security-critical comparisons, preventing timing side-channel attacks. The careful isolation of BD key exchange logic follows good security practice by compartmentalizing cryptographic operations.
-
-### Session Management and Message Processing
-
-The protocol describes a session-based approach where "after successfully joining a channel with the correct key, members initiate a handshake using ephemeral keys." The implementation realizes this through a dedicated session manager that:
-
-1. Generates and manages cryptographically secure session IDs
-2. Uses session IDs to trigger appropriate cryptographic state transitions
-3. Maintains sessions across network disruptions
-
-Message processing implements the distinction between "notes" (messages encrypted with password-derived keys) and "conversations" (messages protected by the BD key exchange) as specified in the protocol. This dual-mode approach allows both asynchronous communication with notes and forward-secure communication with conversations.
-
-### Security Guarantees Preservation
-
-The implementation preserves the critical security properties promised by the theoretical design:
-
-1. **Zero-Trust Server**: The server never has access to unencrypted content or cryptographic keys
-2. **Forward Secrecy**: The BD key exchange implementation properly manages key rotation and security state transitions
-3. **Post-Compromise Security**: New keys are established when group membership changes
-4. **Resistance to Timing Attacks**: Constant-time techniques are employed throughout the implementation
-
-### Implementation Challenges and Solutions
-
-Implementing theoretical cryptographic protocols presents several practical challenges that the MlesTalk developers addressed:
-
-1. **Constant-Time Operations**: The implementation meticulously uses constant-time operations for cryptographically sensitive functions, avoiding conditional branches based on secret data
-2. **Key Management Complexity**: The dual-mode approach (notes vs. conversations) requires careful key management, which is handled through a structured approach to key derivation and storage
-3. **Group Membership Changes**: The BD protocol implementation must handle dynamic changes in group membership, which it accomplishes through session ID tracking and cryptographic state reinitialization
-
-The implementation demonstrates a high degree of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.# Zpinc in Practice: Zero-Trust Security in the MlesTalk Application
-
 ## Abstract
 
 Modern secure messaging applications face a critical challenge: how to provide comprehensive security features without requiring users to trust server infrastructure. While many popular solutions offer robust encryption, they still depend on servers for key management and message delivery, creating potential vulnerabilities. This article explores how the Zpinc protocol addresses this challenge through its zero-trust approach, and specifically examines its practical implementation in the MlesTalk Android messaging application. By analyzing the source code of MlesTalk's Zpinc protocol implementation, we reveal how theoretical security concepts translate into working software that protects user communications.
@@ -374,6 +295,86 @@ For outgoing messages, the process is reversed:
 5. **Transmission**: The complete message is encoded in CBOR format and transmitted
 
 This dual-mode approach allows for both asynchronous communication (when not all participants are online) and enhanced security (when participants are simultaneously active). The implementation preserves the theoretical security properties while handling practical concerns like message ordering and network disruptions.
+
+## Theoretical Components and Implementation Analysis
+
+This section examines how the theoretical security components described in the Zpinc protocol paper are implemented in MlesTalk, analyzing the fidelity of the implementation to the original design.
+
+### Cryptographic Primitives Implementation
+
+The Zpinc protocol employs several established cryptographic primitives, each of which is carefully implemented in MlesTalk:
+
+#### Memory-Hard Function (MHF)
+
+The protocol specifies a memory-hard function for deriving high-entropy keys from passwords. As outlined in the paper, the implementation uses scrypt for this purpose. Scrypt is particularly well-suited for this application as it is designed to be resistant to hardware acceleration, making brute-force attacks more resource-intensive.
+
+#### Authenticated Encryption with Associated Data (AEAD)
+
+The protocol requires that "all channel communications are secured using authenticated encryption with associated data." The implementation uses TweetNaCl's secretbox, which provides XSalsa20-Poly1305 authenticated encryption as specified in the protocol. 
+
+This implementation properly separates encryption keys from authentication keys, maintaining the theoretical security guarantees. The dual-purpose approach provides both confidentiality (through encryption) and integrity (through authentication) for all transmitted data.
+
+#### Key Derivation Function (KDF)
+
+The paper specifies "Blake2 keyed hash with variable input for different keys" as the KDF. The implementation consistently uses BLAKE2b for key derivation and HMACs, with proper domain separation through different information strings for different key types.
+
+### Ristretto255 and Map2Point Implementation
+
+The protocol paper references the use of a deterministic function to derive a base point for elliptic curve operations, called Map2Point. In the implementation, this is realized through the pointFromHash function in the Ristretto255 module.
+
+The implementation takes a comprehensive approach to this critical security operation:
+
+1. The pointFromHash function accepts a 64-byte array (typically from SHA-512) and converts it to a valid curve point
+2. It employs the Elligator technique twice, mapping to two curve points which are then added together
+3. This two-point approach provides stronger security guarantees than single-point mapping
+
+The implementation includes references to academic research that establishes the security of this approach:
+- Brier et al. "Efficient Indifferentiable Hashing into Ordinary Elliptic Curves"
+- Farashahi et al. "Indifferentiable deterministic hashing to elliptic and hyperelliptic curves"
+- Tibouchi and Kim "Improved elliptic curve hashing and point representation"
+
+The use of two points and addition addresses concerns about the random oracle model, as detailed in the comments within the code. This demonstrates a careful translation of cryptographic theory into practice.
+
+### Burmester-Desmedt Key Exchange Implementation
+
+The protocol employs the Burmester-Desmedt (BD) key exchange system for group messaging. The implementation contains a dedicated BD key manager with several components that directly map to the theoretical design:
+
+1. **processBd**: Handles incoming BD messages and updates key state
+2. **calculateBdKey**: Computes BD keys based on participant information
+3. **calculateKeyIndices**: Determines the indices needed for the BD protocol
+4. **calculateSecretKey**: Derives shared secrets in a secure manner
+
+The implementation maintains constant-time operations for security-critical comparisons, preventing timing side-channel attacks. The careful isolation of BD key exchange logic follows good security practice by compartmentalizing cryptographic operations.
+
+### Session Management and Message Processing
+
+The protocol describes a session-based approach where "after successfully joining a channel with the correct key, members initiate a handshake using ephemeral keys." The implementation realizes this through a dedicated session manager that:
+
+1. Generates and manages cryptographically secure session IDs
+2. Uses session IDs to trigger appropriate cryptographic state transitions
+3. Maintains sessions across network disruptions
+
+Message processing implements the distinction between "notes" (messages encrypted with password-derived keys) and "conversations" (messages protected by the BD key exchange) as specified in the protocol. This dual-mode approach allows both asynchronous communication with notes and forward-secure communication with conversations.
+
+### Security Guarantees Preservation
+
+The implementation preserves the critical security properties promised by the theoretical design:
+
+1. **Zero-Trust Server**: The server never has access to unencrypted content or cryptographic keys
+2. **Forward Secrecy**: The BD key exchange implementation properly manages key rotation and security state transitions
+3. **Post-Compromise Security**: New keys are established when group membership changes
+4. **Resistance to Timing Attacks**: Constant-time techniques are employed throughout the implementation
+
+### Implementation Challenges and Solutions
+
+Implementing theoretical cryptographic protocols presents several practical challenges that the MlesTalk developers addressed:
+
+1. **Constant-Time Operations**: The implementation meticulously uses constant-time operations for cryptographically sensitive functions, avoiding conditional branches based on secret data
+2. **Key Management Complexity**: The dual-mode approach (notes vs. conversations) requires careful key management, which is handled through a structured approach to key derivation and storage
+3. **Group Membership Changes**: The BD protocol implementation must handle dynamic changes in group membership, which it accomplishes through session ID tracking and cryptographic state reinitialization
+
+The implementation demonstrates a high degree of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.# Zpinc in Practice: Zero-Trust Security in the MlesTalk Application
+
 
 ## Conclusion
 
