@@ -6,7 +6,7 @@ Supports Cordova Android notifications while staying background without addition
 
 Uses [Zpinc WebWorker](https://github.com/jq-rs/zpinc-webworker) to handle all data traffic sent over TLS.
 
-Please see more details in [implementation analysis article](https://github.com/jq-rs/zpinc-implementation-article.md) and check Lemmy [/c/mles](https://lemmy.world/c/mles/) channel for everything new, like future planned features.
+Please see more details in [implementation analysis article](https://github.com/jq-rs/mlestalk-ui/zpinc-implementation-article.md) and check Lemmy [/c/mles](https://lemmy.world/c/mles/) channel for everything new, like future planned features.
 
 ## It is open source, can I build it myself?
 
