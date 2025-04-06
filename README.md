@@ -1,14 +1,12 @@
 # MlesTalk UI
 
-![](mlestalk_login.gif)
-
-MlesTalk UI is Node.js/JavaScript based open source reference client user interface for Mles (Modern Lightweight channEl Service). It is used in [MlesTalk](https://play.google.com/store/apps/details?id=io.mles.mlestalk) Android application.
+MlesTalk UI is Node.js/JavaScript based open source reference client user interface for Mles (Modern Lightweight channEl Service). It is used in [MlesTalk](https://mles.io/app.html) Android application.
 
 Supports Cordova Android notifications while staying background without additional dependencies to external servers (like e.g. Google Firebase) which may monitor traffic.
 
 Uses [Zpinc WebWorker](https://github.com/jq-rs/zpinc-webworker) to handle all data traffic sent over TLS.
 
-Please see more details at https://mles.io/app.html and check Lemmy [/c/mles](https://lemmy.world/c/mles/) channel for everything new, like future planned features.
+Please see more details at [implementation analysis article](https://github.com/jq-rs/zpinc-implementation-article.md) and check Lemmy [/c/mles](https://lemmy.world/c/mles/) channel for everything new, like future planned features.
 
 ## It is open source, can I build it myself?
 
