@@ -49,7 +49,7 @@ This initial frame contains the encrypted user ID, encrypted channel name, and o
 
 After verifying this initial frame, the server joins the client to the specified channel, and subsequent message framing is determined by the application. Each channel operates in its own context, independent of other channels, with a separate TLS session per (uid, channel) pair.
 
-The Mles server may store message history, which can be distributed to new clients upon connection. This allows for asynchronous message delivery even when recipients are offline. The server architecture supports resynchronization through peers, enabling distributed data protection for channel information.
+The Mles server may store message history, which can be distributed to new clients upon connection. This allows for asynchronous message delivery even when recipients are offline. The server architecture supports resynchronization through client-proxy, enabling distributed data protection for channel information.
 
 This server architecture complements the zero-trust model by only handling encrypted data packets without requiring access to the cryptographic keys needed for decryption. The server functions purely as a message relay and channel manager without the capability to read or modify message contents.
 
