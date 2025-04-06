@@ -92,7 +92,7 @@ The complete message structure in MlesTalk includes several components:
 
 3. **Cryptographic Material**: Any cryptographic keys needed for the BD key exchange
 
-4. **Padding**: Optional padding to protect against traffic analysis
+4. **Padding**: Padmé padding to protect against traffic analysis
 
 The encryption process follows these steps:
 
