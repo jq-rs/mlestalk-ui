@@ -373,7 +373,7 @@ Implementing theoretical cryptographic protocols presents several practical chal
 2. **Key Management Complexity**: The dual-mode approach (notes vs. conversations) requires careful key management, which is handled through a structured approach to key derivation and storage
 3. **Group Membership Changes**: The BD protocol implementation must handle dynamic changes in group membership, which it accomplishes through session ID tracking and cryptographic state reinitialization
 
-The implementation demonstrates a high degree of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.# Zpinc in Practice: Zero-Trust Security in the MlesTalk Application
+The implementation demonstrates a high degree of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.
 
 
 ## Conclusion
