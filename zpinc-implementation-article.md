@@ -194,7 +194,7 @@ The application includes a QR code feature to facilitate secure channel sharing.
 - The shared encryption key (password)
 - The server address
 
-When a user wishes to share access to a channel, they can display a QR code that encodes this information. Another user can scan this code to automatically join the channel without manually entering the details. 
+When a user wishes to share access to a channel, they can display a QR code that encodes this information. Another user can scan this code to automatically join the channel without manually entering the details.
 
 A key advantage of this approach is that it bypasses server involvement in the sharing process. The sensitive information—particularly the encryption key—is transferred directly between devices without traversing the server infrastructure. This maintains the zero-trust principle by ensuring that cryptographic material is exchanged through out-of-band channels rather than through the messaging infrastructure itself.
 
@@ -278,6 +278,34 @@ When users first join a channel, they communicate using notes - messages encrypt
 
 Once multiple participants are active in a channel simultaneously, the application initiates the BD handshake process automatically. After a successful handshake, communication transitions to conversation mode, where messages are encrypted with keys derived from the BD exchange, providing forward secrecy.
 
+### Transition from Notes to Conversations: Forward Secrecy Considerations
+
+The Zpinc protocol implements a dual-mode communication system that transitions from "notes" to "conversations" as described earlier. However, it's important to understand the security limitations during different phases of communication:
+
+#### Initial Communication Phase Limitations
+
+During the initial communication phase, often referred to as "notes" in the protocol:
+
+1. **Absence of Perfect Forward Secrecy**: Messages are encrypted using keys derived directly from the shared password through scrypt. If this password is compromised in the future, an adversary could potentially decrypt all historical messages from this phase.
+
+2. **Password-Derived Key Vulnerabilities**: The security of this phase depends entirely on the strength of the shared password and the scrypt parameters. While MlesTalk enforces minimum password requirements and offers a strong password generator, this phase remains inherently more vulnerable than the subsequent BD-protected phase.
+
+3. **Transition Window Exposure**: There exists a window of vulnerability during the transition from password-derived keys to BD-derived keys. Messages sent during this transition period may have inconsistent security properties depending on timing.
+
+#### Mitigation Strategies
+
+The implementation includes several strategies to mitigate these limitations:
+
+1. **Early BD Initiation**: The system attempts to initiate the BD key exchange as soon as multiple participants are detected in a channel, minimizing the time spent using only password-derived keys.
+
+2. **Visual Security Indicators**: Users are shown visual cues (color changes) when their messages have transitioned to the forward-secret conversation mode, increasing awareness of their current security status.
+
+3. **Strong Password Generation**: The built-in password generator creates cryptographically strong random passwords of sufficient length to mitigate brute-force attacks against the initial phase.
+
+4. **Memory Protection**: The implementation wipes sensitive key material from memory when possible, reducing the risk of key extraction from device memory.
+
+It's important for users to understand that perfect forward secrecy is only achieved after the BD key exchange has successfully completed. Sensitive information should ideally be exchanged only after this transition has occurred, as indicated by the visual security indicators in the interface.
+
 ### Message Processing Flow
 
 The complete message processing flow includes:
@@ -312,7 +340,7 @@ The protocol specifies a memory-hard function for deriving high-entropy keys fro
 
 #### Authenticated Encryption with Associated Data (AEAD)
 
-The protocol requires that "all channel communications are secured using authenticated encryption with associated data." The implementation uses TweetNaCl's secretbox, which provides XSalsa20-Poly1305 authenticated encryption as specified in the protocol. 
+The protocol requires that "all channel communications are secured using authenticated encryption with associated data." The implementation uses TweetNaCl's secretbox, which provides XSalsa20-Poly1305 authenticated encryption as specified in the protocol.
 
 This implementation properly separates encryption keys from authentication keys, maintaining the theoretical security guarantees. The dual-purpose approach provides both confidentiality (through encryption) and integrity (through authentication) for all transmitted data.
 
@@ -377,6 +405,36 @@ Implementing theoretical cryptographic protocols presents several practical chal
 
 The implementation demonstrates a high degree of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.
 
+## Security Verification and Audit Status
+
+### Security Verification Status
+
+While the Zpinc protocol has a sound theoretical foundation based on established cryptographic principles, users should be aware of the current verification status of the implementation:
+
+#### Formal Verification Status
+
+1. **Protocol Design Review**: The core Zpinc protocol design has undergone academic review and is based on well-established cryptographic primitives and techniques. The Burmester-Desmedt key exchange system that forms the basis of the forward secrecy mechanism has been studied extensively in cryptographic literature.
+
+2. **Implementation Verification**: The current implementation of Zpinc in MlesTalk has not undergone formal verification using tools like cryptographic protocol verifiers or theorem provers. Formal verification could provide mathematical guarantees about the security properties of the implementation.
+
+3. **WebCrypto API Usage**: The implementation relies on browser-provided cryptographic primitives through the WebCrypto API for certain operations. These browser implementations have varying levels of security review depending on the browser vendor.
+
+#### Security Audit Status
+
+1. **Independent Security Audits**: As of the current version, the MlesTalk implementation of Zpinc has not undergone a comprehensive third-party security audit. Such audits are essential for cryptographic applications as they can uncover subtle implementation flaws that might not be apparent through code review alone.
+
+2. **Community Review**: The open-source nature of the implementation allows for community review, but this should not be considered equivalent to a structured security audit by cryptographic specialists.
+
+3. **Ongoing Development Considerations**: The implementation continues to evolve, with security improvements being made based on internal review and best practices. However, each new version introduces potential changes to the security properties that would benefit from systematic verification.
+
+#### Recommended User Approach
+
+Given the verification status, users should:
+
+1. Consider the security properties as promising but not definitively proven to the level of formally verified systems
+2. Apply appropriate risk assessment when using the system for sensitive communications
+3. Follow security best practices, including using strong passwords and verifying the security status indicators
+4. Stay updated with the latest versions that may include security improvements
 
 ## Conclusion
 
@@ -399,6 +457,32 @@ The implementation preserves the critical security properties promised by the th
 Throughout the implementation, careful attention has been paid to cryptographic details, such as the two-point approach for hash-to-curve operations and the constant-time implementation of security-critical functions. This demonstrates a high level of cryptographic engineering maturity, balancing theoretical security requirements with practical performance and usability considerations.
 
 As messaging applications continue to evolve, the principles and techniques demonstrated in MlesTalk's implementation of Zpinc provide a model for building secure communication tools that protect user privacy and data security without compromising on usability.
+
+## Acknowledgements
+
+The Zpinc implementation leverages several high-quality open-source cryptographic libraries and components. We would like to express our gratitude to the developers and maintainers of these projects:
+
+### Core Cryptographic Libraries
+
+- **TweetNaCl.js** - A port of the TweetNaCl cryptographic library by Daniel J. Bernstein, Bernard van Gastel, Wesley Janssen, Tanja Lange, Peter Schwabe, and Sjaak Smetsers. The JavaScript implementation was developed by Dmitry Chestnykh and Devi Mandiri, released into the public domain.
+
+- **BLAKE2b** - An implementation of the BLAKE2b cryptographic hash function, copyright (C) 2017 by Dmitry Chestnykh, available under the MIT License.
+
+- **Scrypt-Async-js** - A fast "async" scrypt implementation in JavaScript by Dmitry Chestnykh, available under the BSD License.
+
+- **Ristretto255.js** - An implementation of the ristretto255 group operations, copyright (c) Facebook, Inc. and its affiliates, available under the MIT license. This implementation provides crucial elliptic curve operations for the BD key exchange protocol.
+
+### Encoding Libraries
+
+- **CBOR** - A concise binary object representation library, copyright (c) 2014-2016 Patrick Gansterer, available under the MIT License. This provides efficient binary encoding for WebSocket communication.
+
+### Original Research and Design
+
+- **Zpinc Protocol** - The zero-trust secure group messaging protocol that forms the foundation of this implementation.
+
+- **Burmester-Desmedt Key Exchange** - The multi-party key agreement protocol that enables forward secrecy and post-compromise security in the Zpinc implementation.
+
+- **Elligator 2** - The method used for mapping field elements to curve points in a way that is indistinguishable from random.
 
 ## References
 
