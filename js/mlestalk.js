@@ -3,13 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019-2025 MlesTalk developers
+ * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.2.2";
+const VERSION = "3.3.0";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
+let gMyNameEnc = {};
 let gMyChannel = {};
+let gMyChannelEnc = {};
 let gMyKey = {};
 let gMyAddr = {};
 let gMyPort = {};
@@ -30,6 +32,7 @@ let gActiveChannels = {};
 let gPrevTime = {};
 let gRecStatus = false;
 let gRecorder = null;
+let gDateSeparatorCnt = {};
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -86,6 +89,7 @@ let gJoinExistingComplete = false;
 let gPrevScrollTop = {};
 
 let gLastMessageSeenTs = {};
+let gLastMessageSeenChksum = {};
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
 
@@ -113,10 +117,11 @@ gWeekday[3] = "Wed";
 gWeekday[4] = "Thu";
 gWeekday[5] = "Fri";
 gWeekday[6] = "Sat";
-let gBgTitle = "MlesTalk in the background";
-let gBgText = "Notifications active";
+let gBgTitle = "MlesTalk";
+let gBgText = "New message";
 let gExitConfirmText = "Are you sure you want to exit the channel?";
 let gExitAllConfirmText = "Are you sure you want to exit all channels?";
+let gRecordConfirmText = "Start recording audio message?";
 
 const FSFONTCOLOR = "#8bac89";
 
@@ -210,7 +215,6 @@ function queueFindAndMatch(msgTimestamp, uid, channel, mHash) {
       }
       if (obj[2] == mHash) {
         lastSeen = i + 1;
-        //console.log("Last seen hash update: " + lastSeen + " ts " + msgTimestamp);
         break;
       }
     }
@@ -311,13 +315,31 @@ let gWebWorker = new Worker("zpinc-webworker/js/webworker.js");
 function onPause() {
   gIsPause = true;
   if (isCordova) {
+    // Build channel data
+    const channelData = {};
+    for (let channel in gActiveChannels) {
+      if (channel && gMyChannel[channel]) {
+        channelData[channel] = {
+          name: gMyNameEnc[channel] || "",
+          channel: gMyChannelEnc[channel] || "",
+          channel_dec: gMyChannel[channel] || "",
+          server: gAddrPortInput[channel] || "mles.io:443",
+          msg_chksum: gLastMessageSeenChksum[channel] || 0
+        };
+      }
+    }
+
     if (!cordova.plugins.backgroundMode.isActive()) {
       cordova.plugins.backgroundMode.enable();
     }
+
+    // Pass channels via configure
     cordova.plugins.backgroundMode.configure({
       title: gBgTitle,
       text: gBgText,
+      channels: channelData
     });
+
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.toBackground();
   }
@@ -329,6 +351,8 @@ function onResume() {
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.fromBackground();
   }
+  // Reconnect all channels in case connections were dropped while backgrounded
+  syncReconnect();
   if (gActiveChannel) scrollToBottom(gActiveChannel);
   else if (gIsPresenceView || gIsChannelListView) presenceChannelListShow();
 }
@@ -400,8 +424,13 @@ function onLoad() {
       });
 
       // sets a recurring alarm that keeps things rolling
-      cordova.plugins.backgroundMode.disableWebViewOptimizations();
+      // cordova.plugins.backgroundMode.disableWebViewOptimizations();
       cordova.plugins.backgroundMode.enable();
+
+      // Stop any background monitoring from previous session
+      cordova.plugins.backgroundMode.configure({
+	stopMonitoring: true
+      });
 
       document.addEventListener("pause", onPause, false);
       document.addEventListener("resume", onResume, false);
@@ -523,6 +552,7 @@ function joinExistingChannels(channels) {
         if (null == gOwnAppend[channel]) gOwnAppend[channel] = false;
         gForwardSecrecy[channel] = false;
         gLastMessageSeenTs[channel] = 0;
+        gLastMessageSeenChksum[channel] = 0;
         gIsResync[channel] = 0;
         gInitOk[channel] = true;
 
@@ -577,6 +607,7 @@ function askChannelNew() {
     gOwnAppend[channel] = false;
     gForwardSecrecy[channel] = false;
     gLastMessageSeenTs[channel] = 0;
+    gLastMessageSeenChksum[channel] = 0;
     gIsResync[channel] = 0;
     gPrevScrollTop[channel] = 0;
 
@@ -748,7 +779,11 @@ function outputPresenceChannelList() {
 
         cnt++;
         if (gMsgs[channel]) {
-          msgcnt += gMsgs[channel].getLength();
+          const qlen = gMsgs[channel].getLength();
+          const dateCnt = gDateSeparatorCnt[channel] || 0;
+          const actualMsgCount = qlen - dateCnt;
+          msgcnt += actualMsgCount;
+
           li =
             '<li class="new" id="' +
             channel +
@@ -759,7 +794,7 @@ function outputPresenceChannelList() {
             " (<b>" +
             gNewMsgsCnt[channel] +
             "</b>/" +
-            gMsgs[channel].getLength() +
+            actualMsgCount +
             ")</span></li>";
         } else
           li =
@@ -874,6 +909,8 @@ function closeChannel(channel) {
   delete gIdAppend[channel];
 
   delete gLastMessageSeenTs[channel];
+  delete gLastMessageSeenChksum[channel];
+  delete gDateSeparatorCnt[channel];
 
   queueFlush(gMyName[channel], gMyChannel[channel]);
   clearLocalBdKey(channel);
@@ -906,18 +943,21 @@ function initReconnect(channel) {
   gReconnAttempts[channel] = 0;
 }
 
-function processInit(uid, channel) {
+function processInit(uid, channel, enc_uid, enc_channelid, msgChksum) {
   if (uid.length > 0 && channel.length > 0) {
     gInitOk[channel] = true;
     createSipToken(channel);
     if (gActiveChannel == channel) selectSipToken(channel);
 
-    sendInitJoin(channel);
+    //sendInitJoin(channel);
 
     if (!gMsgs[channel]) {
       gMsgs[channel] = new Queue();
       gNewMsgsCnt[channel] = 0;
     }
+
+    gMyNameEnc[channel] = enc_uid;
+    gMyChannelEnc[channel] = enc_channelid;
 
     if (gLastMessageSeenTs[channel] > 0) {
       //console.log("last message not zero")
@@ -944,11 +984,8 @@ function processInit(uid, channel) {
 }
 
 function createSipToken(channel) {
-  //use channel to create 128 bit key
-  let len;
-  if (channel.length > 16) len = 16;
-  else len = channel.length;
-  let bfchannel = channel.substring(0, len);
+  // Pad channel to exactly 16 bytes
+  let bfchannel = channel.substring(0, 16).padEnd(16, '\0');
   gSipKey[channel] = SipHash.string16_to_key(bfchannel);
   gSipKeyChan[channel] = bfchannel;
 }
@@ -1034,6 +1071,7 @@ function processData(
   isFirst,
   isLast,
   fsEnabled,
+  msgChksum
 ) {
   let isAudio = false;
   let isImage = false;
@@ -1064,7 +1102,6 @@ function processData(
   if ((isFull && message.length > 0) || (!isFull && message.length == 0)) {
     /* Match full or presence messages */
     if (gLastMessageSeenTs[channel] > msgTimestamp && 0 == gIsResync[channel]) {
-      console.log("Resyncing msg " + channel);
       gIsResync[channel] += 1;
       resync(uid, channel);
     }
@@ -1116,6 +1153,8 @@ function processData(
         if (dat) {
           /* Update new date header */
           li = DATESTART + ' - <span class="name">' + dat + "</span> - </li>";
+          if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+          gDateSeparatorCnt[channel]++;
           gMsgs[channel].push(li);
           if (gActiveChannel == channel) {
             $("#messages").append(li);
@@ -1133,8 +1172,10 @@ function processData(
 
       gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
-      if (gLastMessageSeenTs[channel] < msgTimestamp)
+      if (gLastMessageSeenTs[channel] < msgTimestamp) {
         gLastMessageSeenTs[channel] = msgTimestamp;
+      }
+      gLastMessageSeenChksum[channel] = msgChksum;
 
       const [nIndex, msgqlen, dated, timed] =
         gMultipartIndex[get_uniq(dict, channel)];
@@ -1157,7 +1198,6 @@ function processData(
         const frag = gMultipartDict[get_uniq(dict, channel)][i];
         if (!frag) {
           //lost message, ignore image
-          console.log("Lost multipart: " + i);
           gMultipartDict[get_uniq(dict, channel)] = null;
           gMultipartIndex[get_uniq(dict, channel)] = null;
           return 0;
@@ -1331,9 +1371,12 @@ function processData(
   if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
     gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
-    if (gLastMessageSeenTs[channel] < msgTimestamp)
+    if (gLastMessageSeenTs[channel] < msgTimestamp) {
       gLastMessageSeenTs[channel] = msgTimestamp;
+    }
+    gLastMessageSeenChksum[channel] = msgChksum;
 
+    /*
     if (isPresence) {
       let datenow = Date.now();
       let doSndPresAck = false;
@@ -1350,7 +1393,7 @@ function processData(
         sendPresAck(channel);
       }
       return 1;
-    }
+    }*/
 
     if (0 == message.length) {
       return 0;
@@ -1365,6 +1408,8 @@ function processData(
     if (date) {
       /* Update new date header */
       li = DATESTART + ' - <span class="name">' + date + "</span> - </li>";
+      if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+      gDateSeparatorCnt[channel]++;
       gMsgs[channel].push(li);
       if (gActiveChannel == channel) $("#messages").append(li);
     }
@@ -1497,7 +1542,7 @@ function finalize(
     isFull &&
     gIdNotifyTs[channel][uid] < notifyTimestamp
   ) {
-    if (gActiveChannel != channel || gIsPause) {
+    if ((gActiveChannel != channel && !gIsChannelListView && !gIsPresenceView) || gIsPause) {
       if (gWillNotify && gCanNotify) {
         if (isAudio) message = "🎙";
         else if (isImage) message = "🖼️";
@@ -1522,7 +1567,9 @@ gWebWorker.onmessage = function (e) {
       {
         let uid = utf8Decode(e.data[1]);
         let channel = utf8Decode(e.data[2]);
-        let ret = processInit(uid, channel);
+        let enc_uid = e.data[3]; //base64
+        let enc_channelid = e.data[4]; //base64
+        let ret = processInit(uid, channel, enc_uid, enc_channelid);
         if (ret < 0) {
           console.log("Process init failed: " + ret);
         }
@@ -1536,6 +1583,7 @@ gWebWorker.onmessage = function (e) {
         let message = e.data[4];
         let msgtype = e.data[5];
         let fsEnabled = e.data[6];
+        let msgChksum = e.data[7];
 
         initReconnect(channel);
 
@@ -1552,12 +1600,20 @@ gWebWorker.onmessage = function (e) {
           msgtype & MSGISFIRST ? true : false,
           msgtype & MSGISLAST ? true : false,
           fsEnabled,
+          msgChksum
         );
         if (ret < 0) {
           console.log("Process data failed: " + ret);
         }
       }
       break;
+      case "send":
+        let uid = utf8Decode(e.data[1]);
+        let channel = utf8Decode(e.data[2]);
+        let msgType = e.data[3];
+        let msgChksum = e.data[4];
+        gLastMessageSeenChksum[channel] = msgChksum;
+        break;
     case "close":
       {
         let uid = utf8Decode(e.data[1]);
@@ -1597,7 +1653,7 @@ gWebWorker.onmessage = function (e) {
     case "resync":
       {
         let channel = utf8Decode(e.data[2]);
-        sendEmptyJoin(channel);
+        //sendEmptyJoin(channel);
       }
       break;
   }
@@ -1677,7 +1733,6 @@ async function reconnect(uid, channel) {
     gReconnAttempts[channel] += 1;
   }
 
-  //console.log("Sleeping " + gReconnTimeout[channel]);
   await sleep(gReconnTimeout[channel]);
   gReconnTimeout[channel] *= 2;
   gWebWorker.postMessage([
@@ -1700,7 +1755,7 @@ function syncReconnect() {
         utf8Encode(gMyChannel[channel]),
         gPrevBdKey[channel],
       ]);
-      sendEmptyJoin(gMyChannel[channel]);
+      //sendEmptyJoin(gMyChannel[channel]);
     }
   }
 }
@@ -1736,7 +1791,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
       msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
     }
 
-    if (false == gIsResync[channel]) {
+    if (0 == gIsResync[channel]) {
       gWebWorker.postMessage(arr);
     }
     if (msgtype & MSGISFULL && data.length > 0) {
@@ -1765,6 +1820,8 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
   if (date) {
     /* Update new date header */
     li = DATESTART + ' - <span class="name">' + date + "</span> - </li>";
+    if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+    gDateSeparatorCnt[channel]++;
     $("#messages").append(li);
     gMsgs[channel].push(li);
   }
@@ -2047,18 +2104,27 @@ function clearLocalSession(channel) {
 }
 
 function getLocalBdKey(channel) {
-  const bdKey = window.localStorage.getItem("gPrevBdKey" + channel);
+  const bdKeyStr = window.localStorage.getItem("gPrevBdKey" + channel);
 
-  if (bdKey) {
-    gPrevBdKey[channel] = bdKey;
-    //console.log("Loading key from local storage!");
+  if (bdKeyStr) {
+    try {
+      // Parse JSON array and convert back to Uint8Array
+      const bdKeyArray = JSON.parse(bdKeyStr);
+      gPrevBdKey[channel] = new Uint8Array(bdKeyArray);
+    } catch (e) {
+      console.error("Failed to parse BD key from localStorage:", e);
+      gPrevBdKey[channel] = null;
+    }
+  } else {
+    gPrevBdKey[channel] = null;
   }
 }
 
 function setLocalBdKey(channel, bdKey) {
-  if (bdKey) {
-    window.localStorage.setItem("gPrevBdKey" + channel, bdKey);
-    //console.log("Saving keys to local storage!");
+  if (bdKey && bdKey instanceof Uint8Array) {
+    // Convert Uint8Array to regular array for JSON serialization
+    const bdKeyArray = Array.from(bdKey);
+    window.localStorage.setItem("gPrevBdKey" + channel, JSON.stringify(bdKeyArray));
   }
 }
 
@@ -2101,6 +2167,11 @@ function handleDataAvailable(event) {
 
 function record() {
   if (false == gRecStatus) {
+    // Ask for confirmation before starting recording
+    if (!confirm(gRecordConfirmText)) {
+      return;
+    }
+
     captureMicrophone(function (microphone) {
       let options = { mimeType: "audio/webm" };
       gRecorder = new MediaRecorder(microphone, options);
