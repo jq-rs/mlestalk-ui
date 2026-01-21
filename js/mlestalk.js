@@ -923,6 +923,10 @@ function closeChannel(channel) {
   queueFlush(gMyName[channel], gMyChannel[channel]);
   clearLocalBdKey(channel);
   clearLocalSession(channel);
+
+  // Delete messages from IndexedDB
+  MessageDB.deleteChannel(channel);
+
   delete gForwardSecrecy[channel];
   delete gPrevBdKey[channel];
   delete gActiveChannels[channel];

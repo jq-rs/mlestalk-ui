@@ -10,7 +10,7 @@
 
 const MessageDB = {
     db: null,
-    maxMessagesPerChannel: 1000,
+    maxMessagesPerChannel: 2000,
     messageCounts: {}, // Cache of message counts per channel
 
     /**
