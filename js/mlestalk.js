@@ -310,6 +310,27 @@ function timeNow() {
   return stampTime(new Date());
 }
 
+function getFileExtensionFromDataUrl(dataUrl) {
+  // Extract MIME type from data URL (format: data:mime/type;base64,...)
+  const match = dataUrl.match(/^data:([^;]+)/);
+  if (!match) return '';
+
+  const mimeType = match[1];
+
+  // Map common MIME types to extensions
+  const mimeToExt = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/bmp': 'bmp',
+    'image/svg+xml': 'svg',
+  };
+
+  return mimeToExt[mimeType] || mimeType.split('/')[1] || 'dat';
+}
+
 function get_uniq(uid, channel) {
   return SipHash.hash_hex(gSipKey[channel], uid + channel);
 }
@@ -1294,6 +1315,9 @@ function processData(
               uid +
               "</span> " +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="' +
@@ -1309,6 +1333,9 @@ function processData(
               uid +
               "</span> " +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="' +
@@ -1328,6 +1355,9 @@ function processData(
               uid +
               '</span> ' +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="100px" data-action="zoom" alt=""></li></div>';
@@ -1343,6 +1373,9 @@ function processData(
               uid +
               '</span> ' +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="100px" data-action="zoom" alt=""></li></div>';
@@ -1967,6 +2000,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gMyName[channel] +
         "</span> " +
         time +
+        '<a href="' +
+        message +
+        '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
         '<img class="image" src="' +
         message +
         '" height="100px" data-action="zoom" alt=""></li></div>';
@@ -1980,6 +2016,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gMyName[channel] +
         '</span> ' +
         time +
+        '<a href="' +
+        dataUrl +
+        '" download="image.' + getFileExtensionFromDataUrl(dataUrl) + '" style="text-decoration:none;">💾</a> ' +
         '<img class="image" src="' +
         dataUrl +
         '" height="100px" data-action="zoom" alt=""></li></div>';
