@@ -173,7 +173,7 @@ const MessageDB = {
                 // Update cached count
                 this.messageCounts[channel] = this.maxMessagesPerChannel;
 
-                console.log(`Pruned ${toDelete.length} old messages from ${channel}`);
+                //console.log(`Pruned ${toDelete.length} old messages from ${channel}`);
             }
         };
     },
@@ -287,6 +287,8 @@ const MessageDB = {
                 // Reconstruct the message in the DOM
                 const msgDate = new Date(msg.timestamp);
                 const fullDateString = stampTime(msgDate);
+                let dateString = "[" + fullDateString + "] ";
+                updateDateval(msg.channel, dateString);
 
                 // Extract just the date part for comparison (weekday + date, without time)
                 const dateOnly = fullDateString.substring(0, fullDateString.lastIndexOf(' '));
