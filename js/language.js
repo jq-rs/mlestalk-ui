@@ -33,9 +33,10 @@ function setLanguage() {
       gWeekday[5] = "pe";
       gWeekday[6] = "la";
       gBgTitle = "MlesTalk taustalla";
-      gBgText = "Ilmoitukset aktiivisena";
+      gBgText = "Uusi viesti";
       gExitConfirmText = "Haluatko varmasti poistua kanavalta?";
       gExitAllConfirmText = "Haluatko varmasti poistua kaikilta kanavilta?";
+      gRecordConfirmText = "Aloita ääniviesti?";
       break;
     case "se":
       $("#channel_user_name").text("Ditt namn?");
@@ -58,9 +59,10 @@ function setLanguage() {
       gWeekday[5] = "fr";
       gWeekday[6] = "lö";
       gBgTitle = "MlesTalk i bakgrunden";
-      gBgText = "Meddelanden aktiva";
+      gBgText = "Nytt meddelande";
       gExitConfirmText = "Är du säker på att du vill lämna kanalen?";
       gExitAllConfirmText = "Är du säker på att du vill lämna alla kanaler?";
+      gRecordConfirmText = "Starta inspelning av ljudmeddelande?";
       break;
     case "es":
       $("#channel_user_name").text("¿Su nombre?");
@@ -83,10 +85,11 @@ function setLanguage() {
       gWeekday[5] = "V";
       gWeekday[6] = "S";
       gBgTitle = "MlesTalk en el fondo";
-      gBgText = "Notificaciones activas";
+      gBgText = "Nuevo mensaje";
       gExitConfirmText = "¿Estás seguro de que quieres salir del canal?";
       gExitAllConfirmText =
         "¿Estás seguro de que quieres salir de todos los canales?";
+      gRecordConfirmText = "¿Iniciar grabación de mensaje de voz?";
       break;
     case "de":
       $("#channel_user_name").text("Dein name?");
@@ -109,9 +112,10 @@ function setLanguage() {
       gWeekday[5] = "Fr";
       gWeekday[6] = "Sa";
       gBgTitle = "MlesTalk im Hintergrund";
-      gBgText = "Benachrichtigungen aktiv";
+      gBgText = "Neue Nachricht";
       gExitConfirmText = "Möchten Sie den Kanal wirklich verlassen?";
       gExitAllConfirmText = "Möchten Sie wirklich alle Kanäle verlassen?";
+      gRecordConfirmText = "Audioaufnahme starten?";
       break;
     case "fr":
       $("#channel_user_name").text("Votre nom?");
@@ -134,10 +138,11 @@ function setLanguage() {
       gWeekday[5] = "ven";
       gWeekday[6] = "sam";
       gBgTitle = "MlesTalk en arrière-plan";
-      gBgText = "Notifications actives";
+      gBgText = "Nouveau message";
       gExitConfirmText = "Êtes-vous sûr de vouloir quitter le canal ?";
       gExitAllConfirmText =
         "Êtes-vous sûr de vouloir quitter tous les canaux ?";
+      gRecordConfirmText = "Commencer l'enregistrement audio?";
       break;
     case "pt":
       $("#channel_user_name").text("Seu nome?");
@@ -160,9 +165,10 @@ function setLanguage() {
       gWeekday[5] = "Sex.";
       gWeekday[6] = "Sáb.";
       gBgTitle = "MlesTalk correndo em segundo plano";
-      gBgText = "Notificações ativas";
+      gBgText = "Nova mensagem";
       gExitConfirmText = "Tem certeza que quer sair do canal?";
       gExitAllConfirmText = "Tem certeza que quer sair de todos os canais?";
+      gRecordConfirmText = "Iniciar gravação de áudio?";
       break;
     case "ru":
       $("#channel_user_name").text("Твое имя?");
@@ -185,9 +191,10 @@ function setLanguage() {
       gWeekday[5] = "ПТН";
       gWeekday[6] = "СБТ";
       gBgTitle = "MlesTalk в фоновом режиме";
-      gBgText = "Уведомления активны";
+      gBgText = "Новое сообщение";
       gExitConfirmText = "Вы уверены, что хотите выйти из канала?";
       gExitAllConfirmText = "Вы уверены, что хотите выйти из всех каналов?";
+      gRecordConfirmText = "Начать запись аудио?";
       break;
     case "zh":
       $("#channel_user_name").text("您的名字？");
@@ -210,9 +217,10 @@ function setLanguage() {
       gWeekday[5] = "周五";
       gWeekday[6] = "周六";
       gBgTitle = "MlesTalk 在后台运行";
-      gBgText = "通知已启用";
+      gBgText = "新消息";
       gExitConfirmText = "您确定要退出此频道吗？";
       gExitAllConfirmText = "您确定要退出所有频道吗？";
+      gRecordConfirmText = "开始录制语音消息？";
       break;
     case "ja":
       $("#channel_user_name").text("お名前は？");
@@ -235,9 +243,10 @@ function setLanguage() {
       gWeekday[5] = "金";
       gWeekday[6] = "土";
       gBgTitle = "MlesTalk バックグラウンド実行中";
-      gBgText = "通知有効";
+      gBgText = "新しいメッセージ";
       gExitConfirmText = "このチャンネルから退出しますか？";
       gExitAllConfirmText = "すべてのチャンネルから退出しますか？";
+      gRecordConfirmText = "音声メッセージの録音を開始しますか？";
       break;
     case "ko":
       $("#channel_user_name").text("이름을 입력하세요?");
@@ -260,9 +269,10 @@ function setLanguage() {
       gWeekday[5] = "금";
       gWeekday[6] = "토";
       gBgTitle = "MlesTalk 백그라운드 실행 중";
-      gBgText = "알림 활성화됨";
+      gBgText = "새 메시지";
       gExitConfirmText = "채널을 나가시겠습니까?";
       gExitAllConfirmText = "모든 채널을 나가시겠습니까?";
+      gRecordConfirmText = "음성 메시지 녹음을 시작하시겠습니까?";
       break;
     case "it":
       $("#channel_user_name").text("Il tuo nome?");
@@ -285,9 +295,10 @@ function setLanguage() {
       gWeekday[5] = "Ven";
       gWeekday[6] = "Sab";
       gBgTitle = "MlesTalk in background";
-      gBgText = "Notifiche attive";
+      gBgText = "Nuovo messaggio";
       gExitConfirmText = "Sei sicuro di voler uscire dal canale?";
       gExitAllConfirmText = "Sei sicuro di voler uscire da tutti i canali?";
+      gRecordConfirmText = "Iniziare la registrazione audio?";
       break;
     case "ar":
       $("#channel_user_name").text("اسمك؟");
@@ -310,9 +321,10 @@ function setLanguage() {
       gWeekday[5] = "جمعة";
       gWeekday[6] = "سبت";
       gBgTitle = "MlesTalk في الخلفية";
-      gBgText = "الإشعارات نشطة";
+      gBgText = "رسالة جديدة";
       gExitConfirmText = "هل أنت متأكد من رغبتك في الخروج من القناة؟";
       gExitAllConfirmText = "هل أنت متأكد من رغبتك في الخروج من جميع القنوات؟";
+      gRecordConfirmText = "هل تريد بدء تسجيل رسالة صوتية؟";
       break;
     case "uk":
       $("#channel_user_name").text("Ваше ім'я?");
@@ -335,9 +347,10 @@ function setLanguage() {
       gWeekday[5] = "Пт";
       gWeekday[6] = "Сб";
       gBgTitle = "MlesTalk у фоновому режимі";
-      gBgText = "Сповіщення активні";
+      gBgText = "Нове повідомлення";
       gExitConfirmText = "Ви впевнені, що хочете вийти з каналу?";
       gExitAllConfirmText = "Ви впевнені, що хочете вийти з усіх каналів?";
+      gRecordConfirmText = "Почати запис аудіоповідомлення?";
       break;
     case "pl":
       $("#channel_user_name").text("Twoje imię?");
@@ -360,9 +373,10 @@ function setLanguage() {
       gWeekday[5] = "Pt";
       gWeekday[6] = "Sob";
       gBgTitle = "MlesTalk działa w tle";
-      gBgText = "Powiadomienia aktywne";
+      gBgText = "Nowa wiadomość";
       gExitConfirmText = "Czy na pewno chcesz wyjść z kanału?";
       gExitAllConfirmText = "Czy na pewno chcesz wyjść ze wszystkich kanałów?";
+      gRecordConfirmText = "Rozpocząć nagrywanie wiadomości audio?";
       break;
     case "gb":
     default:
@@ -386,9 +400,10 @@ function setLanguage() {
       gWeekday[5] = "Fri";
       gWeekday[6] = "Sat";
       gBgTitle = "MlesTalk in the background";
-      gBgText = "Notifications active";
+      gBgText = "New message";
       gExitConfirmText = "Are you sure you want to exit the channel?";
       gExitAllConfirmText = "Are you sure you want to exit all channels?";
+      gRecordConfirmText = "Start recording audio message?";
       break;
   }
 

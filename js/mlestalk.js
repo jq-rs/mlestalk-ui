@@ -3,13 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2019-2025 MlesTalk developers
+ * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.2.2";
+const VERSION = "3.3.0";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
+let gMyNameEnc = {};
 let gMyChannel = {};
+let gMyChannelEnc = {};
 let gMyKey = {};
 let gMyAddr = {};
 let gMyPort = {};
@@ -30,6 +32,8 @@ let gActiveChannels = {};
 let gPrevTime = {};
 let gRecStatus = false;
 let gRecorder = null;
+let gPendingSentMessages = {};
+let gDateSeparatorCnt = {};
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -86,6 +90,7 @@ let gJoinExistingComplete = false;
 let gPrevScrollTop = {};
 
 let gLastMessageSeenTs = {};
+let gLastMessageSeenChksum = {};
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
 
@@ -101,6 +106,9 @@ let gIsPause = false;
 let isCordova = false;
 let gImageCnt = 0;
 
+// IndexedDB for message persistence
+let gDB = null;
+
 //message-list of channels
 let gMsgs = {};
 let gNewMsgsCnt = {};
@@ -113,10 +121,11 @@ gWeekday[3] = "Wed";
 gWeekday[4] = "Thu";
 gWeekday[5] = "Fri";
 gWeekday[6] = "Sat";
-let gBgTitle = "MlesTalk in the background";
-let gBgText = "Notifications active";
+let gBgTitle = "MlesTalk";
+let gBgText = "New message";
 let gExitConfirmText = "Are you sure you want to exit the channel?";
 let gExitAllConfirmText = "Are you sure you want to exit all channels?";
+let gRecordConfirmText = "Start recording audio message?";
 
 const FSFONTCOLOR = "#8bac89";
 
@@ -210,7 +219,6 @@ function queueFindAndMatch(msgTimestamp, uid, channel, mHash) {
       }
       if (obj[2] == mHash) {
         lastSeen = i + 1;
-        //console.log("Last seen hash update: " + lastSeen + " ts " + msgTimestamp);
         break;
       }
     }
@@ -302,6 +310,27 @@ function timeNow() {
   return stampTime(new Date());
 }
 
+function getFileExtensionFromDataUrl(dataUrl) {
+  // Extract MIME type from data URL (format: data:mime/type;base64,...)
+  const match = dataUrl.match(/^data:([^;]+)/);
+  if (!match) return '';
+
+  const mimeType = match[1];
+
+  // Map common MIME types to extensions
+  const mimeToExt = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/bmp': 'bmp',
+    'image/svg+xml': 'svg',
+  };
+
+  return mimeToExt[mimeType] || mimeType.split('/')[1] || 'dat';
+}
+
 function get_uniq(uid, channel) {
   return SipHash.hash_hex(gSipKey[channel], uid + channel);
 }
@@ -311,13 +340,31 @@ let gWebWorker = new Worker("zpinc-webworker/js/webworker.js");
 function onPause() {
   gIsPause = true;
   if (isCordova) {
+    // Build channel data
+    const channelData = {};
+    for (let channel in gActiveChannels) {
+      if (channel && gMyChannel[channel]) {
+        channelData[channel] = {
+          name: gMyNameEnc[channel] || "",
+          channel: gMyChannelEnc[channel] || "",
+          channel_dec: gMyChannel[channel] || "",
+          server: gAddrPortInput[channel] || "mles.io:443",
+          msg_chksum: gLastMessageSeenChksum[channel] || 0
+        };
+      }
+    }
+
     if (!cordova.plugins.backgroundMode.isActive()) {
       cordova.plugins.backgroundMode.enable();
     }
+
+    // Pass channels via configure
     cordova.plugins.backgroundMode.configure({
       title: gBgTitle,
       text: gBgText,
+      channels: channelData
     });
+
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.toBackground();
   }
@@ -329,6 +376,8 @@ function onResume() {
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.fromBackground();
   }
+  // Reconnect all channels in case connections were dropped while backgrounded
+  syncReconnect();
   if (gActiveChannel) scrollToBottom(gActiveChannel);
   else if (gIsPresenceView || gIsChannelListView) presenceChannelListShow();
 }
@@ -380,6 +429,9 @@ function newChannelShow() {
 }
 
 function onLoad() {
+  // Initialize IndexedDB for message persistence
+  MessageDB.init();
+
   document.addEventListener(
     "deviceready",
     function () {
@@ -400,8 +452,13 @@ function onLoad() {
       });
 
       // sets a recurring alarm that keeps things rolling
-      cordova.plugins.backgroundMode.disableWebViewOptimizations();
+      // cordova.plugins.backgroundMode.disableWebViewOptimizations();
       cordova.plugins.backgroundMode.enable();
+
+      // Stop any background monitoring from previous session
+      cordova.plugins.backgroundMode.configure({
+	stopMonitoring: true
+      });
 
       document.addEventListener("pause", onPause, false);
       document.addEventListener("resume", onResume, false);
@@ -523,6 +580,7 @@ function joinExistingChannels(channels) {
         if (null == gOwnAppend[channel]) gOwnAppend[channel] = false;
         gForwardSecrecy[channel] = false;
         gLastMessageSeenTs[channel] = 0;
+        gLastMessageSeenChksum[channel] = 0;
         gIsResync[channel] = 0;
         gInitOk[channel] = true;
 
@@ -577,6 +635,7 @@ function askChannelNew() {
     gOwnAppend[channel] = false;
     gForwardSecrecy[channel] = false;
     gLastMessageSeenTs[channel] = 0;
+    gLastMessageSeenChksum[channel] = 0;
     gIsResync[channel] = 0;
     gPrevScrollTop[channel] = 0;
 
@@ -747,8 +806,14 @@ function outputPresenceChannelList() {
         let li;
 
         cnt++;
-        if (gMsgs[channel]) {
-          msgcnt += gMsgs[channel].getLength();
+
+        // Get message count from IndexedDB (using cached synchronous count)
+        const actualMsgCount = MessageDB.getMessageCountSync(channel);
+
+        msgcnt += actualMsgCount;
+
+        if (actualMsgCount > 0) {
+          const newMsgCount = gNewMsgsCnt[channel] || 0;
           li =
             '<li class="new" id="' +
             channel +
@@ -757,11 +822,11 @@ function outputPresenceChannelList() {
             '\')" class="key-btn" title="QR code">🔳</button><span class="name">&#128274;' +
             channel +
             " (<b>" +
-            gNewMsgsCnt[channel] +
+            newMsgCount +
             "</b>/" +
-            gMsgs[channel].getLength() +
+            actualMsgCount +
             ")</span></li>";
-        } else
+        } else {
           li =
             '<li class="new" id="' +
             channel +
@@ -770,6 +835,7 @@ function outputPresenceChannelList() {
             '\')" class="key-btn" title="QR code">🔳</button><span class="name">&#128274;' +
             channel +
             " (<b>-</b>/-)</span></li>";
+        }
 
         $("#presence_avail").append(li);
         if (gIsPresenceView) {
@@ -802,13 +868,11 @@ function outputPresenceChannelList() {
         document.getElementById(channel).onclick = function () {
           gActiveChannel = channel;
           $("#messages").html("");
-          if (gMsgs[channel]) {
-            const qlen = gMsgs[channel].getLength();
-            for (let i = 0; i < qlen; i++) {
-              let li = gMsgs[channel].get(i);
-              $("#messages").append(li);
-            }
-          }
+
+          // Load and display stored messages from IndexedDB
+          MessageDB.displayStoredMessages(channel, autolinker);
+
+          // Continue with channel setup
           selectSipToken(channel);
           gIsChannelListView = false;
           gWasChannelListView = false;
@@ -874,10 +938,16 @@ function closeChannel(channel) {
   delete gIdAppend[channel];
 
   delete gLastMessageSeenTs[channel];
+  delete gLastMessageSeenChksum[channel];
+  delete gDateSeparatorCnt[channel];
 
   queueFlush(gMyName[channel], gMyChannel[channel]);
   clearLocalBdKey(channel);
   clearLocalSession(channel);
+
+  // Delete messages from IndexedDB
+  MessageDB.deleteChannel(channel);
+
   delete gForwardSecrecy[channel];
   delete gPrevBdKey[channel];
   delete gActiveChannels[channel];
@@ -906,18 +976,21 @@ function initReconnect(channel) {
   gReconnAttempts[channel] = 0;
 }
 
-function processInit(uid, channel) {
+function processInit(uid, channel, enc_uid, enc_channelid, msgChksum) {
   if (uid.length > 0 && channel.length > 0) {
     gInitOk[channel] = true;
     createSipToken(channel);
     if (gActiveChannel == channel) selectSipToken(channel);
 
-    sendInitJoin(channel);
+    //sendInitJoin(channel);
 
     if (!gMsgs[channel]) {
       gMsgs[channel] = new Queue();
       gNewMsgsCnt[channel] = 0;
     }
+
+    gMyNameEnc[channel] = enc_uid;
+    gMyChannelEnc[channel] = enc_channelid;
 
     if (gLastMessageSeenTs[channel] > 0) {
       //console.log("last message not zero")
@@ -944,11 +1017,8 @@ function processInit(uid, channel) {
 }
 
 function createSipToken(channel) {
-  //use channel to create 128 bit key
-  let len;
-  if (channel.length > 16) len = 16;
-  else len = channel.length;
-  let bfchannel = channel.substring(0, len);
+  // Pad channel to exactly 16 bytes
+  let bfchannel = channel.substring(0, 16).padEnd(16, '\0');
   gSipKey[channel] = SipHash.string16_to_key(bfchannel);
   gSipKeyChan[channel] = bfchannel;
 }
@@ -1034,6 +1104,7 @@ function processData(
   isFirst,
   isLast,
   fsEnabled,
+  msgChksum
 ) {
   let isAudio = false;
   let isImage = false;
@@ -1064,7 +1135,6 @@ function processData(
   if ((isFull && message.length > 0) || (!isFull && message.length == 0)) {
     /* Match full or presence messages */
     if (gLastMessageSeenTs[channel] > msgTimestamp && 0 == gIsResync[channel]) {
-      console.log("Resyncing msg " + channel);
       gIsResync[channel] += 1;
       resync(uid, channel);
     }
@@ -1116,6 +1186,8 @@ function processData(
         if (dat) {
           /* Update new date header */
           li = DATESTART + ' - <span class="name">' + dat + "</span> - </li>";
+          if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+          gDateSeparatorCnt[channel]++;
           gMsgs[channel].push(li);
           if (gActiveChannel == channel) {
             $("#messages").append(li);
@@ -1133,8 +1205,10 @@ function processData(
 
       gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
-      if (gLastMessageSeenTs[channel] < msgTimestamp)
+      if (gLastMessageSeenTs[channel] < msgTimestamp) {
         gLastMessageSeenTs[channel] = msgTimestamp;
+      }
+      gLastMessageSeenChksum[channel] = msgChksum;
 
       const [nIndex, msgqlen, dated, timed] =
         gMultipartIndex[get_uniq(dict, channel)];
@@ -1157,7 +1231,6 @@ function processData(
         const frag = gMultipartDict[get_uniq(dict, channel)][i];
         if (!frag) {
           //lost message, ignore image
-          console.log("Lost multipart: " + i);
           gMultipartDict[get_uniq(dict, channel)] = null;
           gMultipartIndex[get_uniq(dict, channel)] = null;
           return 0;
@@ -1203,32 +1276,30 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="new"><span class="name">' +
-              uid +
-              '</span><font color="' +
+              '"><li class="new" style="color: ' +
               FSFONTCOLOR +
-              '"> ' +
+              ' !important;"><span class="name">' +
+              uid +
+              '</span> ' +
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />' +
-              "</font>";
+              '" />';
           } else {
             li =
               '<div id="' +
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"><span class="name">' +
-              uid +
-              '</span><font color="' +
+              '"><li class="own" style="color: ' +
               FSFONTCOLOR +
-              '"> ' +
+              ' !important;"><span class="name">' +
+              uid +
+              '</span> ' +
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />' +
-              "</font>";
+              '" />';
           }
         }
       } else if (message.substring(0, IMGDATASTR.length) == IMGDATASTR) {
@@ -1244,6 +1315,9 @@ function processData(
               uid +
               "</span> " +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="' +
@@ -1259,6 +1333,9 @@ function processData(
               uid +
               "</span> " +
               time +
+              '<a href="' +
+              message +
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
               '<img class="image" src="' +
               message +
               '" height="' +
@@ -1272,34 +1349,36 @@ function processData(
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="new"><span class="name">' +
-              uid +
-              '</span><font color="' +
+              '"><li class="new" style="color: ' +
               FSFONTCOLOR +
-              '"> ' +
+              ' !important;"><span class="name">' +
+              uid +
+              '</span> ' +
               time +
-              '</font><img class="image" src="' +
+              '<a href="' +
               message +
-              '" height="' +
-              IMG_THUMBSZ +
-              'px" data-action="zoom" alt="">';
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
+              '<img class="image" src="' +
+              message +
+              '" height="100px" data-action="zoom" alt=""></li></div>';
           } else {
             li =
               '<div id="' +
               duid +
               "" +
               nIndex.toString(16) +
-              '"><li class="own"><span class="name">' +
-              uid +
-              '</span><font color="' +
+              '"><li class="own" style="color: ' +
               FSFONTCOLOR +
-              '"> ' +
+              ' !important;"><span class="name">' +
+              uid +
+              '</span> ' +
               time +
-              '</font><img class="image" src="' +
+              '<a href="' +
               message +
-              '" height="' +
-              IMG_THUMBSZ +
-              'px" data-action="zoom" alt="">';
+              '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
+              '<img class="image" src="' +
+              message +
+              '" height="100px" data-action="zoom" alt=""></li></div>';
           }
         }
       } else {
@@ -1323,7 +1402,7 @@ function processData(
       gMultipartDict[get_uniq(dict, channel)] = null;
       gMultipartIndex[get_uniq(dict, channel)] = null;
 
-      finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio);
+      finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio, msgChksum, fsEnabled);
     }
     return 0;
   }
@@ -1331,9 +1410,12 @@ function processData(
   if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
     gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
 
-    if (gLastMessageSeenTs[channel] < msgTimestamp)
+    if (gLastMessageSeenTs[channel] < msgTimestamp) {
       gLastMessageSeenTs[channel] = msgTimestamp;
+    }
+    gLastMessageSeenChksum[channel] = msgChksum;
 
+    /*
     if (isPresence) {
       let datenow = Date.now();
       let doSndPresAck = false;
@@ -1350,7 +1432,7 @@ function processData(
         sendPresAck(channel);
       }
       return 1;
-    }
+    }*/
 
     if (0 == message.length) {
       return 0;
@@ -1365,6 +1447,8 @@ function processData(
     if (date) {
       /* Update new date header */
       li = DATESTART + ' - <span class="name">' + date + "</span> - </li>";
+      if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+      gDateSeparatorCnt[channel]++;
       gMsgs[channel].push(li);
       if (gActiveChannel == channel) $("#messages").append(li);
     }
@@ -1408,30 +1492,30 @@ function processData(
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="new"><span class="name">' +
-          uid +
-          '</span><font color="' +
+          '"><li class="new" style="color: ' +
           FSFONTCOLOR +
-          '"> ' +
+          ' !important;"><span class="name">' +
+          uid +
+          '</span> ' +
           time +
           "" +
           autolinker.link(message) +
-          "</font></li></div>";
+          "</li></div>";
       } else {
         li =
           '<div id="' +
           duid +
           "" +
           gIndex[channel][uid] +
-          '"><li class="own"><span class="name">' +
-          uid +
-          '</span><font color="' +
+          '"><li class="own" style="color: ' +
           FSFONTCOLOR +
-          '"> ' +
+          ' !important;"><span class="name">' +
+          uid +
+          '</span> ' +
           time +
           "" +
           autolinker.link(message) +
-          "</font></li></div>";
+          "</li></div>";
       }
     }
 
@@ -1452,7 +1536,7 @@ function processData(
       gIdAppend[channel][uid] = false;
     }
 
-    finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio);
+    finalize(uid, channel, msgTimestamp, message, isFull, isImage, isAudio, msgChksum, fsEnabled);
   }
   return 0;
 }
@@ -1465,6 +1549,8 @@ function finalize(
   isFull,
   isImage,
   isAudio,
+  msgChksum,
+  fsEnabled,
 ) {
   if (
     gActiveChannel == channel &&
@@ -1497,7 +1583,7 @@ function finalize(
     isFull &&
     gIdNotifyTs[channel][uid] < notifyTimestamp
   ) {
-    if (gActiveChannel != channel || gIsPause) {
+    if ((gActiveChannel != channel && !gIsChannelListView && !gIsPresenceView) || gIsPause) {
       if (gWillNotify && gCanNotify) {
         if (isAudio) message = "🎙";
         else if (isImage) message = "🖼️";
@@ -1506,6 +1592,18 @@ function finalize(
     }
     gIdNotifyTs[channel][uid] = notifyTimestamp;
     setNotifyTimestamps();
+  }
+
+  // Save message to IndexedDB
+  if (isFull) {
+    let msgtype = MSGISFULL;
+    if (isImage || isAudio) {
+      msgtype |= MSGISDATA;
+    }
+    const dataUrl = (isImage || isAudio) ? message : null;
+    const isOwn = (uid === gMyName[channel]);
+    // Use fsEnabled from parameter (from server) instead of local gForwardSecrecy
+    MessageDB.saveMessage(channel, uid, message, msgTimestamp, msgtype, dataUrl, msgChksum, isOwn, fsEnabled);
   }
 }
 
@@ -1522,7 +1620,9 @@ gWebWorker.onmessage = function (e) {
       {
         let uid = utf8Decode(e.data[1]);
         let channel = utf8Decode(e.data[2]);
-        let ret = processInit(uid, channel);
+        let enc_uid = e.data[3]; //base64
+        let enc_channelid = e.data[4]; //base64
+        let ret = processInit(uid, channel, enc_uid, enc_channelid);
         if (ret < 0) {
           console.log("Process init failed: " + ret);
         }
@@ -1536,28 +1636,96 @@ gWebWorker.onmessage = function (e) {
         let message = e.data[4];
         let msgtype = e.data[5];
         let fsEnabled = e.data[6];
+        let msgChksum = e.data[7];
 
         initReconnect(channel);
 
-        let ret = processData(
-          uid,
-          channel,
-          msgTimestamp,
-          message,
-          msgtype & MSGISFULL ? true : false,
-          msgtype & MSGISPRESENCE ? true : false,
-          msgtype & MSGISPRESENCEACK ? true : false,
-          msgtype & MSGISDATA ? true : false,
-          msgtype & MSGISMULTIPART ? true : false,
-          msgtype & MSGISFIRST ? true : false,
-          msgtype & MSGISLAST ? true : false,
-          fsEnabled,
-        );
-        if (ret < 0) {
-          console.log("Process data failed: " + ret);
+        // Check if this is a full message that might already be in IndexedDB
+        const isFull = msgtype & MSGISFULL ? true : false;
+
+        if (gIsResync[channel] > 0) {
+          if (!isFull)
+            return;
+          // During resync, check if message already exists in IndexedDB to prevent duplicates
+          // After resync, all messages are new so no check needed
+          MessageDB.checksumExists(channel, msgChksum, function(exists) {
+            if (exists) {
+              // Already in IndexedDB, skip processing
+              return;
+            }
+
+            // Message is new, process it
+            let ret = processData(
+              uid,
+              channel,
+              msgTimestamp,
+              message,
+              isFull,
+              msgtype & MSGISPRESENCE ? true : false,
+              msgtype & MSGISPRESENCEACK ? true : false,
+              msgtype & MSGISDATA ? true : false,
+              msgtype & MSGISMULTIPART ? true : false,
+              msgtype & MSGISFIRST ? true : false,
+              msgtype & MSGISLAST ? true : false,
+              fsEnabled,
+              msgChksum
+            );
+            if (ret < 0) {
+              console.log("Process data failed: " + ret);
+            }
+          });
+        } else {
+            // After resync, process all messages directly (all are new)
+            let ret = processData(
+              uid,
+              channel,
+              msgTimestamp,
+              message,
+              isFull,
+              msgtype & MSGISPRESENCE ? true : false,
+              msgtype & MSGISPRESENCEACK ? true : false,
+              msgtype & MSGISDATA ? true : false,
+              msgtype & MSGISMULTIPART ? true : false,
+              msgtype & MSGISFIRST ? true : false,
+              msgtype & MSGISLAST ? true : false,
+              fsEnabled,
+              msgChksum
+            );
+            if (ret < 0) {
+              console.log("Process data failed: " + ret);
+            }
+          }
         }
-      }
-      break;
+        break;
+      case "send":
+        let uid = utf8Decode(e.data[1]);
+        let channel = utf8Decode(e.data[2]);
+        let msgType = e.data[3];
+        let msgChksum = e.data[4];
+        gLastMessageSeenChksum[channel] = msgChksum;
+
+        // Save sent message to IndexedDB since server doesn't echo back own messages
+        if (gPendingSentMessages[channel]) {
+          const pending = gPendingSentMessages[channel];
+          const isFull = msgType & MSGISFULL;
+          if (isFull) {
+            // Determine message type
+            let msgtype = MSGISFULL;
+            const isAudioMsg = pending.isAudio;
+            const isImageMsg = pending.isImage;
+            if (isImageMsg || isAudioMsg) {
+              msgtype |= MSGISDATA;
+            }
+            const dataUrl = (isImageMsg || isAudioMsg) ? pending.message : null;
+            const isOwn = true;
+            const fsEnabled = pending.fsEnabled;
+
+            // Save to IndexedDB with pending timestamp (client time)
+            MessageDB.saveMessage(channel, uid, pending.message, pending.timestamp, msgtype, dataUrl, msgChksum, isOwn, fsEnabled);
+          }
+          delete gPendingSentMessages[channel];
+        }
+        break;
     case "close":
       {
         let uid = utf8Decode(e.data[1]);
@@ -1575,7 +1743,6 @@ gWebWorker.onmessage = function (e) {
         let channel = utf8Decode(e.data[2]);
         const prevBdKey = e.data[3];
 
-        //console.log("Got forward secrecy on!")
         let ret = processForwardSecrecy(uid, channel, prevBdKey);
         if (ret < 0) {
           console.log("Process forward secrecy failed: " + ret);
@@ -1588,7 +1755,6 @@ gWebWorker.onmessage = function (e) {
         let channel = utf8Decode(e.data[2]);
 
         let ret = processForwardSecrecyOff(uid, channel);
-        //console.log("Got forward secrecy off!")
         if (ret < 0) {
           console.log("Process forward secrecy off failed: " + ret);
         }
@@ -1597,7 +1763,7 @@ gWebWorker.onmessage = function (e) {
     case "resync":
       {
         let channel = utf8Decode(e.data[2]);
-        sendEmptyJoin(channel);
+        //sendEmptyJoin(channel);
       }
       break;
   }
@@ -1677,7 +1843,6 @@ async function reconnect(uid, channel) {
     gReconnAttempts[channel] += 1;
   }
 
-  //console.log("Sleeping " + gReconnTimeout[channel]);
   await sleep(gReconnTimeout[channel]);
   gReconnTimeout[channel] *= 2;
   gWebWorker.postMessage([
@@ -1700,7 +1865,7 @@ function syncReconnect() {
         utf8Encode(gMyChannel[channel]),
         gPrevBdKey[channel],
       ]);
-      sendEmptyJoin(gMyChannel[channel]);
+      //sendEmptyJoin(gMyChannel[channel]);
     }
   }
 }
@@ -1736,7 +1901,7 @@ function sendData(cmd, uid, channel, data, msgtype) {
       msgHashHandle(uid, channel, msgDate.valueOf(), mHash);
     }
 
-    if (false == gIsResync[channel]) {
+    if (0 == gIsResync[channel]) {
       gWebWorker.postMessage(arr);
     }
     if (msgtype & MSGISFULL && data.length > 0) {
@@ -1765,6 +1930,8 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
   if (date) {
     /* Update new date header */
     li = DATESTART + ' - <span class="name">' + date + "</span> - </li>";
+    if (!gDateSeparatorCnt[channel]) gDateSeparatorCnt[channel] = 0;
+    gDateSeparatorCnt[channel]++;
     $("#messages").append(li);
     gMsgs[channel].push(li);
   }
@@ -1787,15 +1954,15 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        '</span><font color="' +
+        '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        '"> ' +
+        ' !important;"><span class="name">' +
+        gMyName[channel] +
+        '</span> ' +
         time +
         "" +
         autolinker.link(message) +
-        "</font></li></div>";
+        "</li></div>";
     }
   } else if (isAudio) {
     if (!gForwardSecrecy[channel]) {
@@ -1813,15 +1980,15 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        '</span><font color="' +
+        '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        '"> ' +
+        ' !important;"><span class="name">' +
+        gMyName[channel] +
+        '</span> ' +
         time +
         '🎙 <audio controls src="' +
         message +
-        '" /></font></li></div>';
+        '" /></li></div>';
     }
   } else {
     // This is for images
@@ -1833,6 +2000,9 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gMyName[channel] +
         "</span> " +
         time +
+        '<a href="' +
+        message +
+        '" download="image.' + getFileExtensionFromDataUrl(message) + '" style="text-decoration:none;">💾</a> ' +
         '<img class="image" src="' +
         message +
         '" height="100px" data-action="zoom" alt=""></li></div>';
@@ -1840,14 +2010,17 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       li =
         '<div id="owner' +
         gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        '</span><font color="' +
+        '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        '"> ' +
+        ' !important;"><span class="name">' +
+        gMyName[channel] +
+        '</span> ' +
         time +
-        '</font><img class="image" src="' +
-        message +
+        '<a href="' +
+        dataUrl +
+        '" download="image.' + getFileExtensionFromDataUrl(dataUrl) + '" style="text-decoration:none;">💾</a> ' +
+        '<img class="image" src="' +
+        dataUrl +
         '" height="100px" data-action="zoom" alt=""></li></div>';
     }
   }
@@ -1870,6 +2043,17 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
 
   scrollToBottom(channel);
   if (isFull) $("#input_message").val("");
+
+  // Store sent message details, waiting for msgChksum from webworker
+  if (isFull) {
+    gPendingSentMessages[channel] = {
+      message: message,
+      timestamp: Date.now(),
+      isImage: isImage,
+      isAudio: isAudio,
+      fsEnabled: gForwardSecrecy[channel] || false
+    };
+  }
 }
 
 function sendMessage(
@@ -2047,18 +2231,27 @@ function clearLocalSession(channel) {
 }
 
 function getLocalBdKey(channel) {
-  const bdKey = window.localStorage.getItem("gPrevBdKey" + channel);
+  const bdKeyStr = window.localStorage.getItem("gPrevBdKey" + channel);
 
-  if (bdKey) {
-    gPrevBdKey[channel] = bdKey;
-    //console.log("Loading key from local storage!");
+  if (bdKeyStr) {
+    try {
+      // Parse JSON array and convert back to Uint8Array
+      const bdKeyArray = JSON.parse(bdKeyStr);
+      gPrevBdKey[channel] = new Uint8Array(bdKeyArray);
+    } catch (e) {
+      console.error("Failed to parse BD key from localStorage:", e);
+      gPrevBdKey[channel] = null;
+    }
+  } else {
+    gPrevBdKey[channel] = null;
   }
 }
 
 function setLocalBdKey(channel, bdKey) {
-  if (bdKey) {
-    window.localStorage.setItem("gPrevBdKey" + channel, bdKey);
-    //console.log("Saving keys to local storage!");
+  if (bdKey && bdKey instanceof Uint8Array) {
+    // Convert Uint8Array to regular array for JSON serialization
+    const bdKeyArray = Array.from(bdKey);
+    window.localStorage.setItem("gPrevBdKey" + channel, JSON.stringify(bdKeyArray));
   }
 }
 
@@ -2101,6 +2294,11 @@ function handleDataAvailable(event) {
 
 function record() {
   if (false == gRecStatus) {
+    // Ask for confirmation before starting recording
+    if (!confirm(gRecordConfirmText)) {
+      return;
+    }
+
     captureMicrophone(function (microphone) {
       let options = { mimeType: "audio/webm" };
       gRecorder = new MediaRecorder(microphone, options);
