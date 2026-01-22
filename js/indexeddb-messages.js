@@ -251,6 +251,16 @@ const MessageDB = {
                 gDateSeparatorCnt[channel] = 0;
             }
 
+            // Add channel header as first item
+            if (typeof gMyName !== 'undefined' && gMyName[channel] && typeof gMyChannel !== 'undefined' && gMyChannel[channel]) {
+                const channelHeader = '<li class="date"> - <span class="name">' + gMyName[channel] + '@' + gMyChannel[channel] + '</span> - </li>';
+                messagesContainer.insertAdjacentHTML('beforeend', channelHeader);
+
+                if (typeof gDateSeparatorCnt !== 'undefined' && typeof gDateSeparatorCnt === 'object') {
+                    gDateSeparatorCnt[channel]++;
+                }
+            }
+
             // Get forward secrecy color if available
             const FSFONTCOLOR = (typeof window.FSFONTCOLOR !== 'undefined') ? window.FSFONTCOLOR : '#8bac89';
 
