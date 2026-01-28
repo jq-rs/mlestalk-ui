@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.0";
+const VERSION = "3.3.1";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -90,7 +90,7 @@ let gJoinExistingComplete = false;
 let gPrevScrollTop = {};
 
 let gLastMessageSeenTs = {};
-let gLastMessageSeenChksum = {};
+let gSeenChksums = {};
 let gLastMessage = {};
 let gLastMessageSendOrRcvdDate = {};
 
@@ -349,7 +349,9 @@ function onPause() {
           channel: gMyChannelEnc[channel] || "",
           channel_dec: gMyChannel[channel] || "",
           server: gAddrPortInput[channel] || "mles.io:443",
-          msg_chksum: gLastMessageSeenChksum[channel] || 0
+          msg_chksums: JSON.stringify(
+            gSeenChksums[channel] ? [...gSeenChksums[channel]] : []
+          ),
         };
       }
     }
@@ -580,7 +582,7 @@ function joinExistingChannels(channels) {
         if (null == gOwnAppend[channel]) gOwnAppend[channel] = false;
         gForwardSecrecy[channel] = false;
         gLastMessageSeenTs[channel] = 0;
-        gLastMessageSeenChksum[channel] = 0;
+        gSeenChksums[channel] = new Set();
         gIsResync[channel] = 0;
         gInitOk[channel] = true;
 
@@ -635,7 +637,7 @@ function askChannelNew() {
     gOwnAppend[channel] = false;
     gForwardSecrecy[channel] = false;
     gLastMessageSeenTs[channel] = 0;
-    gLastMessageSeenChksum[channel] = 0;
+    gSeenChksums[channel] = new Set();
     gIsResync[channel] = 0;
     gPrevScrollTop[channel] = 0;
 
@@ -938,7 +940,7 @@ function closeChannel(channel) {
   delete gIdAppend[channel];
 
   delete gLastMessageSeenTs[channel];
-  delete gLastMessageSeenChksum[channel];
+  delete gSeenChksums[channel];
   delete gDateSeparatorCnt[channel];
 
   queueFlush(gMyName[channel], gMyChannel[channel]);
@@ -1208,7 +1210,6 @@ function processData(
       if (gLastMessageSeenTs[channel] < msgTimestamp) {
         gLastMessageSeenTs[channel] = msgTimestamp;
       }
-      gLastMessageSeenChksum[channel] = msgChksum;
 
       const [nIndex, msgqlen, dated, timed] =
         gMultipartIndex[get_uniq(dict, channel)];
@@ -1413,7 +1414,6 @@ function processData(
     if (gLastMessageSeenTs[channel] < msgTimestamp) {
       gLastMessageSeenTs[channel] = msgTimestamp;
     }
-    gLastMessageSeenChksum[channel] = msgChksum;
 
     /*
     if (isPresence) {
@@ -1640,8 +1640,10 @@ gWebWorker.onmessage = function (e) {
 
         initReconnect(channel);
 
-        // Check if this is a full message that might already be in IndexedDB
         const isFull = msgtype & MSGISFULL ? true : false;
+
+        // Add to checksum set
+        gSeenChksums[channel].add(msgChksum);
 
         if (gIsResync[channel] > 0) {
           if (!isFull)
@@ -1702,7 +1704,7 @@ gWebWorker.onmessage = function (e) {
         let channel = utf8Decode(e.data[2]);
         let msgType = e.data[3];
         let msgChksum = e.data[4];
-        gLastMessageSeenChksum[channel] = msgChksum;
+        gSeenChksums[channel].add(msgChksum);
 
         // Save sent message to IndexedDB since server doesn't echo back own messages
         if (gPendingSentMessages[channel]) {
