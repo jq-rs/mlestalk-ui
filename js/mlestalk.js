@@ -1258,7 +1258,7 @@ function processData(
               nIndex.toString(16) +
               '"><li class="new" style="color: ' +
               FSFONTCOLOR +
-              ' !important;"><span class="name">' +
+              '"><span class="name">' +
               uid +
               '</span> ' +
               time +
@@ -1273,7 +1273,7 @@ function processData(
               nIndex.toString(16) +
               '"><li class="own" style="color: ' +
               FSFONTCOLOR +
-              ' !important;"><span class="name">' +
+              '"><span class="name">' +
               uid +
               '</span> ' +
               time +
@@ -1325,7 +1325,7 @@ function processData(
               nIndex.toString(16) +
               '"><li class="new" style="color: ' +
               FSFONTCOLOR +
-              ' !important;"><span class="name">' +
+              '"><span class="name">' +
               uid +
               '</span> ' +
               time +
@@ -1340,7 +1340,7 @@ function processData(
               nIndex.toString(16) +
               '"><li class="own" style="color: ' +
               FSFONTCOLOR +
-              ' !important;"><span class="name">' +
+              '"><span class="name">' +
               uid +
               '</span> ' +
               time +
@@ -1461,7 +1461,7 @@ function processData(
           gIndex[channel][uid] +
           '"><li class="new" style="color: ' +
           FSFONTCOLOR +
-          ' !important;"><span class="name">' +
+          '"><span class="name">' +
           uid +
           '</span> ' +
           time +
@@ -1476,7 +1476,7 @@ function processData(
           gIndex[channel][uid] +
           '"><li class="own" style="color: ' +
           FSFONTCOLOR +
-          ' !important;"><span class="name">' +
+          '"><span class="name">' +
           uid +
           '</span> ' +
           time +
@@ -1925,7 +1925,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gOwnId[channel] +
         '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        ' !important;"><span class="name">' +
+        '"><span class="name">' +
         gMyName[channel] +
         '</span> ' +
         time +
@@ -1951,7 +1951,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gOwnId[channel] +
         '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        ' !important;"><span class="name">' +
+        '"><span class="name">' +
         gMyName[channel] +
         '</span> ' +
         time +
@@ -1978,7 +1978,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         gOwnId[channel] +
         '"><li class="own" style="color: ' +
         FSFONTCOLOR +
-        ' !important;"><span class="name">' +
+        '"><span class="name">' +
         gMyName[channel] +
         '</span> ' +
         time +
