@@ -206,35 +206,7 @@ const MessageDB = {
         };
     },
 
-    /**
-     * Display stored messages in the DOM
-     *
-     * @param {string} channel - Channel name
-     * @param {object} autolinker - Autolinker instance for URL parsing
-     */
-    getFileExtensionFromDataUrl: function(dataUrl) {
-        // Extract MIME type from data URL (format: data:mime/type;base64,...)
-        const match = dataUrl.match(/^data:([^;]+)/);
-        if (!match) return 'dat';
-
-        const mimeType = match[1];
-
-        // Map common MIME types to extensions
-        const mimeToExt = {
-            'image/png': 'png',
-            'image/jpeg': 'jpg',
-            'image/jpg': 'jpg',
-            'image/gif': 'gif',
-            'image/webp': 'webp',
-            'image/bmp': 'bmp',
-            'image/svg+xml': 'svg',
-        };
-
-        return mimeToExt[mimeType] || mimeType.split('/')[1] || 'dat';
-    },
-
     displayStoredMessages: function(channel, autolinker) {
-        const getFileExtensionFromDataUrl = this.getFileExtensionFromDataUrl;
         this.loadMessages(channel, (messages) => {
             if (messages.length === 0) return;
 
@@ -325,10 +297,8 @@ const MessageDB = {
 
                 if (msg.isImage && msg.dataUrl) {
                     // Image message
-                    const imgExt = getFileExtensionFromDataUrl(msg.dataUrl);
                     li = '<div><li class="' + liClass + '"' + liStyle + '><span class="name">' + msg.uid +
-                         '</span> ' + displayTime + '<a href="' + msg.dataUrl +
-                         '" download="image.' + imgExt + '" style="text-decoration:none;">💾</a> <img class="image" src="' + msg.dataUrl +
+                         '</span> ' + displayTime + ' <img class="image" src="' + msg.dataUrl +
                          '" height="100px" data-action="zoom" alt=""></li></div>';
                 } else if (msg.isAudio && msg.dataUrl) {
                     // Audio message
