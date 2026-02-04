@@ -293,7 +293,7 @@ const MessageDB = {
                 // Build message HTML matching original format
                 let li = '';
                 const liClass = msg.isOwn ? 'own' : 'new';
-                const liStyle = msg.fsEnabled ? ' style="color: ' + FSFONTCOLOR + ' !important;"' : '';
+                const liStyle = msg.fsEnabled ? ' style="color: ' + FSFONTCOLOR + '"' : '';
 
                 if (msg.isImage && msg.dataUrl) {
                     // Image message
