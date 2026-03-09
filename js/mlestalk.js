@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.2";
+const VERSION = "3.3.3";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1234,7 +1234,7 @@ function processData(
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />';
+              '"></audio>';
           } else {
             li =
               '<div id="' +
@@ -1247,7 +1247,7 @@ function processData(
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />';
+              '"></audio>';
           }
         } else {
           if (uid != gMyName[channel]) {
@@ -1264,7 +1264,7 @@ function processData(
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />';
+              '"></audio>';
           } else {
             li =
               '<div id="' +
@@ -1279,7 +1279,7 @@ function processData(
               time +
               '🎙 <audio controls src="' +
               message +
-              '" />';
+              '"></audio>';
           }
         }
       } else if (message.substring(0, IMGDATASTR.length) == IMGDATASTR) {
@@ -1331,7 +1331,7 @@ function processData(
               time +
               '<img class="image" src="' +
               message +
-              '" height="100px" data-action="zoom" alt=""></li></div>';
+              '" height="100px" data-action="zoom" alt="">';
           } else {
             li =
               '<div id="' +
@@ -1346,7 +1346,7 @@ function processData(
               time +
               '<img class="image" src="' +
               message +
-              '" height="100px" data-action="zoom" alt=""></li></div>';
+              '" height="100px" data-action="zoom" alt="">';
           }
         }
       } else {
@@ -1944,7 +1944,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         time +
         '🎙 <audio controls src="' +
         message +
-        '" /></li></div>';
+        '"></audio></li></div>';
     } else {
       li =
         '<div id="owner' +
@@ -1957,7 +1957,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         time +
         '🎙 <audio controls src="' +
         message +
-        '" /></li></div>';
+        '"></audio></li></div>';
     }
   } else {
     // This is for images
@@ -1983,7 +1983,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
         '</span> ' +
         time +
         '<img class="image" src="' +
-        dataUrl +
+        message +
         '" height="100px" data-action="zoom" alt=""></li></div>';
     }
   }
