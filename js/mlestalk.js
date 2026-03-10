@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.3";
+const VERSION = "3.3.4";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -2354,6 +2354,23 @@ function showQRCodeFor(channel) {
     }
 
     qrcode.makeCode(encodedContent);
+
+    // Show channel ID and encrypted channel string below QR code.
+    // The encrypted channel string allows proxy configuration between
+    // two mles servers without exposing the plaintext key.
+    let label = document.getElementById("qrcode_channel_label");
+    if (!label) {
+      label = document.createElement("div");
+      label.id = "qrcode_channel_label";
+      label.style.cssText =
+        "text-align:center; margin-top:8px; word-break:break-all;";
+      document.getElementById("qrcode_section").appendChild(label);
+    }
+
+    const encChannel = gMyChannelEnc[channel] || "";
+    label.innerHTML =
+      (encChannel ? "<small style='color:#666;'>" + encChannel + "</small>" : "");
+
     document.getElementById("qrcode_section").style.display = "block";
   } catch (e) {
     console.error("Error generating QR code:", e);
