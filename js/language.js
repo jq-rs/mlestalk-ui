@@ -678,4 +678,17 @@ function verAlert(newVersionExists, version = "", dlurl = "", b2sum = "") {
   }
 }
 
+function downloadFile(url) {
+  // Programmatically create a link element
+  const link = document.createElement("a");
+  link.href = url;
+
+  // Simulate a click on the link element to initiate the download
+  document.body.appendChild(link);
+  link.click();
+
+  // Clean up: remove the link element from the DOM
+  document.body.removeChild(link);
+}
+
 /* Language specific functions -- end -- */
