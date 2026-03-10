@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.5";
+const VERSION = "3.3.6";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -34,6 +34,7 @@ let gRecStatus = false;
 let gRecorder = null;
 let gPendingSentMessages = {};
 let gDateSeparatorCnt = {};
+let gAckTimeoutId = {};
 
 /* Msg type flags */
 const MSGISFULL = 0x1;
@@ -65,7 +66,7 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 3000;
 const RESYNC_TIMEOUT = 2500; /* ms */
-const LED_ON_TIME = 500; /* ms */
+const LED_ON_TIME = 300; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 1; /* ms */
@@ -1589,6 +1590,15 @@ gWebWorker.onmessage = function (e) {
         let channel = utf8Decode(e.data[2]);
         let enc_uid = e.data[3]; //base64
         let enc_channelid = e.data[4]; //base64
+
+        // Clear any ack timeout and reset button to idle
+        if (gAckTimeoutId[channel]) {
+            clearTimeout(gAckTimeoutId[channel]);
+            gAckTimeoutId[channel] = null;
+        }
+        const btn = document.getElementById("the_send");
+        if (btn) btn.style.color = "";
+
         let ret = processInit(uid, channel, enc_uid, enc_channelid);
         if (ret < 0) {
           console.log("Process init failed: " + ret);
@@ -1678,6 +1688,11 @@ gWebWorker.onmessage = function (e) {
           const pending = gPendingSentMessages[channel];
           const isFull = msgType & MSGISFULL;
           if (isFull) {
+            if (gAckTimeoutId[channel]) {
+                clearTimeout(gAckTimeoutId[channel]);
+                gAckTimeoutId[channel] = null;
+            }
+            flashEnterGreen();
             // Determine message type
             let msgtype = MSGISFULL;
             const isAudioMsg = pending.isAudio;
@@ -2016,6 +2031,14 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       isAudio: isAudio,
       fsEnabled: gForwardSecrecy[channel] || false
     };
+
+    // Start ack timeout timer
+    if (gAckTimeoutId[channel]) clearTimeout(gAckTimeoutId[channel]);
+    gAckTimeoutId[channel] = setTimeout(() => {
+        const btn = document.getElementById("the_send");
+        if (btn) btn.style.color = "#f44336"; // red - no ack received
+        gAckTimeoutId[channel] = null;
+    }, LED_OFF_TIME);
   }
 }
 
@@ -2652,4 +2675,11 @@ function generateStrongKey(event) {
 
   // Set the generated password to the key input
   document.getElementById("input_key").value = finalPassword;
+}
+
+function flashEnterGreen() {
+  const btn = document.getElementById("the_send");
+  if (!btn) return;
+  btn.style.color = "#4caf50";
+  setTimeout(() => { btn.style.color = ""; }, LED_ON_TIME);
 }

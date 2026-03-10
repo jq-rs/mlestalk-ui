@@ -16,12 +16,23 @@ const MessageDB = {
     /**
      * Initialize the IndexedDB database
      */
-    init: function() {
-        const request = indexedDB.open('mlestalk-messages', 1);
-
-        request.onerror = () => {
-            console.error('IndexedDB failed to open');
-        };
+     init: function(retried = false) {
+         const request = indexedDB.open('mlestalk-messages', 1);
+         request.onerror = () => {
+             console.error('IndexedDB failed to open, attempting recovery...');
+             if (retried) {
+                 console.error('IndexedDB recovery failed, storage unavailable');
+                 return;
+             }
+             const deleteRequest = indexedDB.deleteDatabase('mlestalk-messages');
+             deleteRequest.onsuccess = () => {
+                 console.log('IndexedDB deleted, retrying...');
+                 MessageDB.init(true);
+             };
+             deleteRequest.onerror = () => {
+                 console.error('IndexedDB recovery failed, storage unavailable');
+             };
+         };
 
         request.onsuccess = (event) => {
             this.db = event.target.result;
