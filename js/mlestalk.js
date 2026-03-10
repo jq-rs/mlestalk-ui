@@ -849,6 +849,9 @@ function outputPresenceChannelList() {
         }
         document.getElementById(channel).onclick = function () {
           gActiveChannel = channel;
+          // Restore button color based on channel's known state
+          const btn = document.getElementById("the_send");
+          if (btn) btn.style.color = gInitOk[channel] ? "" : "#f44336";
           $("#messages").html("");
 
           // Load and display stored messages from IndexedDB
@@ -1596,8 +1599,10 @@ gWebWorker.onmessage = function (e) {
             clearTimeout(gAckTimeoutId[channel]);
             gAckTimeoutId[channel] = null;
         }
-        const btn = document.getElementById("the_send");
-        if (btn) btn.style.color = "";
+        if (gActiveChannel == channel) {
+          const btn = document.getElementById("the_send");
+          if (btn) btn.style.color = "";
+        }
 
         let ret = processInit(uid, channel, enc_uid, enc_channelid);
         if (ret < 0) {
@@ -1715,6 +1720,16 @@ gWebWorker.onmessage = function (e) {
         let uid = utf8Decode(e.data[1]);
         let channel = utf8Decode(e.data[2]);
 
+        // Turn red immediately on close
+        if (gAckTimeoutId[channel]) {
+            clearTimeout(gAckTimeoutId[channel]);
+            gAckTimeoutId[channel] = null;
+        }
+        if (gActiveChannel == channel) {
+          const btn = document.getElementById("the_send");
+          if (btn) btn.style.color = "#f44336";
+        }
+
         let ret = processClose(uid, channel);
         if (ret < 0) {
           console.log("Process close failed: " + ret);
@@ -1747,6 +1762,16 @@ gWebWorker.onmessage = function (e) {
     case "resync":
       {
         let channel = utf8Decode(e.data[2]);
+
+        // Clear any ack timeout and reset button to idle
+        if (gAckTimeoutId[channel]) {
+            clearTimeout(gAckTimeoutId[channel]);
+            gAckTimeoutId[channel] = null;
+        }
+        if (gActiveChannel == channel) {
+          const btn = document.getElementById("the_send");
+          if (btn) btn.style.color = "";
+        }
         //sendEmptyJoin(channel);
       }
       break;
@@ -2033,12 +2058,15 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
     };
 
     // Start ack timeout timer
-    if (gAckTimeoutId[channel]) clearTimeout(gAckTimeoutId[channel]);
-    gAckTimeoutId[channel] = setTimeout(() => {
-        const btn = document.getElementById("the_send");
-        if (btn) btn.style.color = "#f44336"; // red - no ack received
+    if (null == gAckTimeoutId[channel]) {
+      gAckTimeoutId[channel] = setTimeout(() => {
+        if (gActiveChannel == channel) {
+          const btn = document.getElementById("the_send");
+          if (btn) btn.style.color = "#f44336"; // red - no ack received
+        }
         gAckTimeoutId[channel] = null;
-    }, LED_OFF_TIME);
+      }, LED_OFF_TIME);
+    }
   }
 }
 
