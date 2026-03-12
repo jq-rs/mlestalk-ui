@@ -1097,13 +1097,7 @@ function processData(
   let duid = get_duid(uid, channel);
   if (!gIndex[channel]) gIndex[channel] = {};
   if (null == gIndex[channel][uid]) {
-    gIndex[channel][uid] = 0;
-    if (!gIdAppend[channel]) gIdAppend[channel] = {};
-    gIdAppend[channel][uid] = false;
-    if (!gPresenceTs[channel]) gPresenceTs[channel] = {};
-    gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
-    if (!gIdNotifyTs[channel]) gIdNotifyTs[channel] = {};
-    if (null == gIdNotifyTs[channel][uid]) gIdNotifyTs[channel][uid] = 0;
+      processPresence(uid, channel, msgTimestamp);
   }
   let li;
 
@@ -1188,7 +1182,7 @@ function processData(
         gMultipartIndex[get_uniq(dict, channel)] = [numIndex, msgql, dat, tim];
       }
 
-      gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+      processPresence(uid, channel, msgTimestamp);
 
       if (gLastMessageSeenTs[channel] < msgTimestamp) {
         gLastMessageSeenTs[channel] = msgTimestamp;
@@ -1380,7 +1374,7 @@ function processData(
   }
 
   if (msgHashHandle(uid, channel, msgTimestamp, mHash)) {
-    gPresenceTs[channel][uid] = [uid, channel, msgTimestamp];
+    processPresence(uid, channel, msgTimestamp);
 
     if (gLastMessageSeenTs[channel] < msgTimestamp) {
       gLastMessageSeenTs[channel] = msgTimestamp;
@@ -1773,6 +1767,13 @@ gWebWorker.onmessage = function (e) {
           if (btn) btn.style.color = "";
         }
         //sendEmptyJoin(channel);
+      }
+      break;
+    case "presence":
+      {
+        let uid = utf8Decode(e.data[1]);
+        let channel = utf8Decode(e.data[2]);
+        processPresence(uid, channel);
       }
       break;
   }
@@ -2710,4 +2711,25 @@ function flashEnterGreen() {
   if (!btn) return;
   btn.style.color = "#4caf50";
   setTimeout(() => { btn.style.color = ""; }, LED_ON_TIME);
+}
+
+function processPresence(uid, channel, timestamp = 0) {
+  if (!uid || !channel) return;
+  if (uid == gMyName[channel]) return;
+
+  if (!gPresenceTs[channel]) gPresenceTs[channel] = {};
+  if (!gIndex[channel]) gIndex[channel] = {};
+  if (!gIdNotifyTs[channel]) gIdNotifyTs[channel] = {};
+
+  const existing = gPresenceTs[channel][uid];
+  if (!existing || existing[2] < timestamp) {
+      gPresenceTs[channel][uid] = [uid, channel, timestamp];
+  }
+
+  if (null == gIndex[channel][uid]) {
+    gIndex[channel][uid] = 0;
+    if (!gIdAppend[channel]) gIdAppend[channel] = {};
+    gIdAppend[channel][uid] = false;
+    gIdNotifyTs[channel][uid] = 0;
+  }
 }
