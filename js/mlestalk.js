@@ -1769,7 +1769,7 @@ gWebWorker.onmessage = function (e) {
         //sendEmptyJoin(channel);
       }
       break;
-    case "presence":
+    case "join":
       {
         let uid = utf8Decode(e.data[1]);
         let channel = utf8Decode(e.data[2]);
