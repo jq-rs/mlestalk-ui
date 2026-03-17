@@ -720,6 +720,7 @@ function send(isFull, optData) {
         updateAfterSend(channel, optData, isFull, true, true);
     }
   } else {
+    if (message.trim().length === 0) return;
     sendMessage(channel, utf8Encode(message), isFull, false);
     updateAfterSend(channel, message, isFull, false, false);
   }
