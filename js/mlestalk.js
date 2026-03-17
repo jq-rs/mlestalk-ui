@@ -852,7 +852,10 @@ function outputPresenceChannelList() {
           gActiveChannel = channel;
           // Restore button color based on channel's known state
           const btn = document.getElementById("the_send");
-          if (btn) btn.style.color = gInitOk[channel] ? "" : "#f44336";
+          if (btn) {
+              btn.style.color = gInitOk[channel] ? "" : "#f44336";
+              btn.style.outline = gInitOk[channel] ? "" : "1px solid #f44336";
+          }
           $("#messages").html("");
 
           // Load and display stored messages from IndexedDB
@@ -1596,7 +1599,10 @@ gWebWorker.onmessage = function (e) {
         }
         if (gActiveChannel == channel) {
           const btn = document.getElementById("the_send");
-          if (btn) btn.style.color = "";
+          if (btn) {
+              btn.style.color = "";
+              btn.style.outline = "";
+          }
         }
 
         let ret = processInit(uid, channel, enc_uid, enc_channelid);
@@ -1722,7 +1728,10 @@ gWebWorker.onmessage = function (e) {
         }
         if (gActiveChannel == channel) {
           const btn = document.getElementById("the_send");
-          if (btn) btn.style.color = "#f44336";
+          if (btn) {
+              btn.style.color = "#f44336";
+              btn.style.outline = "1px solid #f44336";
+          }
         }
 
         let ret = processClose(uid, channel);
@@ -2064,7 +2073,10 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
       gAckTimeoutId[channel] = setTimeout(() => {
         if (gActiveChannel == channel) {
           const btn = document.getElementById("the_send");
-          if (btn) btn.style.color = "#f44336"; // red - no ack received
+          if (btn) {
+              btn.style.color = "#f44336";
+              btn.style.outline = "1px solid #f44336";
+          }
         }
         gAckTimeoutId[channel] = null;
       }, LED_OFF_TIME);
@@ -2711,7 +2723,11 @@ function flashEnterGreen() {
   const btn = document.getElementById("the_send");
   if (!btn) return;
   btn.style.color = "#4caf50";
-  setTimeout(() => { btn.style.color = ""; }, LED_ON_TIME);
+  btn.style.outline = "1px solid #4caf50";
+  setTimeout(() => {
+      btn.style.color = "";
+      btn.style.outline = "";
+  }, LED_ON_TIME);
 }
 
 function processPresence(uid, channel, timestamp = 0) {
