@@ -341,12 +341,43 @@ function onPause() {
       cordova.plugins.backgroundMode.enable();
     }
 
-    // Pass channels via configure
-    cordova.plugins.backgroundMode.configure({
+    // Pass channels via configure, only include channels if non-empty
+    // (empty channels can happen on quick pause/resume cycles or before channels are ready)
+    const bgConfig = {
       title: gBgTitle,
       text: gBgText,
-      channels: channelData
-    });
+    };
+    if (Object.keys(channelData).length > 0) {
+      bgConfig.channels = channelData;
+    }
+    cordova.plugins.backgroundMode.configure(bgConfig);
+
+    // Persist send buffer so unsent messages survive background transitions
+    const sendBufferToSave = {};
+    for (let channel in gUidQueue) {
+      if (!gUidQueue[channel]) continue;
+      for (let uid in gUidQueue[channel]) {
+        const q = gUidQueue[channel][uid];
+        if (q && q.getLength() > 0) {
+          if (!sendBufferToSave[channel]) sendBufferToSave[channel] = {};
+          sendBufferToSave[channel][uid] = q.elements;
+        }
+      }
+    }
+    if (Object.keys(sendBufferToSave).length > 0) {
+      localStorage.setItem("gUidQueueSaved", JSON.stringify(sendBufferToSave));
+    }
+
+    // Persist any message waiting for a send ack
+    const pendingToSave = {};
+    for (let channel in gPendingSentMessages) {
+      if (gPendingSentMessages[channel]) {
+        pendingToSave[channel] = gPendingSentMessages[channel];
+      }
+    }
+    if (Object.keys(pendingToSave).length > 0) {
+      localStorage.setItem("gPendingSentSaved", JSON.stringify(pendingToSave));
+    }
 
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.toBackground();
@@ -359,6 +390,49 @@ function onResume() {
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.fromBackground();
   }
+
+  // Restore persisted send buffer so queued messages are resent after reconnect
+  const savedBuf = localStorage.getItem("gUidQueueSaved");
+  if (savedBuf) {
+    try {
+      const parsed = JSON.parse(savedBuf);
+      for (let channel in parsed) {
+        for (let uid in parsed[channel]) {
+          const items = parsed[channel][uid];
+          if (Array.isArray(items) && items.length > 0) {
+            const q = uidQueueGet(uid, channel);
+            // Only restore if queue is empty in memory — if it already has
+            // items the app survived in memory and will resend them itself
+            if (q.getLength() === 0) {
+              for (const item of items) {
+                q.push(item);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Failed to restore send buffer: " + e);
+    }
+    localStorage.removeItem("gUidQueueSaved");
+  }
+
+  // Restore any message that was pending a send ack
+  const savedPending = localStorage.getItem("gPendingSentSaved");
+  if (savedPending) {
+    try {
+      const parsedPending = JSON.parse(savedPending);
+      for (let channel in parsedPending) {
+        if (!gPendingSentMessages[channel]) {
+          gPendingSentMessages[channel] = parsedPending[channel];
+        }
+      }
+    } catch (e) {
+      console.log("Failed to restore pending sent messages: " + e);
+    }
+    localStorage.removeItem("gPendingSentSaved");
+  }
+
   // Reconnect all channels in case connections were dropped while backgrounded
   syncReconnect();
   if (gActiveChannel) scrollToBottom(gActiveChannel);
