@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.10";
+const VERSION = "3.3.11";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -368,17 +368,6 @@ function onPause() {
       localStorage.setItem("gUidQueueSaved", JSON.stringify(sendBufferToSave));
     }
 
-    // Persist any message waiting for a send ack
-    const pendingToSave = {};
-    for (let channel in gPendingSentMessages) {
-      if (gPendingSentMessages[channel]) {
-        pendingToSave[channel] = gPendingSentMessages[channel];
-      }
-    }
-    if (Object.keys(pendingToSave).length > 0) {
-      localStorage.setItem("gPendingSentSaved", JSON.stringify(pendingToSave));
-    }
-
     cordova.plugins.notification.local.clearAll();
     cordova.plugins.backgroundMode.toBackground();
   }
@@ -415,22 +404,6 @@ function onResume() {
       console.log("Failed to restore send buffer: " + e);
     }
     localStorage.removeItem("gUidQueueSaved");
-  }
-
-  // Restore any message that was pending a send ack
-  const savedPending = localStorage.getItem("gPendingSentSaved");
-  if (savedPending) {
-    try {
-      const parsedPending = JSON.parse(savedPending);
-      for (let channel in parsedPending) {
-        if (!gPendingSentMessages[channel]) {
-          gPendingSentMessages[channel] = parsedPending[channel];
-        }
-      }
-    } catch (e) {
-      console.log("Failed to restore pending sent messages: " + e);
-    }
-    localStorage.removeItem("gPendingSentSaved");
   }
 
   // Reconnect all channels in case connections were dropped while backgrounded
