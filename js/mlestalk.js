@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.12";
+const VERSION = "3.3.13";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -1673,17 +1673,34 @@ gWebWorker.onmessage = function (e) {
 
         const isFull = msgtype & MSGISFULL ? true : false;
 
-        // Add to checksum set
+        // In-memory duplicate filter: catches resends within the same session
+        // (e.g. sender's queueSweepAndSend firing after receiver's resync is done).
+        // gSeenChksums is populated for every data event including history replay,
+        // so it reliably covers messages seen at any point in this session.
+        if (gSeenChksums[channel].has(msgChksum)) {
+          return;
+        }
         gSeenChksums[channel].add(msgChksum);
 
         if (gIsResync[channel] > 0) {
           if (!isFull)
             return;
-          // During resync, check if message already exists in IndexedDB to prevent duplicates
-          // After resync, all messages are new so no check needed
+          // During resync, also check IndexedDB to catch cross-session duplicates
+          // (messages seen in a previous session that are not in gSeenChksums yet).
           MessageDB.checksumExists(channel, msgChksum, function(exists) {
             if (exists) {
-              // Already in IndexedDB, skip processing
+              // Already in IndexedDB — but still flush the send queue for own
+              // messages so they are not resent by queueSweepAndSend.
+              // queueFindAndMatch is normally called inside processData, but
+              // processData is skipped here, so we must call it explicitly.
+              if (uid == gMyName[channel]) {
+                const mHash = hashMessage(
+                  uid,
+                  channel,
+                  msgTimestamp + message + "\n",
+                );
+                queueFindAndMatch(msgTimestamp, uid, channel, mHash);
+              }
               return;
             }
 
