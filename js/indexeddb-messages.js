@@ -456,6 +456,40 @@ const MessageDB = {
     },
 
     /**
+     * Load all checksums for a channel into a Set in one bulk read.
+     * Used at channel join time to pre-populate gSeenChksums so that
+     * per-message checksumExists() calls are no longer needed during resync.
+     */
+    getAllChecksums: function(channel, callback) {
+        if (!this.db) {
+            callback([]);
+            return;
+        }
+
+        const checksums = [];
+        const transaction = this.db.transaction(['messages'], 'readonly');
+        const store = transaction.objectStore('messages');
+        const index = store.index('channel');
+        const request = index.openCursor(IDBKeyRange.only(channel));
+
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                if (cursor.value.msgChksum) {
+                    checksums.push(cursor.value.msgChksum);
+                }
+                cursor.continue();
+            } else {
+                callback(checksums);
+            }
+        };
+
+        request.onerror = () => {
+            callback([]);
+        };
+    },
+
+    /**
      * Delete all messages from all channels (for debugging)
      */
     deleteAllMessages: function() {

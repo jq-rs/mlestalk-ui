@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.13";
+const VERSION = "3.3.14";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -614,19 +614,26 @@ function joinExistingChannels(channels) {
         gIsResync[channel] = 0;
         gInitOk[channel] = true;
 
-        initReconnect(channel);
-
+        // Load all known checksums from IndexedDB before initiating the
+        // WebSocket connection. This guarantees gSeenChksums is fully
+        // populated before any history messages can arrive, eliminating
+        // any race condition between checksum loading and history replay.
         getLocalBdKey(channel);
-        gWebWorker.postMessage([
-          "init",
-          null,
-          utf8Encode(gMyAddr[channel]),
-          utf8Encode(gMyPort[channel]),
-          utf8Encode(gMyName[channel]),
-          utf8Encode(gMyChannel[channel]),
-          utf8Encode(gMyKey[channel]),
-          gPrevBdKey[channel],
-        ]);
+        MessageDB.getAllChecksums(channel, function(checksums) {
+          checksums.forEach(chk => gSeenChksums[channel].add(chk));
+
+          initReconnect(channel);
+          gWebWorker.postMessage([
+            "init",
+            null,
+            utf8Encode(gMyAddr[channel]),
+            utf8Encode(gMyPort[channel]),
+            utf8Encode(gMyName[channel]),
+            utf8Encode(gMyChannel[channel]),
+            utf8Encode(gMyKey[channel]),
+            gPrevBdKey[channel],
+          ]);
+        });
       }
     }
   }
@@ -1673,81 +1680,48 @@ gWebWorker.onmessage = function (e) {
 
         const isFull = msgtype & MSGISFULL ? true : false;
 
-        // In-memory duplicate filter: catches resends within the same session
-        // (e.g. sender's queueSweepAndSend firing after receiver's resync is done).
-        // gSeenChksums is populated for every data event including history replay,
-        // so it reliably covers messages seen at any point in this session.
+        // gSeenChksums is pre-loaded from IndexedDB at channel join, so this
+        // single O(1) check covers both cross-session and within-session duplicates,
+        // replacing the previous per-message async checksumExists() call.
         if (gSeenChksums[channel].has(msgChksum)) {
+          // Own messages during resync: flush the send queue so they are not
+          // resent by queueSweepAndSend (normally done inside processData).
+          if (gIsResync[channel] > 0 && isFull && uid == gMyName[channel]) {
+            const mHash = hashMessage(
+              uid,
+              channel,
+              msgTimestamp + message + "\n",
+            );
+            queueFindAndMatch(msgTimestamp, uid, channel, mHash);
+          }
           return;
         }
         gSeenChksums[channel].add(msgChksum);
 
-        if (gIsResync[channel] > 0) {
-          if (!isFull)
-            return;
-          // During resync, also check IndexedDB to catch cross-session duplicates
-          // (messages seen in a previous session that are not in gSeenChksums yet).
-          MessageDB.checksumExists(channel, msgChksum, function(exists) {
-            if (exists) {
-              // Already in IndexedDB — but still flush the send queue for own
-              // messages so they are not resent by queueSweepAndSend.
-              // queueFindAndMatch is normally called inside processData, but
-              // processData is skipped here, so we must call it explicitly.
-              if (uid == gMyName[channel]) {
-                const mHash = hashMessage(
-                  uid,
-                  channel,
-                  msgTimestamp + message + "\n",
-                );
-                queueFindAndMatch(msgTimestamp, uid, channel, mHash);
-              }
-              return;
-            }
+        // Skip partial messages during resync
+        if (gIsResync[channel] > 0 && !isFull) return;
 
-            // Message is new, process it
-            let ret = processData(
-              uid,
-              channel,
-              msgTimestamp,
-              message,
-              isFull,
-              msgtype & MSGISPRESENCE ? true : false,
-              msgtype & MSGISPRESENCEACK ? true : false,
-              msgtype & MSGISDATA ? true : false,
-              msgtype & MSGISMULTIPART ? true : false,
-              msgtype & MSGISFIRST ? true : false,
-              msgtype & MSGISLAST ? true : false,
-              fsEnabled,
-              msgChksum
-            );
-            if (ret < 0) {
-              console.log("Process data failed: " + ret);
-            }
-          });
-        } else {
-            // After resync, process all messages directly (all are new)
-            let ret = processData(
-              uid,
-              channel,
-              msgTimestamp,
-              message,
-              isFull,
-              msgtype & MSGISPRESENCE ? true : false,
-              msgtype & MSGISPRESENCEACK ? true : false,
-              msgtype & MSGISDATA ? true : false,
-              msgtype & MSGISMULTIPART ? true : false,
-              msgtype & MSGISFIRST ? true : false,
-              msgtype & MSGISLAST ? true : false,
-              fsEnabled,
-              msgChksum
-            );
-            if (ret < 0) {
-              console.log("Process data failed: " + ret);
-            }
-          }
+        let ret = processData(
+          uid,
+          channel,
+          msgTimestamp,
+          message,
+          isFull,
+          msgtype & MSGISPRESENCE ? true : false,
+          msgtype & MSGISPRESENCEACK ? true : false,
+          msgtype & MSGISDATA ? true : false,
+          msgtype & MSGISMULTIPART ? true : false,
+          msgtype & MSGISFIRST ? true : false,
+          msgtype & MSGISLAST ? true : false,
+          fsEnabled,
+          msgChksum
+        );
+        if (ret < 0) {
+          console.log("Process data failed: " + ret);
         }
-        break;
-      case "send":
+      }
+      break;
+    case "send":
         let uid = utf8Decode(e.data[1]);
         let channel = utf8Decode(e.data[2]);
         let msgType = e.data[3];
