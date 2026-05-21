@@ -124,16 +124,10 @@ const MessageDB = {
         if (!this.db) return;
 
         // Only save full messages (check MSGISFULL flag)
-        const MSGISFULL = 1;
         if (!(msgtype & MSGISFULL)) return;
 
         const transaction = this.db.transaction(['messages'], 'readwrite');
         const store = transaction.objectStore('messages');
-
-        // Message type constants
-        const MSGISDATA = 4;
-        const AUDIODATASTR = 'data:audio';
-        const IMGDATASTR = 'data:image';
 
         const msg = {
             id: channel + '_' + timestamp + '_' + uid + '_' + msgChksum,
@@ -144,8 +138,8 @@ const MessageDB = {
             msgtype: msgtype,
             dataUrl: dataUrl,
             msgChksum: msgChksum,
-            isAudio: msgtype & MSGISDATA && message.startsWith(AUDIODATASTR),
-            isImage: msgtype & MSGISDATA && message.startsWith(IMGDATASTR),
+            isAudio: !!(msgtype & MSGISDATA) && message.startsWith('data:audio'),
+            isImage: !!(msgtype & MSGISDATA) && message.startsWith('data:image'),
             isOwn: isOwn,
             fsEnabled: fsEnabled
         };
@@ -261,27 +255,9 @@ const MessageDB = {
                 }
             }
 
-            // Get forward secrecy color if available
-            const FSFONTCOLOR = (typeof window.FSFONTCOLOR !== 'undefined') ? window.FSFONTCOLOR : '#8bac89';
-
             let lastDate = null;
             let prevUser = null;
             let prevTime = null;
-
-            // Helper function to format date with weekday (matching stampTime)
-            // Use the global gWeekday array that's set by language.js
-            const stampTime = function(msgdate) {
-                let dd = msgdate.getDate(),
-                    mm = msgdate.getMonth() + 1,
-                    yyyy = msgdate.getFullYear(),
-                    h = msgdate.getHours(),
-                    m = msgdate.getMinutes(),
-                    day = gWeekday[msgdate.getDay()];
-                if (dd < 10) dd = "0" + dd;
-                if (mm < 10) mm = "0" + mm;
-                if (m < 10) m = "0" + m;
-                return day + " " + dd + "." + mm + "." + yyyy + " " + h + ":" + m;
-            };
 
             for (const msg of messages) {
                 // Reconstruct the message in the DOM
@@ -318,29 +294,15 @@ const MessageDB = {
                     prevTime = time;
                 }
 
-                // Build message HTML matching original format
-                let li = '';
-                const liClass = msg.isOwn ? 'own' : 'new';
-                const liStyle = msg.fsEnabled ? ' style="color: ' + FSFONTCOLOR + '"' : '';
-
-                if (msg.isImage && msg.dataUrl) {
-                    // Image message
-                    li = '<div><li class="' + liClass + '"' + liStyle + '><span class="name">' + msg.uid +
-                         '</span> ' + displayTime + ' <img class="image" src="' + msg.dataUrl +
-                         '" height="100px" data-action="zoom" alt=""></li></div>';
-                } else if (msg.isAudio && msg.dataUrl) {
-                    // Audio message
-                    li = '<div><li class="' + liClass + '"' + liStyle + '><span class="name">' + msg.uid +
-                         '</span> ' + displayTime + '🎙 <audio controls src="' + msg.dataUrl + '" /></li></div>';
-                } else {
-                    // Text message
-                    let linkedMessage = autolinker ? autolinker.link(msg.message) : msg.message;
-                    // Convert newlines to <br> tags
-                    linkedMessage = linkedMessage.replace(/\n/g, '<br>');
-
-                    li = '<div><li class="' + liClass + '"' + liStyle + '><span class="name">' + msg.uid +
-                         '</span> ' + displayTime + linkedMessage + '</li></div>';
-                }
+                // Build message HTML using shared helper
+                const msgContent = (msg.isImage || msg.isAudio) ? (msg.dataUrl || msg.message) :
+                    (autolinker ? autolinker.link(msg.message) : msg.message).replace(/\n/g, '<br>');
+                const li = buildMessageHtml(msg.uid, displayTime, msgContent, {
+                    isOwn: msg.isOwn,
+                    fsEnabled: msg.fsEnabled,
+                    isAudio: !!(msg.isAudio && msg.dataUrl),
+                    isImage: !!(msg.isImage && msg.dataUrl)
+                });
 
                 messagesContainer.insertAdjacentHTML('beforeend', li);
             }

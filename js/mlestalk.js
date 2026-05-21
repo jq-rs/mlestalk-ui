@@ -297,6 +297,24 @@ let autolinker = new Autolinker({
   className: "",
 });
 
+function buildMessageHtml(uid, time, message, opts = {}) {
+  const liClass = opts.isOwn ? 'own' : 'new';
+  const liStyle = opts.fsEnabled ? ' style="color: ' + FSFONTCOLOR + '"' : '';
+  const divOpen = opts.divId ? '<div id="' + opts.divId + '">' : '<div>';
+
+  let content;
+  if (opts.isAudio) {
+    content = '🎙 <audio controls src="' + message + '"></audio>';
+  } else if (opts.isImage) {
+    content = '<img class="image" src="' + message + '" height="' + IMG_THUMBSZ + 'px" data-action="zoom" alt="">';
+  } else {
+    content = opts.autolinker ? opts.autolinker.link(message) : message;
+  }
+
+  return divOpen + '<li class="' + liClass + '"' + liStyle + '><span class="name">' +
+    uid + '</span> ' + time + content + '</li></div>';
+}
+
 function stampTime(msgdate) {
   let dd = msgdate.getDate(),
     mm = msgdate.getMonth() + 1,
@@ -511,47 +529,37 @@ function onLoad() {
   getFront();
 }
 
+function requestCordovaPermission(permission) {
+  return new Promise((resolve) => {
+    var Permission = window.plugins.Permission;
+    Permission.has(
+      permission,
+      function (results) {
+        if (!results[permission]) {
+          Permission.request(
+            permission,
+            function (results) { resolve(!!results[permission]); },
+            function () { resolve(false); },
+          );
+        } else {
+          resolve(true);
+        }
+      },
+      function () { resolve(false); },
+    );
+  });
+}
+
 async function requestAudioPermission() {
   if (isCordova) {
-    return new Promise((resolve, reject) => {
-      var Permission = window.plugins.Permission;
-      var permission = "android.permission.RECORD_AUDIO";
-
-      Permission.has(
-        permission,
-        function (results) {
-          if (!results[permission]) {
-            Permission.request(
-              permission,
-              function (results) {
-                if (results[permission]) {
-                  resolve(true); // Permission granted
-                } else {
-                  resolve(false); // Permission denied
-                }
-              },
-              function (error) {
-                resolve(false); // Error during request
-              },
-            );
-          } else {
-            resolve(true); // Already had permission
-          }
-        },
-        function (error) {
-          resolve(false); // Error checking permission
-        },
-      );
-    });
-  } else {
-    // Browser environment
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      return true;
-    } catch {
-      return false;
-    }
+    return requestCordovaPermission("android.permission.RECORD_AUDIO");
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -927,11 +935,7 @@ function outputPresenceChannelList() {
         document.getElementById(channel).onclick = function () {
           gActiveChannel = channel;
           // Restore button color based on channel's known state
-          const btn = document.getElementById("the_send");
-          if (btn) {
-              btn.style.color = gInitOk[channel] ? "" : "#f44336";
-              btn.style.outline = gInitOk[channel] ? "" : "1px solid #f44336";
-          }
+          setSendButtonStyle(channel, gInitOk[channel] ? null : "#f44336");
           $("#messages").html("");
 
           // Load and display stored messages from IndexedDB
@@ -995,11 +999,7 @@ function navigateToChannel(channel) {
   const key = Object.keys(gMyChannel).find(k => gMyChannel[k] === channel) || channel;
 
   gActiveChannel = channel;
-  const btn = document.getElementById("the_send");
-  if (btn) {
-    btn.style.color = gInitOk[channel] ? "" : "#f44336";
-    btn.style.outline = gInitOk[channel] ? "" : "1px solid #f44336";
-  }
+  setSendButtonStyle(channel, gInitOk[channel] ? null : "#f44336");
   $("#messages").html("");
   MessageDB.displayStoredMessages(channel, autolinker);
   selectSipToken(channel);
@@ -1330,140 +1330,20 @@ function processData(
       //match data types
       if (message.substring(0, AUDIODATASTR.length) == AUDIODATASTR) {
         isAudio = true;
-        if (!fsEnabled) {
-          if (uid != gMyName[channel]) {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="new"><span class="name">' +
-              uid +
-              "</span> " +
-              time +
-              '🎙 <audio controls src="' +
-              message +
-              '"></audio>';
-          } else {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="own"><span class="name">' +
-              uid +
-              "</span> " +
-              time +
-              '🎙 <audio controls src="' +
-              message +
-              '"></audio>';
-          }
-        } else {
-          if (uid != gMyName[channel]) {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="new" style="color: ' +
-              FSFONTCOLOR +
-              '"><span class="name">' +
-              uid +
-              '</span> ' +
-              time +
-              '🎙 <audio controls src="' +
-              message +
-              '"></audio>';
-          } else {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="own" style="color: ' +
-              FSFONTCOLOR +
-              '"><span class="name">' +
-              uid +
-              '</span> ' +
-              time +
-              '🎙 <audio controls src="' +
-              message +
-              '"></audio>';
-          }
-        }
       } else if (message.substring(0, IMGDATASTR.length) == IMGDATASTR) {
         isImage = true;
-        if (!fsEnabled) {
-          if (uid != gMyName[channel]) {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="new"><span class="name">' +
-              uid +
-              "</span> " +
-              time +
-              '<img class="image" src="' +
-              message +
-              '" height="' +
-              IMG_THUMBSZ +
-              'px" data-action="zoom" alt="">';
-          } else {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="own"><span class="name">' +
-              uid +
-              "</span> " +
-              time +
-              '<img class="image" src="' +
-              message +
-              '" height="' +
-              IMG_THUMBSZ +
-              'px" data-action="zoom" alt="">';
-          }
-        } else {
-          if (uid != gMyName[channel]) {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="new" style="color: ' +
-              FSFONTCOLOR +
-              '"><span class="name">' +
-              uid +
-              '</span> ' +
-              time +
-              '<img class="image" src="' +
-              message +
-              '" height="100px" data-action="zoom" alt="">';
-          } else {
-            li =
-              '<div id="' +
-              duid +
-              "" +
-              nIndex.toString(16) +
-              '"><li class="own" style="color: ' +
-              FSFONTCOLOR +
-              '"><span class="name">' +
-              uid +
-              '</span> ' +
-              time +
-              '<img class="image" src="' +
-              message +
-              '" height="100px" data-action="zoom" alt="">';
-          }
-        }
       } else {
         //unknown data type, ignore
         return 0;
       }
 
-      li += "</li></div>";
+      li = buildMessageHtml(uid, time, message, {
+        isOwn: uid == gMyName[channel],
+        fsEnabled: fsEnabled,
+        isAudio: isAudio,
+        isImage: isImage,
+        divId: duid + "" + nIndex.toString(16)
+      });
       if (gActiveChannel == channel) {
         $("#" + duid + "" + nIndex.toString(16)).replaceWith(li);
       }
@@ -1533,67 +1413,11 @@ function processData(
 
     if (false == isData) message = utf8Decode(message);
 
-    if (!fsEnabled) {
-      if (uid != gMyName[channel]) {
-        li =
-          '<div id="' +
-          duid +
-          "" +
-          gIndex[channel][uid] +
-          '"><li class="new"><span class="name">' +
-          uid +
-          "</span> " +
-          time +
-          "" +
-          autolinker.link(message) +
-          "</li></div>";
-      } else {
-        li =
-          '<div id="' +
-          duid +
-          "" +
-          gIndex[channel][uid] +
-          '"><li class="own"><span class="name">' +
-          uid +
-          "</span> " +
-          time +
-          "" +
-          autolinker.link(message) +
-          "</li></div>";
-      }
-    } else {
-      if (uid != gMyName[channel]) {
-        li =
-          '<div id="' +
-          duid +
-          "" +
-          gIndex[channel][uid] +
-          '"><li class="new" style="color: ' +
-          FSFONTCOLOR +
-          '"><span class="name">' +
-          uid +
-          '</span> ' +
-          time +
-          "" +
-          autolinker.link(message) +
-          "</li></div>";
-      } else {
-        li =
-          '<div id="' +
-          duid +
-          "" +
-          gIndex[channel][uid] +
-          '"><li class="own" style="color: ' +
-          FSFONTCOLOR +
-          '"><span class="name">' +
-          uid +
-          '</span> ' +
-          time +
-          "" +
-          autolinker.link(message) +
-          "</li></div>";
-      }
-    }
+    li = buildMessageHtml(uid, time, autolinker.link(message), {
+      isOwn: uid == gMyName[channel],
+      fsEnabled: fsEnabled,
+      divId: duid + "" + gIndex[channel][uid]
+    });
 
     if (gActiveChannel == channel) {
       if (false == gIdAppend[channel][uid]) {
@@ -1704,13 +1528,7 @@ gWebWorker.onmessage = function (e) {
             clearTimeout(gAckTimeoutId[channel]);
             gAckTimeoutId[channel] = null;
         }
-        if (gActiveChannel == channel) {
-          const btn = document.getElementById("the_send");
-          if (btn) {
-              btn.style.color = "";
-              btn.style.outline = "";
-          }
-        }
+        setSendButtonStyle(channel, null);
 
         let ret = processInit(uid, channel, enc_uid, enc_channelid);
         if (ret < 0) {
@@ -1822,13 +1640,7 @@ gWebWorker.onmessage = function (e) {
             clearTimeout(gAckTimeoutId[channel]);
             gAckTimeoutId[channel] = null;
         }
-        if (gActiveChannel == channel) {
-          const btn = document.getElementById("the_send");
-          if (btn) {
-              btn.style.color = "#f44336";
-              btn.style.outline = "1px solid #f44336";
-          }
-        }
+        setSendButtonStyle(channel, "#f44336");
 
         let ret = processClose(uid, channel);
         if (ret < 0) {
@@ -1868,10 +1680,7 @@ gWebWorker.onmessage = function (e) {
             clearTimeout(gAckTimeoutId[channel]);
             gAckTimeoutId[channel] = null;
         }
-        if (gActiveChannel == channel) {
-          const btn = document.getElementById("the_send");
-          if (btn) btn.style.color = "";
-        }
+        setSendButtonStyle(channel, null);
         //sendEmptyJoin(channel);
       }
       break;
@@ -2056,86 +1865,14 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
 
   time = checkTime(gMyName[channel], gMyChannel[channel], time, isFull);
 
-  if (!isImage) {
-    if (!gForwardSecrecy[channel]) {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        "</span> " +
-        time +
-        "" +
-        autolinker.link(message) +
-        "</li></div>";
-    } else {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own" style="color: ' +
-        FSFONTCOLOR +
-        '"><span class="name">' +
-        gMyName[channel] +
-        '</span> ' +
-        time +
-        "" +
-        autolinker.link(message) +
-        "</li></div>";
-    }
-  } else if (isAudio) {
-    if (!gForwardSecrecy[channel]) {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        "</span> " +
-        time +
-        '🎙 <audio controls src="' +
-        message +
-        '"></audio></li></div>';
-    } else {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own" style="color: ' +
-        FSFONTCOLOR +
-        '"><span class="name">' +
-        gMyName[channel] +
-        '</span> ' +
-        time +
-        '🎙 <audio controls src="' +
-        message +
-        '"></audio></li></div>';
-    }
-  } else {
-    // This is for images
-    if (!gForwardSecrecy[channel]) {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own"><span class="name">' +
-        gMyName[channel] +
-        "</span> " +
-        time +
-        '<img class="image" src="' +
-        message +
-        '" height="100px" data-action="zoom" alt=""></li></div>';
-    } else {
-      li =
-        '<div id="owner' +
-        gOwnId[channel] +
-        '"><li class="own" style="color: ' +
-        FSFONTCOLOR +
-        '"><span class="name">' +
-        gMyName[channel] +
-        '</span> ' +
-        time +
-        '<img class="image" src="' +
-        message +
-        '" height="100px" data-action="zoom" alt=""></li></div>';
-    }
-  }
+  li = buildMessageHtml(gMyName[channel], time, isImage || isAudio ? message : autolinker.link(message), {
+    isOwn: true,
+    fsEnabled: gForwardSecrecy[channel],
+    isAudio: isAudio,
+    isImage: isImage,
+    autolinker: null,
+    divId: 'owner' + gOwnId[channel]
+  });
 
   if (isFull) {
     if (isImage) {
@@ -2170,11 +1907,7 @@ function updateAfterSend(channel, message, isFull, isImage, isAudio) {
     if (null == gAckTimeoutId[channel]) {
       gAckTimeoutId[channel] = setTimeout(() => {
         if (gActiveChannel == channel) {
-          const btn = document.getElementById("the_send");
-          if (btn) {
-              btn.style.color = "#f44336";
-              btn.style.outline = "1px solid #f44336";
-          }
+          setSendButtonStyle(channel, "#f44336");
         }
         gAckTimeoutId[channel] = null;
       }, LED_OFF_TIME);
@@ -2586,46 +2319,15 @@ function toggleQRCode(channel = null) {
 
 async function requestCameraPermission() {
   if (isCordova) {
-    return new Promise((resolve, reject) => {
-      var Permission = window.plugins.Permission;
-      var permission = "android.permission.CAMERA";
-
-      Permission.has(
-        permission,
-        function (results) {
-          if (!results[permission]) {
-            Permission.request(
-              permission,
-              function (results) {
-                if (results[permission]) {
-                  resolve(true); // Permission granted
-                } else {
-                  resolve(false); // Permission denied
-                }
-              },
-              function (error) {
-                resolve(false); // Error during request
-              },
-            );
-          } else {
-            resolve(true); // Already had permission
-          }
-        },
-        function (error) {
-          resolve(false); // Error checking permission
-        },
-      );
-    });
-  } else {
-    // Browser environment
-    return navigator.mediaDevices
-      .getUserMedia(CAMERA_CONSTRAINTS)
-      .then((stream) => {
-        stream.getTracks().forEach((track) => track.stop());
-        return true;
-      })
-      .catch(() => false);
+    return requestCordovaPermission("android.permission.CAMERA");
   }
+  return navigator.mediaDevices
+    .getUserMedia(CAMERA_CONSTRAINTS)
+    .then((stream) => {
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    })
+    .catch(() => false);
 }
 
 async function startQRScanner(event) {
@@ -2843,26 +2545,36 @@ function generateStrongKey(event) {
   document.getElementById("input_key").value = finalPassword;
 }
 
-function flashEnterGreen() {
+function setSendButtonStyle(channel, color) {
+  if (gActiveChannel != channel) return;
   const btn = document.getElementById("the_send");
   if (!btn) return;
-  btn.style.color = "#4caf50";
-  btn.style.outline = "1px solid #4caf50";
+  if (color) {
+    btn.style.color = color;
+    btn.style.outline = "1px solid " + color;
+  } else {
+    btn.style.color = "";
+    btn.style.outline = "";
+  }
+}
+
+function flashSendButton(color, duration) {
+  const btn = document.getElementById("the_send");
+  if (!btn) return;
+  btn.style.color = color;
+  btn.style.outline = "1px solid " + color;
   setTimeout(() => {
-      btn.style.color = "";
-      btn.style.outline = "";
-  }, LED_ON_TIME);
+    btn.style.color = "";
+    btn.style.outline = "";
+  }, duration);
+}
+
+function flashEnterGreen() {
+  flashSendButton("#4caf50", LED_ON_TIME);
 }
 
 function flashBriefGreen() {
-  const btn = document.getElementById("the_send");
-  if (!btn) return;
-  btn.style.color = "#4caf50";
-  btn.style.outline = "1px solid #4caf50";
-  setTimeout(() => {
-      btn.style.color = "";
-      btn.style.outline = "";
-  }, LED_ON_TIME_BRIEF); // Brief blink for character input
+  flashSendButton("#4caf50", LED_ON_TIME_BRIEF);
 }
 
 function processPresence(uid, channel, timestamp = 0) {
