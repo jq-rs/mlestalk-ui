@@ -120,7 +120,7 @@ const MessageDB = {
      * @param {string} dataUrl - Optional data URL for images/audio
      * @param {string} msgChksum - Message checksum for unique ID
      */
-    saveMessage: function(channel, uid, message, timestamp, msgtype, dataUrl = null, msgChksum = '', isOwn = false, fsEnabled = false) {
+    saveMessage: function(channel, uid, message, timestamp, msgtype, dataUrl = null, msgChksum = '', isOwn = false, fsEnabled = false, onSuccess = null) {
         if (!this.db) return;
 
         // Only save full messages (check MSGISFULL flag)
@@ -163,6 +163,7 @@ const MessageDB = {
                 if (!exists) {
                     this.messageCounts[channel] = (this.messageCounts[channel] || 0) + 1;
                 }
+                if (onSuccess) onSuccess();
             };
         };
 

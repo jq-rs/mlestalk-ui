@@ -1805,7 +1805,9 @@ gWebWorker.onmessage = function (e) {
             const fsEnabled = pending.fsEnabled;
 
             // Save to IndexedDB with pending timestamp (client time)
-            MessageDB.saveMessage(channel, uid, pending.message, pending.timestamp, msgtype, dataUrl, msgChksum, isOwn, fsEnabled);
+            // Once the write confirms, remove the localStorage backup for this checksum
+            MessageDB.saveMessage(channel, uid, pending.message, pending.timestamp, msgtype, dataUrl, msgChksum, isOwn, fsEnabled,
+              () => clearSingleOwnChksum(channel, msgChksum));
           }
           delete gPendingSentMessages[channel];
         }
@@ -2355,6 +2357,17 @@ function loadOwnChksums(channel) {
 
 function clearOwnChksums(channel) {
   window.localStorage.removeItem("gOwnChksums" + channel);
+}
+
+function clearSingleOwnChksum(channel, chksum) {
+  const key = "gOwnChksums" + channel;
+  const existing = JSON.parse(window.localStorage.getItem(key) || "[]");
+  const updated = existing.filter(c => c !== chksum);
+  if (updated.length > 0) {
+    window.localStorage.setItem(key, JSON.stringify(updated));
+  } else {
+    window.localStorage.removeItem(key);
+  }
 }
 
 function getLocalSession(channel) {
