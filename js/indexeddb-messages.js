@@ -12,6 +12,23 @@ const MessageDB = {
     db: null,
     maxMessagesPerChannel: 2000,
     messageCounts: {}, // Cache of message counts per channel
+    _readyCallbacks: [], // Queued callbacks waiting for DB to open
+
+    /**
+     * Run callback once DB is ready, or immediately if already open.
+     */
+    _whenReady: function(fn) {
+        if (this.db) {
+            fn();
+        } else {
+            this._readyCallbacks.push(fn);
+        }
+    },
+
+    _flushReady: function() {
+        const cbs = this._readyCallbacks.splice(0);
+        cbs.forEach(fn => fn());
+    },
 
     /**
      * Initialize the IndexedDB database
@@ -39,6 +56,8 @@ const MessageDB = {
             console.log('IndexedDB opened successfully');
             // Initialize message counts cache
             this.initializeMessageCounts();
+            // Flush any calls that arrived before DB was ready
+            this._flushReady();
         };
 
         request.onupgradeneeded = (event) => {
@@ -196,25 +215,22 @@ const MessageDB = {
      * @param {function} callback - Callback function(messages)
      */
     loadMessages: function(channel, callback) {
-        if (!this.db) {
-            callback([]);
-            return;
-        }
+        this._whenReady(() => {
+            const transaction = this.db.transaction(['messages'], 'readonly');
+            const store = transaction.objectStore('messages');
+            const index = store.index('channel');
+            const request = index.getAll(channel);
 
-        const transaction = this.db.transaction(['messages'], 'readonly');
-        const store = transaction.objectStore('messages');
-        const index = store.index('channel');
-        const request = index.getAll(channel);
+            request.onsuccess = () => {
+                const messages = request.result || [];
+                messages.sort((a, b) => a.timestamp - b.timestamp);
+                callback(messages);
+            };
 
-        request.onsuccess = () => {
-            const messages = request.result || [];
-            messages.sort((a, b) => a.timestamp - b.timestamp);
-            callback(messages);
-        };
-
-        request.onerror = () => {
-            callback([]);
-        };
+            request.onerror = () => {
+                callback([]);
+            };
+        });
     },
 
     displayStoredMessages: function(channel, autolinker) {
@@ -332,6 +348,7 @@ const MessageDB = {
             if (typeof scrollToBottom === 'function') {
                 scrollToBottom();
             }
+
         });
     },
 
@@ -461,32 +478,29 @@ const MessageDB = {
      * per-message checksumExists() calls are no longer needed during resync.
      */
     getAllChecksums: function(channel, callback) {
-        if (!this.db) {
-            callback([]);
-            return;
-        }
+        this._whenReady(() => {
+            const checksums = [];
+            const transaction = this.db.transaction(['messages'], 'readonly');
+            const store = transaction.objectStore('messages');
+            const index = store.index('channel');
+            const request = index.openCursor(IDBKeyRange.only(channel));
 
-        const checksums = [];
-        const transaction = this.db.transaction(['messages'], 'readonly');
-        const store = transaction.objectStore('messages');
-        const index = store.index('channel');
-        const request = index.openCursor(IDBKeyRange.only(channel));
-
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-                if (cursor.value.msgChksum) {
-                    checksums.push(cursor.value.msgChksum);
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.msgChksum) {
+                        checksums.push(cursor.value.msgChksum);
+                    }
+                    cursor.continue();
+                } else {
+                    callback(checksums);
                 }
-                cursor.continue();
-            } else {
-                callback(checksums);
-            }
-        };
+            };
 
-        request.onerror = () => {
-            callback([]);
-        };
+            request.onerror = () => {
+                callback([]);
+            };
+        });
     },
 
     /**

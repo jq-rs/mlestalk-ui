@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2019-2026 MlesTalk developers
  */
-const VERSION = "3.3.14";
+const VERSION = "3.3.15";
 const UPGINFO_URL = "https://mles.io/mlestalk/mlestalk_version.json";
 
 let gMyName = {};
@@ -67,7 +67,8 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 3000;
 const RESYNC_TIMEOUT = 2500; /* ms */
-const LED_ON_TIME = 300; /* ms */
+const LED_ON_TIME = 500; /* ms */
+const LED_ON_TIME_BRIEF = 100; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
 const SCROLL_TIME = 400; /* ms */
 const ASYNC_SLEEP = 1; /* ms */
@@ -481,6 +482,11 @@ function onLoad() {
         androidChannelEnableVibration: true,
       });
 
+      cordova.plugins.notification.local.on("click", function(notification) {
+        const ch = notification.data && notification.data.channel;
+        if (ch) navigateToChannel(ch);
+      });
+
       // sets a recurring alarm that keeps things rolling
       // cordova.plugins.backgroundMode.disableWebViewOptimizations();
       cordova.plugins.backgroundMode.enable();
@@ -621,6 +627,11 @@ function joinExistingChannels(channels) {
         getLocalBdKey(channel);
         MessageDB.getAllChecksums(channel, function(checksums) {
           checksums.forEach(chk => gSeenChksums[channel].add(chk));
+          // Merge any own-message checksums persisted synchronously on send
+          // that may not have reached IndexedDB before the app was closed
+          loadOwnChksums(channel).forEach(chk => gSeenChksums[channel].add(chk));
+          // IndexedDB is now fully loaded — drop the localStorage backup
+          clearOwnChksums(channel);
 
           initReconnect(channel);
           gWebWorker.postMessage([
@@ -640,10 +651,15 @@ function joinExistingChannels(channels) {
   if (0 == cnt) {
     newChannelShow();
   } else {
-    channelListShow();
-    $("#name_channel_cont").fadeOut(400, function () {
-      $("#presence_cont").fadeIn();
-    });
+    const pendingCh = window.MlesTalkBridge ? window.MlesTalkBridge.getPendingChannel() : "";
+    if (pendingCh) {
+      navigateToChannel(pendingCh);
+    } else {
+      channelListShow();
+      $("#name_channel_cont").fadeOut(400, function () {
+        $("#presence_cont").fadeIn();
+      });
+    }
   }
   gJoinExistingComplete = true;
 }
@@ -775,6 +791,10 @@ function send(isFull, optData) {
     }
   } else {
     if (message.trim().length === 0) return;
+    // Flash brief green when character is entered (isFull=false)
+    if (!isFull) {
+      flashBriefGreen();
+    }
     sendMessage(channel, utf8Encode(message), isFull, false);
     updateAfterSend(channel, message, isFull, false, false);
   }
@@ -964,6 +984,37 @@ function channelListShow() {
   gActiveChannel = null;
   if (true == gRecStatus) record(); //stop recording
   presenceChannelListShow();
+}
+
+function navigateToChannel(channel) {
+  // Only switch if the channel is actually joined
+  if (!gMyChannel[channel] && !Object.values(gMyChannel).includes(channel)) return;
+
+  // Find the key whose channel value matches
+  const key = Object.keys(gMyChannel).find(k => gMyChannel[k] === channel) || channel;
+
+  gActiveChannel = channel;
+  const btn = document.getElementById("the_send");
+  if (btn) {
+    btn.style.color = gInitOk[channel] ? "" : "#f44336";
+    btn.style.outline = gInitOk[channel] ? "" : "1px solid #f44336";
+  }
+  $("#messages").html("");
+  MessageDB.displayStoredMessages(channel, autolinker);
+  selectSipToken(channel);
+  gIsChannelListView = false;
+  gWasChannelListView = false;
+  gIsInputView = false;
+  gWasInputView = false;
+  gIsPresenceView = false;
+  if (gMsgs[channel]) gNewMsgsCnt[channel] = 0;
+  const msgDate = parseInt(Date.now() / 1000) * 1000;
+  gMsgTs[channel] = msgDate.valueOf();
+  setMsgTimestamps();
+  $("#presence_cont").hide();
+  $("#name_channel_cont").hide();
+  $("#message_cont").fadeIn();
+  scrollToBottom(channel);
 }
 
 function closeChannel(channel) {
@@ -1727,6 +1778,9 @@ gWebWorker.onmessage = function (e) {
         let msgType = e.data[3];
         let msgChksum = e.data[4];
         gSeenChksums[channel].add(msgChksum);
+        // Persist own message checksum to localStorage immediately so it
+        // survives app close before IndexedDB write completes
+        persistOwnChksum(channel, msgChksum);
 
         // Save sent message to IndexedDB since server doesn't echo back own messages
         if (gPendingSentMessages[channel]) {
@@ -1852,12 +1906,12 @@ function doNotify(uid, channel, msgTimestamp, message) {
   let msg = gLastMessage[channel];
   if (isCordova) {
     cordova.plugins.notification.local.schedule({
-      title: msg[1] + "@" + channel,
-      text: msg[2],
+      title: gBgText + " @ " + channel,
       icon: "res://large_micon.png",
       smallIcon: "res://micon.png",
       foreground: false,
       trigger: { in: 1, unit: "second" },
+      data: { channel: channel },
     });
   }
 }
@@ -2283,6 +2337,21 @@ function setActiveChannels() {
 
 function clearActiveChannels() {
   window.localStorage.removeItem("gActiveChannelsJSON");
+}
+
+function persistOwnChksum(channel, chksum) {
+  const key = "gOwnChksums" + channel;
+  const existing = JSON.parse(window.localStorage.getItem(key) || "[]");
+  existing.push(chksum);
+  window.localStorage.setItem(key, JSON.stringify(existing));
+}
+
+function loadOwnChksums(channel) {
+  return JSON.parse(window.localStorage.getItem("gOwnChksums" + channel) || "[]");
+}
+
+function clearOwnChksums(channel) {
+  window.localStorage.removeItem("gOwnChksums" + channel);
 }
 
 function getLocalSession(channel) {
@@ -2767,6 +2836,17 @@ function flashEnterGreen() {
       btn.style.color = "";
       btn.style.outline = "";
   }, LED_ON_TIME);
+}
+
+function flashBriefGreen() {
+  const btn = document.getElementById("the_send");
+  if (!btn) return;
+  btn.style.color = "#4caf50";
+  btn.style.outline = "1px solid #4caf50";
+  setTimeout(() => {
+      btn.style.color = "";
+      btn.style.outline = "";
+  }, LED_ON_TIME_BRIEF); // Brief blink for character input
 }
 
 function processPresence(uid, channel, timestamp = 0) {
