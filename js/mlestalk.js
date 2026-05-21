@@ -67,6 +67,7 @@ const RETIMEOUT = 1500; /* ms */
 const MAXTIMEOUT = 1000 * 60 * 4; /* ms */
 const MAXQLEN = 3000;
 const RESYNC_TIMEOUT = 2500; /* ms */
+const RESYNC_FIRST_TIMEOUT = 10000; /* ms — covers WebSocket connection + history start */
 const LED_ON_TIME = 500; /* ms */
 const LED_ON_TIME_BRIEF = 100; /* ms */
 const LED_OFF_TIME = 2500; /* ms */
@@ -1933,9 +1934,11 @@ async function scrollToBottomWithTimer() {
 
 async function resync(uid, channel) {
   let cnt;
+  let firstWait = true;
   do {
     cnt = gIsResync[channel];
-    await sleep(RESYNC_TIMEOUT);
+    await sleep(firstWait ? RESYNC_FIRST_TIMEOUT : RESYNC_TIMEOUT);
+    firstWait = false;
   } while (cnt < gIsResync[channel]);
   queueSweepAndSend(uid, channel);
   gIsResync[channel] = 0;
