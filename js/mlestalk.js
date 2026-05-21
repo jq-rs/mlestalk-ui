@@ -485,6 +485,8 @@ function onLoad() {
   document.addEventListener(
     "deviceready",
     function () {
+      SecureStore.initCordova();
+
       cordova.plugins.notification.local.requestPermission(function (granted) {
         gCanNotify = granted;
       });
@@ -603,7 +605,7 @@ function addrsplit(channel, addrport) {
   }
 }
 
-function joinExistingChannels(channels) {
+async function joinExistingChannels(channels) {
   if (!channels || gJoinExistingComplete) return;
   let cnt = 0;
   getNotifyTimestamps();
@@ -611,7 +613,7 @@ function joinExistingChannels(channels) {
   for (let channel in channels) {
     if (channel) {
       cnt++;
-      getLocalSession(channel);
+      await getLocalSession(channel);
       gAddrPortInput[channel] = getLocalAddrPortInput(channel);
       if (
         !gInitOk[channel] &&
@@ -633,7 +635,7 @@ function joinExistingChannels(channels) {
         // WebSocket connection. This guarantees gSeenChksums is fully
         // populated before any history messages can arrive, eliminating
         // any race condition between checksum loading and history replay.
-        getLocalBdKey(channel);
+        await getLocalBdKey(channel);
         MessageDB.getAllChecksums(channel, function(checksums) {
           checksums.forEach(chk => gSeenChksums[channel].add(chk));
           // Merge any own-message checksums persisted synchronously on send
@@ -673,7 +675,7 @@ function joinExistingChannels(channels) {
   gJoinExistingComplete = true;
 }
 
-function askChannelNew() {
+async function askChannelNew() {
   if (gActiveChannel) return;
 
   if (
@@ -706,15 +708,15 @@ function askChannelNew() {
     gAddrPortInput[channel] = $("#input_addr_port").val().trim();
     let localization = $("#channel_localization").val().trim();
 
-    //add to local storage
+    //add to secure storage
     if (gMyName[channel]) {
-      window.localStorage.setItem("gMyName" + channel, gMyName[channel]);
+      SecureStore.set("gMyName" + channel, gMyName[channel]);
     }
     if (gMyChannel[channel]) {
-      window.localStorage.setItem("gMyChannel" + channel, gMyChannel[channel]);
+      SecureStore.set("gMyChannel" + channel, gMyChannel[channel]);
     }
     if (gMyKey[channel]) {
-      window.localStorage.setItem("gMyKey" + channel, gMyKey[channel]);
+      SecureStore.set("gMyKey" + channel, gMyKey[channel]);
     }
 
     //add to local storage
@@ -738,8 +740,8 @@ function askChannelNew() {
 
     initReconnect(channel);
 
-    /* Load keys from local storage */
-    getLocalBdKey(channel);
+    /* Load keys from secure storage */
+    await getLocalBdKey(channel);
     gWebWorker.postMessage([
       "init",
       null,
@@ -2103,28 +2105,27 @@ function clearSingleOwnChksum(channel, chksum) {
   }
 }
 
-function getLocalSession(channel) {
-  gMyName[channel] = window.localStorage.getItem("gMyName" + channel);
-  gMyChannel[channel] = window.localStorage.getItem("gMyChannel" + channel);
-  gMyKey[channel] = window.localStorage.getItem("gMyKey" + channel);
+async function getLocalSession(channel) {
+  gMyName[channel] = await SecureStore.get("gMyName" + channel);
+  gMyChannel[channel] = await SecureStore.get("gMyChannel" + channel);
+  gMyKey[channel] = await SecureStore.get("gMyKey" + channel);
 }
 
-function clearLocalSession(channel) {
-  window.localStorage.removeItem("gMyName" + channel);
-  window.localStorage.removeItem("gMyChannel" + channel);
-  window.localStorage.removeItem("gMyKey" + channel);
+async function clearLocalSession(channel) {
+  await SecureStore.remove("gMyName" + channel);
+  await SecureStore.remove("gMyChannel" + channel);
+  await SecureStore.remove("gMyKey" + channel);
 }
 
-function getLocalBdKey(channel) {
-  const bdKeyStr = window.localStorage.getItem("gPrevBdKey" + channel);
+async function getLocalBdKey(channel) {
+  const bdKeyStr = await SecureStore.get("gPrevBdKey" + channel);
 
   if (bdKeyStr) {
     try {
-      // Parse JSON array and convert back to Uint8Array
       const bdKeyArray = JSON.parse(bdKeyStr);
       gPrevBdKey[channel] = new Uint8Array(bdKeyArray);
     } catch (e) {
-      console.error("Failed to parse BD key from localStorage:", e);
+      console.error("Failed to parse BD key:", e);
       gPrevBdKey[channel] = null;
     }
   } else {
@@ -2134,14 +2135,13 @@ function getLocalBdKey(channel) {
 
 function setLocalBdKey(channel, bdKey) {
   if (bdKey && bdKey instanceof Uint8Array) {
-    // Convert Uint8Array to regular array for JSON serialization
     const bdKeyArray = Array.from(bdKey);
-    window.localStorage.setItem("gPrevBdKey" + channel, JSON.stringify(bdKeyArray));
+    SecureStore.set("gPrevBdKey" + channel, JSON.stringify(bdKeyArray));
   }
 }
 
 function clearLocalBdKey(channel) {
-  window.localStorage.removeItem("gPrevBdKey" + channel);
+  SecureStore.remove("gPrevBdKey" + channel);
 }
 
 async function captureMicrophone(callback) {
