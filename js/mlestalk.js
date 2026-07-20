@@ -482,6 +482,16 @@ function onLoad() {
   // Initialize IndexedDB for message persistence
   MessageDB.init();
 
+  // Initialize the PRO license gate (safe to call before license.js loads;
+  // the module dispatches "license:ready" when window.License is available).
+  if (window.License) {
+    window.License.init().then(refreshProBadge).catch(() => {});
+  } else {
+    window.addEventListener("license:ready", () => {
+      window.License.init().then(refreshProBadge).catch(() => {});
+    }, { once: true });
+  }
+
   document.addEventListener(
     "deviceready",
     function () {
@@ -980,6 +990,7 @@ async function presenceChannelListShow() {
   while ((gIsPresenceView || gIsChannelListView) && gIsPause == false) {
     $("#presence_avail").html("");
     outputPresenceChannelList();
+    if (typeof refreshProBadge === "function") refreshProBadge();
     await sleep(LISTING_SHOW_TIMER);
   }
 }
@@ -2575,6 +2586,263 @@ function flashEnterGreen() {
 
 function flashBriefGreen() {
   flashSendButton("#4caf50", LED_ON_TIME_BRIEF);
+}
+
+// ---------------------------------------------------------------------------
+// MlesTalk PRO — license gate UI hooks.
+// The heavy lifting (crypto, network) lives in js/license.js. This file just
+// renders the badge and drives the Upgrade modal.
+// ---------------------------------------------------------------------------
+
+function refreshProBadge() {
+  const pro = !!(window.License && window.License.isPro());
+  const hdr = document.getElementById("pro_hdr");
+  if (hdr) hdr.style.display = pro ? "" : "none";
+  const link = document.getElementById("upgrade_link");
+  if (link) link.textContent = pro ? "PRO" : "upgrade";
+  refreshRenewalReminder();
+}
+
+// Renewal reminder — shown daily from 7 days before expiry through the 7-day
+// on-chain grace period. Dismissal is per-calendar-day (localStorage), so the
+// nudge reappears each morning even if the user X'd it yesterday.
+const PRO_REMINDER_DISMISS_KEY = "mlestalk.pro.reminderDismissedOn";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function refreshRenewalReminder() {
+  const row = document.getElementById("pro_reminder");
+  const msg = document.getElementById("pro_reminder_msg");
+  if (!row || !msg) return;
+
+  const pro = !!(window.License && window.License.isPro());
+  const expiresAt = pro && window.License.getLicenseExpiresAt && window.License.getLicenseExpiresAt();
+  if (!pro || !expiresAt) { row.style.display = "none"; return; }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiresAt); expiry.setHours(0, 0, 0, 0);
+  const daysUntil = Math.round((expiry.getTime() - today.getTime()) / DAY_MS);
+
+  // Window: 7 days before expiry through 7 days after (grace period).
+  if (daysUntil > 7 || daysUntil < -7) { row.style.display = "none"; return; }
+
+  // Suppressed for today if user dismissed it earlier in the day.
+  const todayKey = today.toISOString().slice(0, 10);
+  try {
+    if (localStorage.getItem(PRO_REMINDER_DISMISS_KEY) === todayKey) {
+      row.style.display = "none"; return;
+    }
+  } catch { /* localStorage unavailable — fall through and show */ }
+
+  msg.textContent = renewalReminderText(daysUntil);
+  row.style.display = "";
+}
+
+function renewalReminderText(daysUntil) {
+  if (daysUntil > 1)  return `PRO expires in ${daysUntil} days.`;
+  if (daysUntil === 1) return "PRO expires tomorrow.";
+  if (daysUntil === 0) return "PRO expires today.";
+  const daysLeftInGrace = 7 + daysUntil; // daysUntil is negative here
+  if (daysLeftInGrace > 1)  return `PRO expired — grace period ends in ${daysLeftInGrace} days.`;
+  if (daysLeftInGrace === 1) return "PRO expired — grace period ends tomorrow.";
+  return "PRO expired — grace period ends today.";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const dismiss = document.getElementById("pro_reminder_dismiss");
+  if (!dismiss) return;
+  dismiss.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    try { localStorage.setItem(PRO_REMINDER_DISMISS_KEY, today.toISOString().slice(0, 10)); } catch {}
+    const row = document.getElementById("pro_reminder");
+    if (row) row.style.display = "none";
+  });
+});
+
+// license.js fires this after activate / release / background refresh —
+// the badge follows without waiting for the channel-list poll to redraw.
+window.addEventListener("license:change", refreshProBadge);
+
+function showUpgradeModal(ev) {
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const modal    = document.getElementById("upgrade_modal");
+  const release  = document.getElementById("upgrade_release");
+  const status   = document.getElementById("upgrade_status");
+  const input    = document.getElementById("upgrade_key");
+  const activate = document.getElementById("upgrade_activate");
+  if (!modal) return;
+
+  const pro       = !!(window.License && window.License.isPro());
+  const expires   = pro && window.License.getLicenseExpiresAt && window.License.getLicenseExpiresAt();
+  const supported = !!(window.License && window.License.isSupported());
+  const useBrowser = !!(window.License && window.License.isBrowserFlowAvailable && window.License.isBrowserFlowAvailable());
+
+  // Cordova: the key is entered in the hosted popup, so hide the input here
+  // and relabel the primary button.
+  if (input) input.style.display = useBrowser ? "none" : "";
+  if (activate) activate.value = useBrowser ? "Open upgrade window" : "Activate";
+
+  if (!useBrowser && !supported && window.License) {
+    status.textContent = window.License.supportReason() || "PRO activation is not available in this environment.";
+    status.className   = "upgrade_status error";
+    if (input)    input.disabled    = true;
+    if (activate) activate.disabled = true;
+  } else if (pro) {
+    status.textContent = expires
+      ? "PRO active — expires " + new Date(expires).toLocaleString()
+      : "PRO active.";
+    status.className   = "upgrade_status ok";
+    if (input)    input.disabled    = false;
+    if (activate) activate.disabled = false;
+  } else {
+    status.textContent = "";
+    status.className   = "upgrade_status";
+    if (input)    input.disabled    = false;
+    if (activate) activate.disabled = false;
+  }
+
+  if (release) release.style.display = pro ? "" : "none";
+  if (input)   input.value = "";
+  modal.style.display = "flex";
+}
+
+function hideUpgradeModal() {
+  const modal = document.getElementById("upgrade_modal");
+  if (modal) modal.style.display = "none";
+}
+
+// ---------------------------------------------------------------------------
+// Upgrade progress tracker — renders one line per phase with a live timer,
+// freezes it when the next phase arrives, and shows ✓ / ✗ on completion.
+// ---------------------------------------------------------------------------
+function makeUpgradeProgress() {
+  const list = document.getElementById("upgrade_progress");
+  if (list) list.innerHTML = "";
+
+  let current    = null;   // { li, timerEl, startedAt, tickHandle }
+  const started  = Date.now();
+
+  function fmt(ms) {
+    if (ms < 1000) return ms + " ms";
+    return (ms / 1000).toFixed(1) + " s";
+  }
+
+  function stopCurrent(marker) {
+    if (!current) return;
+    clearInterval(current.tickHandle);
+    const elapsed = Date.now() - current.startedAt;
+    current.timerEl.textContent = fmt(elapsed);
+    current.li.classList.remove("running");
+    current.li.classList.add(marker); // "done" | "error"
+    current.li.querySelector(".upgrade_phase_mark").textContent =
+      marker === "done" ? "✓" : "✗";
+    current = null;
+  }
+
+  function push(message) {
+    stopCurrent("done");
+    if (!list) return;
+    const li = document.createElement("li");
+    li.className = "upgrade_phase running";
+    li.innerHTML =
+      '<span class="upgrade_phase_mark">▶</span>' +
+      '<span class="upgrade_phase_msg"></span>' +
+      '<span class="upgrade_phase_timer">0.0 s</span>';
+    li.querySelector(".upgrade_phase_msg").textContent = message;
+    list.appendChild(li);
+    const timerEl   = li.querySelector(".upgrade_phase_timer");
+    const startedAt = Date.now();
+    const tickHandle = setInterval(() => {
+      timerEl.textContent = fmt(Date.now() - startedAt);
+    }, 100);
+    current = { li, timerEl, startedAt, tickHandle };
+  }
+
+  return {
+    onProgress({ stage, message }) {
+      if (stage === "done") {
+        stopCurrent("done");
+        return;
+      }
+      push(message);
+    },
+    fail() { stopCurrent("error"); },
+    totalMs() { return Date.now() - started; },
+  };
+}
+
+async function submitUpgrade() {
+  const input    = document.getElementById("upgrade_key");
+  const status   = document.getElementById("upgrade_status");
+  const btn      = document.getElementById("upgrade_activate");
+  const progress = document.getElementById("upgrade_progress");
+  if (!status || !btn || !window.License) return;
+
+  // Cordova / InAppBrowser path: passphrase is entered in the hosted popup,
+  // not here. The key input is bypassed entirely.
+  const useBrowser = window.License.isBrowserFlowAvailable && window.License.isBrowserFlowAvailable();
+  const key = useBrowser ? "" : (input?.value || "").trim();
+  if (!useBrowser && !key) {
+    status.textContent = "Enter your license key.";
+    status.className   = "upgrade_status error";
+    return;
+  }
+
+  btn.disabled       = true;
+  status.textContent = "";
+  status.className   = "upgrade_status";
+  if (progress) progress.innerHTML = "";
+  const tracker = makeUpgradeProgress();
+
+  try {
+    const r = useBrowser
+      ? await window.License.activateViaBrowser({ onProgress: tracker.onProgress })
+      : await window.License.activate(key, { onProgress: tracker.onProgress });
+    status.textContent =
+      "PRO activated in " + (tracker.totalMs() / 1000).toFixed(1) + " s. " +
+      "Expires " + new Date(r.expiresAt).toLocaleString() + ".";
+    status.className   = "upgrade_status ok";
+    refreshProBadge();
+    setTimeout(hideUpgradeModal, 2500);
+  } catch (err) {
+    tracker.fail();
+    let msg = err && err.message ? err.message : String(err);
+    if (err && err.status === 429) {
+      msg = "This license is active on another device. Log out there, or reset all sessions.";
+    }
+    status.textContent = msg;
+    status.className   = "upgrade_status error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitRelease() {
+  const status   = document.getElementById("upgrade_status");
+  const btn      = document.getElementById("upgrade_release");
+  const progress = document.getElementById("upgrade_progress");
+  if (!status || !btn || !window.License) return;
+
+  btn.disabled       = true;
+  status.textContent = "";
+  status.className   = "upgrade_status";
+  if (progress) progress.innerHTML = "";
+  const tracker = makeUpgradeProgress();
+
+  try {
+    await window.License.releaseSeat({ onProgress: tracker.onProgress });
+    status.textContent =
+      "This device is no longer PRO. (" + (tracker.totalMs() / 1000).toFixed(1) + " s)";
+    status.className   = "upgrade_status ok";
+    refreshProBadge();
+    setTimeout(hideUpgradeModal, 1500);
+  } catch (err) {
+    tracker.fail();
+    status.textContent = (err && err.message) || "Failed to release seat.";
+    status.className   = "upgrade_status error";
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function processPresence(uid, channel, timestamp = 0) {

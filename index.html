@@ -33,6 +33,27 @@
     <script src="js/mlestalk.js"></script>
     <script src="js/language.js"></script>
 
+    <!--
+      MlesTalk Pro — zkLicensing.
+
+      The import map below resolves the bare specifiers used by js/license.js.
+      Drop the SDK build into js/vendor/zklicensing/ (contents of
+      packages/sdk/build/ from the zklicensing repo) and o1js into
+      js/vendor/o1js/ before deploy. o1js is large — it is only loaded
+      dynamically when the user clicks "Upgrade" and never at boot time.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "o1js":               "./js/vendor/o1js/index.js",
+          "zklicensing":        "./js/vendor/zklicensing/index.js",
+          "zklicensing/prove":  "./js/vendor/zklicensing/licenseProof.js",
+          "zklicensing/buy":    "./js/vendor/zklicensing/buyClient.js"
+        }
+      }
+    </script>
+    <script type="module" src="js/license.js"></script>
+
     <body onload="onLoad()">
         <div class="body_cont">
             <div id="name_channel_cont" class="box_with_shadow">
@@ -254,6 +275,7 @@
                         >app info</a
                     >
                     <a href="https://mles.io/legal.html" id="legal">legal</a>
+                    <a href="#" id="upgrade_link" onclick="showUpgradeModal(event)">upgrade</a>
                 </div>
             </div>
             <div id="message_cont" class="box_with_shadow">
@@ -403,6 +425,14 @@
                         ></div>
                     </div>
                     <!-- <ul id="presence_hdr"><li id="presence_header" class="new"> - Channels (new/total msgs) - </li></ul> -->
+                    <ul id="pro_hdr" style="display:none">
+                        <li id="pro_badge_row"><span class="pro-badge">PRO</span></li>
+                        <li id="pro_reminder" style="display:none">
+                            <span id="pro_reminder_msg"></span>
+                            <a href="https://zklicensing.com/renew.html?app=B62qjsYuLJ9ZeEfFMrLp6gn5ZFH5v18WZkfn3ozURKfhtcJSB2cvYXJ" id="pro_reminder_renew" target="_blank" rel="noopener">Renew</a>
+                            <a href="#" id="pro_reminder_dismiss" title="Dismiss for today">×</a>
+                        </li>
+                    </ul>
                     <ul id="presence_avail"></ul>
                 </div>
                 <div class="field">
@@ -422,6 +452,35 @@
                         onclick="chanExitAll()"
                     />
                 </div>
+            </div>
+        </div>
+
+        <div id="upgrade_modal" style="display:none">
+            <div class="upgrade_dialog box_with_shadow">
+                <h3 id="upgrade_title">MlesTalk PRO</h3>
+                <p id="upgrade_intro">
+                    Paste your PRO license key. This is the passphrase you chose
+                    (or the UUID we suggested) when you bought your license.
+                </p>
+                <input type="text" id="upgrade_key" autocomplete="off"
+                       placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" />
+                <div id="upgrade_status" class="upgrade_status"></div>
+                <ol id="upgrade_progress" class="upgrade_progress"></ol>
+                <div class="upgrade_actions">
+                    <input type="button" id="upgrade_activate"
+                           class="upgrade_primary" value="Activate"
+                           onclick="submitUpgrade()" />
+                    <input type="button" id="upgrade_release"
+                           class="upgrade_secondary" value="Log out this device"
+                           style="display:none" onclick="submitRelease()" />
+                    <input type="button" id="upgrade_cancel"
+                           class="upgrade_secondary" value="Cancel"
+                           onclick="hideUpgradeModal()" />
+                </div>
+                <p id="upgrade_buylink" class="upgrade_buylink">
+                    Don't have a key yet?
+                    <a href="https://zklicensing.com/app.html?appId=mlestalk-pro" target="_blank" rel="noopener">Get PRO</a>
+                </p>
             </div>
         </div>
 

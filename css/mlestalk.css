@@ -413,3 +413,178 @@ input.channel_list_button:hover {
     border: none;
     margin: 0;
 }
+
+/* ---------------------------------------------------------------------- */
+/* MlesTalk PRO — license badge + upgrade modal                            */
+/* ---------------------------------------------------------------------- */
+
+#pro_hdr {
+    list-style: none;
+    padding: 4px 8px;
+    margin: 0;
+}
+
+#pro_hdr li {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.pro-badge {
+    display: inline-block;
+    background: #77407b;
+    color: #fff;
+    font-weight: bold;
+    font-size: 80%;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
+#pro_reminder {
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: #fff4d6;
+    border-left: 3px solid #d68a00;
+    color: #5a3f00;
+    font-size: 85%;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#pro_reminder_msg { flex: 1; }
+
+#pro_reminder_renew {
+    color: #77407b;
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+#pro_reminder_dismiss {
+    color: #5a3f00;
+    text-decoration: none;
+    font-weight: bold;
+    padding: 0 4px;
+}
+
+#upgrade_modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.upgrade_dialog {
+    background: #fff;
+    padding: 20px;
+    border-radius: 6px;
+    max-width: 420px;
+    width: calc(100% - 40px);
+    box-sizing: border-box;
+}
+
+.upgrade_dialog h3 {
+    margin: 0 0 10px 0;
+    color: #77407b;
+}
+
+.upgrade_dialog p {
+    font-size: 90%;
+    margin: 0 0 10px 0;
+}
+
+#upgrade_key {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    font-size: 90%;
+    margin-bottom: 10px;
+}
+
+.upgrade_status {
+    font-size: 85%;
+    min-height: 1.2em;
+    margin-bottom: 10px;
+}
+
+.upgrade_status.ok    { color: #2e7d32; }
+.upgrade_status.error { color: #c62828; }
+
+.upgrade_actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.upgrade_primary {
+    background: #77407b;
+    color: #fff;
+    border: 0;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.upgrade_primary:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.upgrade_secondary {
+    background: transparent;
+    color: #77407b;
+    border: 1px solid #77407b;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.upgrade_buylink {
+    margin-top: 12px;
+    font-size: 80%;
+    color: #666;
+}
+
+.upgrade_progress {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 10px 0;
+    font-size: 80%;
+}
+
+.upgrade_phase {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+    color: #444;
+}
+
+.upgrade_phase_mark {
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+    color: #999;
+}
+
+.upgrade_phase.running .upgrade_phase_mark { color: #77407b; }
+.upgrade_phase.done    .upgrade_phase_mark { color: #2e7d32; }
+.upgrade_phase.error   .upgrade_phase_mark { color: #c62828; }
+
+.upgrade_phase_msg    { flex: 1; }
+.upgrade_phase_timer  {
+    font-variant-numeric: tabular-nums;
+    color: #888;
+    min-width: 4em;
+    text-align: right;
+}
+
+.upgrade_phase.done  .upgrade_phase_timer { color: #2e7d32; }
+.upgrade_phase.error .upgrade_phase_timer { color: #c62828; }
+
