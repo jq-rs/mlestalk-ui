@@ -1,0 +1,125 @@
+<!doctype html>
+<!--
+  MlesTalk PRO — hosted upgrade page (deploy on zklicensing.com).
+
+  Loaded inside cordova-plugin-inappbrowser from the Cordova app. This page
+  runs the zero-knowledge activation flow (it's on a real HTTPS origin that
+  serves COOP: same-origin + COEP: require-corp headers, so o1js and
+  SharedArrayBuffer are available), then navigates to a callback URL. The
+  app intercepts that navigation via InAppBrowser's `loadstart` event before
+  the WebView actually loads it, extracts { token, expiresAt, licenseExpiresAt,
+  jti }, and closes the popup.
+
+  Deploy prerequisites on the hosting origin:
+    - Cross-Origin-Opener-Policy:  same-origin
+    - Cross-Origin-Embedder-Policy: require-corp
+    - Serve o1js and zklicensing SDK from the same origin (import map below).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MlesTalk PRO — Upgrade</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #222; }
+    h1   { color: #77407b; font-size: 20px; margin: 0 0 12px; }
+    input[type=text] { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; }
+    button { background: #77407b; color: #fff; border: 0; padding: 10px 16px; font-size: 14px; cursor: pointer; border-radius: 3px; }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .status { margin-top: 10px; font-size: 90%; min-height: 1.2em; }
+    .status.ok    { color: #2e7d32; }
+    .status.error { color: #c62828; }
+    #progress { list-style: none; padding: 0; margin: 12px 0; font-size: 85%; }
+    #progress li { padding: 2px 0; color: #444; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "o1js":              "./vendor/o1js/index.js",
+      "zklicensing/prove": "./vendor/zklicensing/licenseProof.js",
+      "zklicensing/buy":   "./vendor/zklicensing/buyClient.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>Activate MlesTalk PRO</h1>
+  <p>Enter your license key (the passphrase you chose when you bought PRO).</p>
+  <input id="key" type="text" autocomplete="off" spellcheck="false" placeholder="license key" />
+  <div style="margin-top: 10px;">
+    <button id="go">Activate</button>
+    <button id="cancel" style="background:#eee;color:#77407b;">Cancel</button>
+  </div>
+  <div id="status" class="status"></div>
+  <ol id="progress"></ol>
+
+  <script type="module">
+    // Same LICENSE_CONFIG / callbackUrlPrefix as in the app (they must match).
+    const CALLBACK = 'https://zklicensing.com/apps/mlestalk-pro/upgrade-callback';
+    const VERIFIER = 'https://zklicensing.com/api/verify';
+    const ZK_APP   = 'B62qjsYuLJ9ZeEfFMrLp6gn5ZFH5v18WZkfn3ozURKfhtcJSB2cvYXJ';
+
+    const $ = id => document.getElementById(id);
+    const setStatus = (msg, cls='') => { $('status').textContent = msg; $('status').className = 'status ' + cls; };
+    const log = msg => { const li = document.createElement('li'); li.textContent = msg; $('progress').appendChild(li); };
+
+    function done({ token, expiresAt, licenseExpiresAt, jti }) {
+      const q = new URLSearchParams({
+        token,
+        expiresAt:        String(expiresAt),
+        licenseExpiresAt: licenseExpiresAt || '',
+        jti:              jti || '',
+      });
+      window.location.href = `${CALLBACK}?${q.toString()}`;
+    }
+    function fail(msg) {
+      const q = new URLSearchParams({ error: String(msg || 'Activation failed.') });
+      window.location.href = `${CALLBACK}?${q.toString()}`;
+    }
+
+    $('cancel').addEventListener('click', () => fail('User cancelled.'));
+
+    $('go').addEventListener('click', async () => {
+      const key = $('key').value.trim();
+      if (key.length < 8) return setStatus('License key must be at least 8 characters.', 'error');
+      $('go').disabled = true;
+      setStatus('');
+      try {
+        log('Loading zero-knowledge engine…');
+        const [o1js, buy, prove] = await Promise.all([
+          import('o1js'), import('zklicensing/buy'), import('zklicensing/prove'),
+        ]);
+
+        log('Compiling proof circuit (one-time)…');
+        await prove.LicenseProof.compile();
+
+        log('Deriving license identity…');
+        const { secretHash, licenseHash } = buy.deriveBuyIdentity(key);
+
+        log('Requesting activation challenge…');
+        const { nonce } = await (await fetch(`${VERIFIER}/challenge?licenseHash=${encodeURIComponent(licenseHash)}`)).json();
+
+        log('Building ownership proof…');
+        const input = new prove.OwnershipChallenge({ licenseHash: o1js.Field(licenseHash), nonce: o1js.Field(nonce) });
+        const { proof } = await prove.LicenseProof.prove(input, o1js.Field(secretHash));
+
+        log('Registering with license server…');
+        const resp = await fetch(`${VERIFIER}/respond`, {
+          method: 'POST', headers: {'content-type':'application/json'},
+          body: JSON.stringify({ zkAppAddress: ZK_APP, proof: proof.toJSON() }),
+        });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${resp.status}`);
+        }
+        const body = await resp.json();
+        setStatus('PRO activated. Returning to the app…', 'ok');
+        setTimeout(() => done(body), 400);
+      } catch (err) {
+        setStatus(err.message || String(err), 'error');
+        $('go').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
