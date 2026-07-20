@@ -2702,6 +2702,12 @@ function showUpgradeModal(ev) {
   }
 
   if (release) release.style.display = pro ? "" : "none";
+  const showDevices = document.getElementById("upgrade_devices_show");
+  if (showDevices) showDevices.style.display = pro ? "" : "none";
+  const devicesBox = document.getElementById("upgrade_devices");
+  if (devicesBox) devicesBox.style.display = "none";
+  const devicesList = document.getElementById("upgrade_devices_list");
+  if (devicesList) devicesList.innerHTML = "";
   if (input)   input.value = "";
   modal.style.display = "flex";
 }
@@ -2842,6 +2848,129 @@ async function submitRelease() {
     status.className   = "upgrade_status error";
   } finally {
     btn.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Device list — proof-required /seats fetch + per-row release. The rows show
+// name / when-minted / when-last-seen so the buyer can tell their seats apart
+// on a capped-seat license before deciding which to kick.
+// ---------------------------------------------------------------------------
+function fmtWhen(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "unknown";
+  const delta = Date.now() - ms;
+  if (delta < 60_000)          return "just now";
+  if (delta < 3_600_000)       return Math.round(delta / 60_000) + " min ago";
+  if (delta < 86_400_000)      return Math.round(delta / 3_600_000) + " h ago";
+  return Math.round(delta / 86_400_000) + " d ago";
+}
+
+function renderDevicesList(body) {
+  const box  = document.getElementById("upgrade_devices");
+  const ul   = document.getElementById("upgrade_devices_list");
+  if (!box || !ul) return;
+  ul.innerHTML = "";
+  const seats = Array.isArray(body?.seats) ? body.seats : [];
+  if (!seats.length) {
+    const li = document.createElement("li");
+    li.className = "upgrade_device";
+    li.textContent = "No live seats.";
+    ul.appendChild(li);
+    box.style.display = "";
+    return;
+  }
+  for (const seat of seats) {
+    const li = document.createElement("li");
+    li.className = "upgrade_device";
+    const meta = document.createElement("div");
+    meta.className = "upgrade_device_meta";
+    const nameEl = document.createElement("div");
+    nameEl.className = "upgrade_device_name" + (seat.self ? " self" : "");
+    nameEl.textContent = seat.name || (seat.jti ? seat.jti.slice(0, 8) : "seat");
+    const whenEl = document.createElement("div");
+    whenEl.className = "upgrade_device_when";
+    whenEl.textContent = "last seen " + fmtWhen(seat.lastRefreshAt) +
+                         " · added " + fmtWhen(seat.mintedAt);
+    meta.appendChild(nameEl);
+    meta.appendChild(whenEl);
+    li.appendChild(meta);
+
+    const btn = document.createElement("input");
+    btn.type  = "button";
+    btn.className = "upgrade_device_action";
+    // Self-row is disabled — buyers release the current device via the
+    // token-auth "Log out this device" button (no proof needed for that
+    // path). Kicking-other requires a fresh proof and is what this button
+    // triggers on non-self rows.
+    if (seat.self) {
+      btn.value    = "This device";
+      btn.disabled = true;
+    } else {
+      btn.value    = "Log out";
+      btn.onclick  = () => releaseSpecificDevice(seat.jti, seat.name || seat.jti);
+    }
+    li.appendChild(btn);
+    ul.appendChild(li);
+  }
+  box.style.display = "";
+}
+
+async function refreshDevices() {
+  const status   = document.getElementById("upgrade_status");
+  const progress = document.getElementById("upgrade_progress");
+  const btn      = document.getElementById("upgrade_devices_show");
+  const refBtn   = document.getElementById("upgrade_devices_refresh");
+  if (!window.License || !window.License.listSeats) {
+    if (status) {
+      status.textContent = "Device listing is not available in this build.";
+      status.className   = "upgrade_status error";
+    }
+    return;
+  }
+  if (btn)    btn.disabled    = true;
+  if (refBtn) refBtn.disabled = true;
+  if (status) { status.textContent = ""; status.className = "upgrade_status"; }
+  if (progress) progress.innerHTML = "";
+  const tracker = makeUpgradeProgress();
+  try {
+    const body = await window.License.listSeats({ onProgress: tracker.onProgress });
+    renderDevicesList(body);
+  } catch (err) {
+    tracker.fail();
+    if (status) {
+      status.textContent = (err && err.message) || "Failed to list devices.";
+      status.className   = "upgrade_status error";
+    }
+  } finally {
+    if (btn)    btn.disabled    = false;
+    if (refBtn) refBtn.disabled = false;
+  }
+}
+
+async function releaseSpecificDevice(targetJti, label) {
+  const status   = document.getElementById("upgrade_status");
+  const progress = document.getElementById("upgrade_progress");
+  if (!window.License || !window.License.releaseOtherSeat) return;
+  const displayLabel = label || (targetJti ? targetJti.slice(0, 8) : "device");
+  if (!globalThis.confirm(`Log "${displayLabel}" out of PRO?`)) return;
+
+  if (status) { status.textContent = ""; status.className = "upgrade_status"; }
+  if (progress) progress.innerHTML = "";
+  const tracker = makeUpgradeProgress();
+  try {
+    await window.License.releaseOtherSeat(targetJti, { onProgress: tracker.onProgress });
+    if (status) {
+      status.textContent = `Logged out "${displayLabel}".`;
+      status.className   = "upgrade_status ok";
+    }
+    // Re-fetch the list so the just-released row disappears.
+    await refreshDevices();
+  } catch (err) {
+    tracker.fail();
+    if (status) {
+      status.textContent = (err && err.message) || "Failed to log out device.";
+      status.className   = "upgrade_status error";
+    }
   }
 }
 

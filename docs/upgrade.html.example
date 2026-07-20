@@ -128,13 +128,19 @@
     const setStatus = (msg, cls='') => { $('status').textContent = msg; $('status').className = 'status ' + cls; };
     const log = msg => { const li = document.createElement('li'); li.textContent = msg; $('progress').appendChild(li); };
 
-    function done({ token, expiresAt, licenseExpiresAt, jti }) {
+    function done({ token, expiresAt, licenseExpiresAt, jti, name, evicted }) {
       const q = new URLSearchParams({
         token,
         expiresAt:        String(expiresAt),
         licenseExpiresAt: licenseExpiresAt || '',
         jti:              jti || '',
+        name:             name || '',
       });
+      // Only include `evicted` when the /respond call actually kicked a
+      // prior seat. Serialize as JSON — the app JSON.parses it in the
+      // InAppBrowser loadstart callback and shows a "we signed out X to
+      // free a slot" confirmation.
+      if (evicted) q.set('evicted', JSON.stringify(evicted));
       window.location.href = `${CALLBACK}?${q.toString()}`;
     }
     function fail(msg) {
@@ -178,8 +184,19 @@
           throw new Error(body.error || `HTTP ${resp.status}`);
         }
         const body = await resp.json();
-        setStatus('PRO activated. Returning to the app…', 'ok');
-        setTimeout(() => done(body), 400);
+        if (body.evicted) {
+          // Capped-seat license was at cap — the keeper LRR-evicted a prior
+          // seat to make room for this one. Show the buyer *which* device
+          // got signed out so they aren't puzzled when their other tab
+          // stops working. Hold on-screen a beat longer than the ordinary
+          // success path so the message is actually read.
+          const label = body.evicted.name || body.evicted.jti?.slice(0, 8) || 'a prior device';
+          setStatus(`PRO activated. Signed out "${label}" to free a seat. Returning to the app…`, 'ok');
+          setTimeout(() => done(body), 2500);
+        } else {
+          setStatus('PRO activated. Returning to the app…', 'ok');
+          setTimeout(() => done(body), 400);
+        }
       } catch (err) {
         setStatus(err.message || String(err), 'error');
         $('go').disabled = false;

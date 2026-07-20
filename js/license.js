@@ -399,13 +399,19 @@ async function respondAndPersist(secretHash, licenseHash, emit) {
     expiresAt:        respondBody.expiresAt,
     licenseExpiresAt: respondBody.licenseExpiresAt ?? null,
     jti:              respondBody.jti,
+    name:             respondBody.name ?? payload.n ?? null,
   };
   saveState(state);
   scheduleRefresh();
   emitChange();
 
   emit({ stage: 'done', message: 'PRO activated.' });
-  return { valid: true, expiresAt: state.expiresAt };
+  return {
+    valid: true,
+    expiresAt: state.expiresAt,
+    name: state.name,
+    evicted: respondBody.evicted ?? null,
+  };
 }
 
 async function activate(passphrase, opts = {}) {
@@ -455,6 +461,7 @@ async function refresh() {
       // license — in either case, keep the previously cached value rather
       // than blanking the UI.
       licenseExpiresAt: body.licenseExpiresAt ?? state.licenseExpiresAt ?? null,
+      name:             body.name ?? payload.n ?? state.name ?? null,
     };
     saveState(next);
     emitChange();
@@ -533,6 +540,15 @@ async function activateViaBrowser(opts = {}) {
       const expiresAt        = Number(params.get('expiresAt'));
       const licenseExpiresAt = params.get('licenseExpiresAt') || null;
       const jti              = params.get('jti') || null;
+      const name             = params.get('name') || null;
+      // The upgrade page URL-encodes evicted as JSON when the /respond call
+      // kicked out an LRR seat. UI shows it as a "we replaced device X"
+      // confirmation so buyers aren't surprised their other tab logged out.
+      let evicted = null;
+      const evictedRaw = params.get('evicted');
+      if (evictedRaw) {
+        try { evicted = JSON.parse(evictedRaw); } catch { /* malformed — drop */ }
+      }
       if (!token || !Number.isFinite(expiresAt)) {
         return finish(() => reject(new Error('Callback missing token or expiresAt.')));
       }
@@ -547,11 +563,11 @@ async function activateViaBrowser(opts = {}) {
           return;
         }
         verifiedPayload = payload;
-        saveState({ token, expiresAt, licenseExpiresAt, jti });
+        saveState({ token, expiresAt, licenseExpiresAt, jti, name: name ?? payload.n ?? null });
         scheduleRefresh();
         emitChange();
         emit({ stage: 'done', message: 'PRO activated.' });
-        resolve({ valid: true, expiresAt });
+        resolve({ valid: true, expiresAt, name: name ?? payload.n ?? null, evicted });
       });
     });
 
@@ -575,6 +591,106 @@ function getExpiresAt() {
 // value (very old cached state, or a transient failure at /respond time).
 function getLicenseExpiresAt() {
   return loadState()?.licenseExpiresAt ?? null;
+}
+
+// Human-readable seat label the keeper assigned at /respond time
+// ("Silent Otter" style). Purely cosmetic — used by the device-list UI so a
+// buyer can tell their seats apart when deciding which to release from a
+// full-capacity license. Null if the token predates the naming rollout.
+function getSeatName() {
+  return loadState()?.name ?? verifiedPayload?.n ?? null;
+}
+
+// Fetch the full list of live seats on this license. Proof-required — the
+// server needs the caller to be able to prove ownership of the license, not
+// merely hold a bearer token (which would let a leaked token enumerate the
+// buyer's other devices). Requires the same COOP/COEP + o1js compile as
+// activate(); on unsupported environments this throws support.reason.
+//
+// Returns { seats: [{ jti, name, mintedAt, lastRefreshAt, exp, self? }],
+//           deviceLimit }. `self: true` marks the row matching this device's
+// current jti — the UI uses it to disable the "release" button on our own row
+// (users release the current device via releaseSeat(), not this endpoint).
+async function listSeats(opts = {}) {
+  if (!support.supported) throw new Error(support.reason);
+  const state = loadState();
+  if (!state?.secretHash || !state?.licenseHash) {
+    throw new Error('No local license. Activate before listing seats.');
+  }
+  const emit = opts.onProgress || noopEmit;
+
+  emit({ stage: 'network-check', message: `Confirming license server is on ${LICENSE_CONFIG.network}…` });
+  await checkNetwork();
+
+  emit({ stage: 'compiling', message: 'Compiling proof circuit (one-time, ~10–20s)…' });
+  await ensureCompiled();
+
+  emit({ stage: 'seats-challenge', message: 'Requesting listing challenge…' });
+  const { nonce } = await getChallenge(state.licenseHash);
+
+  emit({ stage: 'seats-proving', message: 'Building ownership proof…' });
+  const proof = await buildOwnershipProof(state.secretHash, state.licenseHash, nonce);
+
+  emit({ stage: 'seats-fetching', message: 'Fetching seat list…' });
+  const body = await fetchJson(`${baseUrl()}/seats`, {
+    method:  'POST',
+    headers: { 'content-type': 'application/json' },
+    body:    JSON.stringify({
+      zkAppAddress: LICENSE_CONFIG.zkAppAddress,
+      proof,
+      currentJti:   state.jti || undefined,
+    }),
+  });
+
+  emit({ stage: 'done', message: `${body?.seats?.length ?? 0} seat(s) live.` });
+  return body;
+}
+
+// Kick a *different* seat off this license by jti. Proof-required for the
+// same reason listSeats() is — bearer-token auth here would let a leaked
+// token evict the buyer's own primary device. Requires COOP/COEP + o1js.
+//
+// The current device is NOT allowed to release itself via this path — that's
+// what releaseSeat() (token-auth, no proof) is for. Callers should filter
+// their own row out of the UI before calling this.
+async function releaseOtherSeat(targetJti, opts = {}) {
+  if (!support.supported) throw new Error(support.reason);
+  if (!targetJti || typeof targetJti !== 'string') {
+    throw new Error('releaseOtherSeat requires a targetJti string.');
+  }
+  const state = loadState();
+  if (!state?.secretHash || !state?.licenseHash) {
+    throw new Error('No local license. Activate before releasing other seats.');
+  }
+  if (targetJti === state.jti) {
+    throw new Error('Use releaseSeat() to release this device — releaseOtherSeat is for other devices only.');
+  }
+  const emit = opts.onProgress || noopEmit;
+
+  emit({ stage: 'network-check', message: `Confirming license server is on ${LICENSE_CONFIG.network}…` });
+  await checkNetwork();
+
+  emit({ stage: 'compiling', message: 'Compiling proof circuit (one-time, ~10–20s)…' });
+  await ensureCompiled();
+
+  emit({ stage: 'release-challenge', message: 'Requesting release challenge…' });
+  const { nonce } = await getChallenge(state.licenseHash);
+
+  emit({ stage: 'release-proving', message: 'Building ownership proof…' });
+  const proof = await buildOwnershipProof(state.secretHash, state.licenseHash, nonce);
+
+  emit({ stage: 'release-submitting', message: 'Releasing seat on license server…' });
+  await fetchJson(`${baseUrl()}/releaseSeat`, {
+    method:  'POST',
+    headers: { 'content-type': 'application/json' },
+    body:    JSON.stringify({
+      zkAppAddress: LICENSE_CONFIG.zkAppAddress,
+      proof,
+      targetJti,
+    }),
+  });
+
+  emit({ stage: 'done', message: 'Seat released.' });
 }
 
 // ---------------------------------------------------------------------------
@@ -700,9 +816,12 @@ const License = {
   isBrowserFlowAvailable,
   refresh,
   releaseSeat,
+  releaseOtherSeat,
+  listSeats,
   isPro,
   getExpiresAt,
   getLicenseExpiresAt,
+  getSeatName,
   isSupported,
   supportReason,
   config: LICENSE_CONFIG,

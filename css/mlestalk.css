@@ -588,3 +588,68 @@ input.channel_list_button:hover {
 .upgrade_phase.done  .upgrade_phase_timer { color: #2e7d32; }
 .upgrade_phase.error .upgrade_phase_timer { color: #c62828; }
 
+.upgrade_devices {
+    margin: 6px 0 10px 0;
+    padding: 8px 10px;
+    background: #f7f4f8;
+    border: 1px solid #e2d6e6;
+    border-radius: 4px;
+}
+
+.upgrade_devices_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.upgrade_devices_title {
+    font-weight: 600;
+    color: #77407b;
+    font-size: 85%;
+}
+
+.upgrade_devices_refresh {
+    padding: 3px 8px;
+    font-size: 75%;
+}
+
+.upgrade_devices_list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 80%;
+}
+
+.upgrade_device {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-top: 1px solid #ecdfef;
+}
+.upgrade_device:first-child { border-top: 0; }
+
+.upgrade_device_meta   { flex: 1; min-width: 0; }
+.upgrade_device_name   { color: #222; font-weight: 500; }
+.upgrade_device_name.self::after {
+    content: " (this device)";
+    color: #77407b;
+    font-weight: 400;
+    font-size: 90%;
+}
+.upgrade_device_when   { color: #888; font-size: 90%; }
+.upgrade_device_action {
+    background: transparent;
+    color: #c62828;
+    border: 1px solid #c62828;
+    padding: 3px 8px;
+    font-size: 75%;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.upgrade_device_action:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+

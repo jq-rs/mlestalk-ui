@@ -466,10 +466,22 @@
                        placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" />
                 <div id="upgrade_status" class="upgrade_status"></div>
                 <ol id="upgrade_progress" class="upgrade_progress"></ol>
+                <div id="upgrade_devices" class="upgrade_devices" style="display:none">
+                    <div class="upgrade_devices_header">
+                        <span class="upgrade_devices_title">Devices on this license</span>
+                        <input type="button" id="upgrade_devices_refresh"
+                               class="upgrade_secondary upgrade_devices_refresh"
+                               value="Refresh" onclick="refreshDevices()" />
+                    </div>
+                    <ul id="upgrade_devices_list" class="upgrade_devices_list"></ul>
+                </div>
                 <div class="upgrade_actions">
                     <input type="button" id="upgrade_activate"
                            class="upgrade_primary" value="Activate"
                            onclick="submitUpgrade()" />
+                    <input type="button" id="upgrade_devices_show"
+                           class="upgrade_secondary" value="Show devices"
+                           style="display:none" onclick="refreshDevices()" />
                     <input type="button" id="upgrade_release"
                            class="upgrade_secondary" value="Log out this device"
                            style="display:none" onclick="submitRelease()" />
