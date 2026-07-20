@@ -2688,9 +2688,11 @@ function showUpgradeModal(ev) {
     if (input)    input.disabled    = true;
     if (activate) activate.disabled = true;
   } else if (pro) {
+    const seatName = window.License.getSeatName && window.License.getSeatName();
+    const asClause = seatName ? ' as "' + seatName + '"' : "";
     status.textContent = expires
-      ? "PRO active — expires " + new Date(expires).toLocaleString()
-      : "PRO active.";
+      ? "PRO active" + asClause + " — expires " + new Date(expires).toLocaleString()
+      : "PRO active" + asClause + ".";
     status.className   = "upgrade_status ok";
     if (input)    input.disabled    = false;
     if (activate) activate.disabled = false;
