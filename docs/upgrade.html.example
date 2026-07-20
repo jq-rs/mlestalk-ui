@@ -14,6 +14,71 @@
     - Cross-Origin-Opener-Policy:  same-origin
     - Cross-Origin-Embedder-Policy: require-corp
     - Serve o1js and zklicensing SDK from the same origin (import map below).
+
+  Cordova app prerequisite:
+    - cordova-plugin-inappbrowser must be installed. The app opens this
+      page via `cordova.InAppBrowser.open(...)` and intercepts the CALLBACK
+      redirect through the plugin's `loadstart` event. Without it,
+      license.js throws "cordova-plugin-inappbrowser is not installed."
+
+  ============================================================================
+  ACTIVATION LIFECYCLE — how this page fits into the whole PRO flow
+  ============================================================================
+
+  This page implements only the mint step (steps 2–4 below). Everything
+  before and after happens in the app itself (js/license.js and
+  js/license.worker.js). Diagram:
+
+      ┌── Cordova app (mlestalk.js / license.js) ──────────────────────┐
+      │                                                                 │
+      │  1. User taps "upgrade" → License.activateViaBrowser()          │
+      │     opens InAppBrowser → this page.                             │
+      │                                                                 │
+      │            │                                                    │
+      │            ▼                                                    │
+      │  ┌── this page (hosted, COOP/COEP) ─────────────────────────┐   │
+      │  │  2. User enters passphrase.                              │   │
+      │  │  3. deriveBuyIdentity(passphrase) → secretHash (local),  │   │
+      │  │     licenseHash (public).                                │   │
+      │  │  4. LicenseProof.compile() + prove Poseidon(secretHash)  │   │
+      │  │     === licenseHash for the server nonce.                │   │
+      │  │     GET /challenge → POST /respond → { token, expiresAt, │   │
+      │  │     licenseExpiresAt, jti }.                             │   │
+      │  │  5. Redirect to CALLBACK?…                               │   │
+      │  └──────────────────────────────────────────────────────────┘   │
+      │            │                                                    │
+      │            ▼ (InAppBrowser loadstart intercept)                 │
+      │  6. License.setStateFromCallback({ token, … }) →                │
+      │     verifyOwnershipTokenClient() checks Ed25519 signature       │
+      │     against pinned keys, zkAppAddress + generation, expiry,     │
+      │     and iat-floor ratchet (mlestalk_pro_iat_floor).             │
+      │  7. Persist to localStorage.mlestalk_pro_license.               │
+      │     Fire 'license:change' → UI unlocks PRO features.            │
+      │                                                                 │
+      │  8. Every 24h and on foreground wake: POST /refresh with the    │
+      │     stored token (no re-prove). Rolling 7-day TTL. On 401       │
+      │     (revoked), state is cleared.                                │
+      │                                                                 │
+      │  9. User signs out of PRO: POST /releaseSeat with the token,    │
+      │     server invalidates the seat, local state cleared.           │
+      │     (iat floor is NEVER cleared — replay defence across         │
+      │     re-activations.)                                            │
+      └─────────────────────────────────────────────────────────────────┘
+
+  Storage keys (in the app, not on this page):
+    - mlestalk_pro_license   : full state (token, expiries, jti)
+    - mlestalk_pro_iat_floor : monotonic issued-at ratchet, replay guard
+
+  This page is stateless. It never touches localStorage — the app owns all
+  persistence and gating decisions. If the user hits Cancel or activation
+  fails, this page redirects to CALLBACK?error=… and the app treats it as
+  a no-op (existing PRO state, if any, is untouched).
+
+  Web (non-Cordova) build note: the mlestalk-ui web build runs the exact
+  same flow inline (License.activate → license.worker.js proves in a
+  Worker), reusing steps 2–4 without an InAppBrowser hop. It requires the
+  same COOP/COEP headers on the page origin — locally, the Python
+  one-liner in scripts/ serves them for dev.
 -->
 <html lang="en">
 <head>
