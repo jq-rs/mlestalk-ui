@@ -105,10 +105,7 @@ function computeRemainingDays(expirySlot, currentSlot) {
 // Renew the activation token when within this window of expiry. Picked so
 // that a daily verify call has many chances to refresh before the token dies.
 const TOKEN_RENEW_THRESHOLD_MS = 24 * 60 * 60 * 1000;
-async function tryActivate(storage, zkAppAddress, licenseHash, current, bootstrapSecretHash, prover, verifierUrl, fetcher, nowMs) {
-    const secretHash = current?.secretHash ?? bootstrapSecretHash;
-    if (!secretHash)
-        return current;
+async function tryActivate(storage, zkAppAddress, licenseHash, current, signer, verifierUrl, fetcher, nowMs) {
     // Existing token still fresh — nothing to do.
     if (current?.token && current.expiresAt - nowMs > TOKEN_RENEW_THRESHOLD_MS)
         return current;
@@ -118,16 +115,16 @@ async function tryActivate(storage, zkAppAddress, licenseHash, current, bootstra
         if (!challengeResp.ok)
             return current;
         const { nonce } = (await challengeResp.json());
-        const proofJson = await prover({ licenseHash, nonce, secretHash });
+        const { pubKey, signature } = await signer({ licenseHash, nonce, zkAppAddress });
         const respondResp = await fetcher(`${base}/respond`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zkAppAddress, proof: proofJson }),
+            body: JSON.stringify({ zkAppAddress, licenseHash, pubKey, nonce, signature }),
         });
         if (!respondResp.ok)
             return current;
         const { token, expiresAt } = (await respondResp.json());
-        const next = { token, expiresAt, secretHash };
+        const next = { token, expiresAt };
         saveActivation(storage, zkAppAddress, licenseHash, next);
         return next;
     }
@@ -183,8 +180,8 @@ export async function verifyLicense(proof, options = {}) {
     let activation = storage
         ? loadActivation(storage, proof.zkAppAddress, proof.licenseHash, nowFn())
         : null;
-    if (storage && options.prover && (activation || options.secretHash)) {
-        activation = await tryActivate(storage, proof.zkAppAddress, proof.licenseHash, activation, options.secretHash, options.prover, verifierUrl, fetcher, nowFn());
+    if (storage && options.signer) {
+        activation = await tryActivate(storage, proof.zkAppAddress, proof.licenseHash, activation, options.signer, verifierUrl, fetcher, nowFn());
     }
     const tokenParam = activation?.token
         ? `&token=${encodeURIComponent(activation.token)}`

@@ -27,7 +27,6 @@ export interface Storage {
 export interface ActivationRecord {
     token: string;
     expiresAt: number;
-    secretHash?: string;
 }
 export declare function loadActivation(storage: Storage, zkAppAddress: string, licenseHash: string, nowMs?: number): ActivationRecord | null;
 export declare function saveActivation(storage: Storage, zkAppAddress: string, licenseHash: string, rec: ActivationRecord): void;
@@ -38,23 +37,30 @@ export interface ProofInput {
     verifierUrl?: string;
 }
 /**
- * Callback that proves an OwnershipChallenge using a stored secretHash.
- * Callers wire this up with their own o1js + LicenseProof imports so the SDK
- * stays dependency-free for the verify-only path. Return value is the
- * `proof.toJSON()` payload the verifier's POST /respond expects.
+ * Callback that signs an ownership challenge with the buyer's Ed25519
+ * keypair. The caller derives the keypair from the passphrase (via
+ * `deriveOwnershipKeypair` in ./ownershipSignature.ts) and returns the
+ * base64-encoded pubkey + signature. Keeping this abstract preserves the
+ * SDK's zero-dependency verify path — vendors who never activate never
+ * bundle the WebCrypto glue at all.
+ *
+ * Return shape matches POST /respond's ownership envelope exactly, so the
+ * SDK forwards it verbatim.
  */
-export type TokenProver = (input: {
+export type Signer = (input: {
     licenseHash: string;
     nonce: string;
-    secretHash: string;
-}) => Promise<unknown>;
+    zkAppAddress: string;
+}) => Promise<{
+    pubKey: string;
+    signature: string;
+}>;
 export interface VerifyOptions {
     verifierUrl?: string;
     storage?: Storage | null;
     fetcher?: typeof fetch;
     now?: () => number;
-    prover?: TokenProver;
-    secretHash?: string;
+    signer?: Signer;
 }
 export interface VerifyResult {
     valid: boolean;

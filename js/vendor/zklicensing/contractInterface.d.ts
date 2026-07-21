@@ -52,4 +52,3 @@ export function fetchLicensingAppVersion(zkAppAddress: string): Promise<number |
 export const CANONICAL_VK_HASHES: Readonly<Record<number, string>>;
 export const CURRENT_GENERATION: number;
 export const CANONICAL_VK_HASH: string;
-export const CANONICAL_LICENSE_PROOF_VK_HASH: string;

@@ -4,9 +4,10 @@
  * Ownership-token helpers and a small in-memory nonce store for the
  * challenge-response /verify flow.
  *
- * Replay-resistance: the LicenseProof's public input binds (licenseHash,
- * nonce). The keeper hands out a nonce, the client proves against it, the
- * keeper consumes the nonce on the way through. Tokens are Ed25519-signed
+ * Replay-resistance: the client's Ed25519 sign-challenge (see
+ * ownershipSignature.ts) binds (licenseHash, nonce, zkAppAddress). The
+ * keeper hands out a nonce, the client signs it, the keeper consumes the
+ * nonce on the way through. Tokens are Ed25519-signed
  * envelopes over (v, z=zkAppAddress, g=generation, l=licenseHash, e=expMs,
  * jti?). The signature is asymmetric, so anyone can verify a token (vendors
  * ship a pinned public key and check locally, offline), but only the verify
@@ -29,7 +30,7 @@
  * refuse the token — the type is closed on purpose.
  *
  * Public-not-secret: `l` is the public `licenseHash` (already visible
- * post-purchase), never a secretHash or anything derived from the buyer's
+ * post-purchase), never a private key or anything derived from the buyer's
  * passphrase. The "buyer's secret never leaves the client" invariant holds.
  *
  * Time unit: `e` is milliseconds since epoch (matches `Date.now()`),
@@ -80,6 +81,7 @@ export declare function mintOwnershipToken(privateKey: KeyObject, base: {
     g: string;
     l: string;
     e: number;
+    n?: string;
 }): {
     token: string;
     jti: string;
@@ -91,12 +93,26 @@ export declare function verifyOwnershipToken(pinnedPublicKeysBase64: readonly st
     z: string;
     g: string;
 }): OwnershipTokenPayload | null;
+export type SessionRow = {
+    jti: string;
+    name: string;
+    exp: number;
+    mintedAt: number;
+    lastRefreshAt: number;
+};
 export type SessionStore = {
-    insert(licenseHash: string, jti: string, exp: number, cap: number): {
+    insert(licenseHash: string, jti: string, exp: number, cap: number, name: string): {
         state: 'ok' | 'at-cap';
         active: number;
     };
+    refresh(licenseHash: string, jti: string, newExp: number): boolean;
     has(licenseHash: string, jti: string): boolean;
+    list(licenseHash: string): SessionRow[];
+    evictLRR(licenseHash: string): {
+        jti: string;
+        name: string;
+        lastRefreshAt: number;
+    } | null;
     releaseSeat(licenseHash: string, jti: string): boolean;
     reset(licenseHash: string): number;
     activeCount(licenseHash: string): number;

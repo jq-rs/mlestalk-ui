@@ -11,7 +11,7 @@ export type VerifyResponse = {
  * Core license verification.
  *
  * @param zkAppAddress - app address (composite key with licenseHash)
- * @param licenseHash  - Poseidon.hash([secretHash]) as a field string
+ * @param licenseHash  - Poseidon hash of the buyer's Ed25519 pubkey (see ownershipLicenseHash.ts) as a field string
  * @param records      - current off-chain license records (from licenseStore)
  * @param onChainRoot  - zkApp appState[0] fetched from Mina
  * @param currentSlot  - current blockchain slot (globalSlotSinceGenesis)

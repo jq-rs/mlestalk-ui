@@ -17,7 +17,6 @@ Sure, quite easily with roughly the following steps (at least you get the idea a
      * cordova-plugin-androidx-adapter
      * cordova-plugin-local-notification
      * cordova-plugin-permission
-     * cordova-plugin-inappbrowser (required for the zkLicensing PRO activation popup)
      * https://github.com/jq-rs/cordova-plugin-background-mode
  4. Clone this repository and its submodules under your Cordova project's www-directory. Remember to add your own graphics and modifications to the lot. You can even make your own webworker, if you like - just implement the API properly.
  5. Build with ```cordova build android --release -- --packageType=apk```, copy the resulting apk to your device and install it. Well done!

@@ -12,12 +12,9 @@
  * about durations are published here so a public verify service can replay
  * the archive without pulling in the contract source.
  *
- * `CANONICAL_VK_HASH` and `CANONICAL_LICENSE_PROOF_VK_HASH` are the
- * verification-key hashes of the two published circuits — `LicensingApp`
- * (the on-chain zkApp) and `LicenseOwnershipProgram` (the ownership
- * challenge/response `ZkProgram`), respectively. Both are hand-maintained
- * constants — bump them whenever the corresponding circuit changes and
- * rerun the keeper's boot assertion (see zklicensing-app/src/keeperService.ts)
+ * `CANONICAL_VK_HASH` is the verification-key hash of the published
+ * `LicensingApp` circuit. Bump it whenever the on-chain zkApp changes
+ * and rerun the keeper's boot assertion (see zklicensing-app/src/keeperService.ts)
  * / the verify service's `ensureCompiled()` check to catch drift.
  */
 import { declareState, fetchAccount, Field, PublicKey, SmartContract, Struct, UInt32, UInt64, MerkleMap } from '../o1js/index.js';
@@ -209,5 +206,4 @@ export const CANONICAL_VK_HASHES = {
 };
 export const CURRENT_GENERATION = 1;
 export const CANONICAL_VK_HASH = CANONICAL_VK_HASHES[CURRENT_GENERATION];
-export const CANONICAL_LICENSE_PROOF_VK_HASH = '6592142093294558010952934797827640785154417146015648013584661926355710165692';
 //# sourceMappingURL=contractInterface.js.map

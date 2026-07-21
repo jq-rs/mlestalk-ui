@@ -6,9 +6,10 @@
  * Ownership-token helpers and a small in-memory nonce store for the
  * challenge-response /verify flow.
  *
- * Replay-resistance: the LicenseProof's public input binds (licenseHash,
- * nonce). The keeper hands out a nonce, the client proves against it, the
- * keeper consumes the nonce on the way through. Tokens are Ed25519-signed
+ * Replay-resistance: the client's Ed25519 sign-challenge (see
+ * ownershipSignature.ts) binds (licenseHash, nonce, zkAppAddress). The
+ * keeper hands out a nonce, the client signs it, the keeper consumes the
+ * nonce on the way through. Tokens are Ed25519-signed
  * envelopes over (v, z=zkAppAddress, g=generation, l=licenseHash, e=expMs,
  * jti?). The signature is asymmetric, so anyone can verify a token (vendors
  * ship a pinned public key and check locally, offline), but only the verify
@@ -31,7 +32,7 @@
  * refuse the token — the type is closed on purpose.
  *
  * Public-not-secret: `l` is the public `licenseHash` (already visible
- * post-purchase), never a secretHash or anything derived from the buyer's
+ * post-purchase), never a private key or anything derived from the buyer's
  * passphrase. The "buyer's secret never leaves the client" invariant holds.
  *
  * Time unit: `e` is milliseconds since epoch (matches `Date.now()`),
@@ -170,6 +171,11 @@ export function newOwnershipKeyPair() {
 // would be indistinguishable in the session store and the cap would fail
 // open silently. This helper is the single mint entry point; callers must
 // not hand-roll a payload with jti omitted.
+//
+// Optional `n` is a human-readable device name shown by the client's device
+// list ("Silent Otter"). Purely cosmetic — the verifier never gates on it.
+// Callers that omit it get a token with no `n` field; a browser reading such
+// a token displays "This device" as a fallback.
 export function mintOwnershipToken(privateKey, base) {
     const jti = newJti();
     // iat comes from Date.now() at the ONE mint entry point so the wire field
@@ -177,6 +183,7 @@ export function mintOwnershipToken(privateKey, base) {
     // as a monotonic floor (see verifyOwnershipTokenClient's iatFloor option).
     const payload = {
         v: 1, z: base.z, g: base.g, l: base.l, e: base.e, iat: Date.now(), jti,
+        ...(base.n ? { n: base.n } : {}),
     };
     const token = signOwnershipToken(privateKey, payload);
     return { token, jti, payload };
@@ -285,7 +292,7 @@ export function verifyOwnershipToken(pinnedPublicKeysBase64, token, expected) {
 // new timestamp (state: 'ok') or refuses it (state: 'at-cap') with a
 // retry-after computed from the oldest surviving timestamp.
 //
-// Used by verifyService for /releaseSeat and /reset-sessions caps —
+// Used by verifyService for /releaseSeat and /resetSessions caps —
 // both are legitimate operations the license owner might invoke, but at
 // bounded frequency. An attacker who exfiltrated a token could spam
 // /releaseSeat to lock a legit owner out; the cap makes that noticeable.
@@ -320,15 +327,15 @@ export function createRateLimitStore(windowMs = RATE_LIMIT_WINDOW_MS) {
     };
 }
 export function createSessionStore() {
-    // licenseHash → jti → expiresAt
+    // licenseHash → jti → row
     const sessions = new Map();
     const pruneLicense = (licenseHash) => {
         const perLic = sessions.get(licenseHash);
         if (!perLic)
             return undefined;
         const now = Date.now();
-        for (const [jti, exp] of perLic)
-            if (exp <= now)
+        for (const [jti, row] of perLic)
+            if (row.exp <= now)
                 perLic.delete(jti);
         if (perLic.size === 0) {
             sessions.delete(licenseHash);
@@ -337,18 +344,63 @@ export function createSessionStore() {
         return perLic;
     };
     return {
-        insert(licenseHash, jti, exp, cap) {
+        insert(licenseHash, jti, exp, cap, name) {
             const perLic = pruneLicense(licenseHash) ?? new Map();
             if (cap > 0 && perLic.size >= cap && !perLic.has(jti)) {
                 return { state: 'at-cap', active: perLic.size };
             }
-            perLic.set(jti, exp);
+            const now = Date.now();
+            // On a repeat insert for the same jti (e.g. an idempotent /respond
+            // retry that landed before the earlier response was persisted client-
+            // side), preserve mintedAt so the seat's identity doesn't reset.
+            const existing = perLic.get(jti);
+            perLic.set(jti, {
+                jti,
+                name,
+                exp,
+                mintedAt: existing?.mintedAt ?? now,
+                lastRefreshAt: now,
+            });
             sessions.set(licenseHash, perLic);
             return { state: 'ok', active: perLic.size };
+        },
+        refresh(licenseHash, jti, newExp) {
+            const perLic = pruneLicense(licenseHash);
+            const row = perLic?.get(jti);
+            if (!row)
+                return false;
+            row.exp = newExp;
+            row.lastRefreshAt = Date.now();
+            return true;
         },
         has(licenseHash, jti) {
             const perLic = pruneLicense(licenseHash);
             return perLic?.has(jti) ?? false;
+        },
+        list(licenseHash) {
+            const perLic = pruneLicense(licenseHash);
+            if (!perLic)
+                return [];
+            return Array.from(perLic.values());
+        },
+        evictLRR(licenseHash) {
+            const perLic = pruneLicense(licenseHash);
+            if (!perLic || perLic.size === 0)
+                return null;
+            let victim = null;
+            for (const row of perLic.values()) {
+                if (victim === null ||
+                    row.lastRefreshAt < victim.lastRefreshAt ||
+                    (row.lastRefreshAt === victim.lastRefreshAt && row.mintedAt < victim.mintedAt)) {
+                    victim = row;
+                }
+            }
+            if (!victim)
+                return null;
+            perLic.delete(victim.jti);
+            if (perLic.size === 0)
+                sessions.delete(licenseHash);
+            return { jti: victim.jti, name: victim.name, lastRefreshAt: victim.lastRefreshAt };
         },
         releaseSeat(licenseHash, jti) {
             const perLic = sessions.get(licenseHash);

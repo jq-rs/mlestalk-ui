@@ -1,8 +1,10 @@
 export type BuyIdentity = {
-    secretHash: string;
+    publicKeyRaw: Uint8Array;
+    publicKeyBase64: string;
+    privateKey: CryptoKey;
     licenseHash: string;
 };
-export declare function deriveBuyIdentity(passphrase: string): BuyIdentity;
+export declare function deriveBuyIdentity(passphrase: string): Promise<BuyIdentity>;
 export type ProveBuyRequest = {
     keeperUrl: string;
     licenseHash: string;

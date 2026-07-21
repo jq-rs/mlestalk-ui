@@ -26,9 +26,9 @@ cp -R  "$SDK_SRC"/.  "$SDK_DST"/
 cp -R  "$O1JS_SRC"/. "$O1JS_DST"/
 
 # Rewrite bare `from 'o1js'` specifiers to relative paths. Import maps only
-# work inside HTML documents; dedicated workers (like js/license.worker.js)
-# resolve modules through the fetch spec and can't see them. A relative path
-# resolves identically in both contexts.
+# work inside HTML documents; dedicated workers resolve modules through the
+# fetch spec and can't see them. A relative path resolves identically in
+# both contexts, so the vendored SDK remains portable.
 find "$SDK_DST" -maxdepth 1 -name '*.js' -exec \
   sed -i.bak -E "s|from ['\"]o1js['\"]|from '../o1js/index.js'|g" {} \;
 find "$SDK_DST" -maxdepth 1 -name '*.js.bak' -delete

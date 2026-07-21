@@ -10,23 +10,29 @@
  * `confirmBuy`, so the SDK stays wallet-agnostic and can be reused by CLI
  * tools, alternate UIs, and third-party integrators.
  *
- * Peer dep: o1js (for Poseidon + Encoding). Consumers of ./buy must have
- * o1js in their dependency graph.
+ * Peer dep: o1js (for Poseidon + Encoding, used by ownershipLicenseHash).
+ * Consumers of ./buy must have o1js in their dependency graph. The
+ * ownership-signing surface itself (ownershipSignature.ts) is o1js-free
+ * so vendor apps that only need to activate on device can bundle it
+ * without pulling o1js in.
  */
-import { Encoding, Poseidon } from '../o1js/index.js';
 import { resolveFreezeState } from './freezeClient.js';
 import { REFUND_WINDOW_N, TOLERANCE_WINDOW_N } from './contractInterface.js';
 import { readErrorBody, tryQueueBusyFromBody } from './proveErrors.js';
-// Derive the two hashes the buy flow keys off. Deterministic in the
-// passphrase — same passphrase always maps to the same licenseHash on a
-// given zkApp, so a buyer's passphrase choice locks in their license
-// identity from day one. Only `licenseHash` is sent to the keeper (see
-// proveBuy); `secretHash` stays on the buyer's device and is used only by
-// the client-side LicenseOwnershipProgram challenge/response.
-export function deriveBuyIdentity(passphrase) {
-    const secretHash = Poseidon.hash(Encoding.stringToFields(passphrase));
-    const licenseHash = Poseidon.hash([secretHash]);
-    return { secretHash: secretHash.toString(), licenseHash: licenseHash.toString() };
+import { deriveOwnershipKeypair } from './ownershipSignature.js';
+import { licenseHashFromPubkey } from './ownershipLicenseHash.js';
+// Derive the ownership keypair + licenseHash the buy flow keys off.
+// Deterministic in the passphrase — same passphrase always maps to the
+// same keypair (via HKDF-SHA256) and therefore the same licenseHash on
+// every device, so a buyer can re-derive their license identity anywhere
+// from just the passphrase.
+//
+// Runtime: WebCrypto Ed25519 (Node ≥20, Chromium 137+, Safari 17+,
+// Firefox 130+). Async because subtle.deriveBits/importKey are async.
+export async function deriveBuyIdentity(passphrase) {
+    const { privateKey, publicKeyRaw, publicKeyBase64 } = await deriveOwnershipKeypair(passphrase);
+    const licenseHash = licenseHashFromPubkey(publicKeyRaw);
+    return { publicKeyRaw, publicKeyBase64, privateKey, licenseHash };
 }
 function baseUrl(url) {
     return url.replace(/\/+$/, '');

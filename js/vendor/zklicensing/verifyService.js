@@ -63,7 +63,7 @@
  *   POST /respond                                   ← ownership proof + token
  *   POST /refresh                                   ← extend token TTL (no re-prove)
  *   POST /releaseSeat                                ← release this device's seat
- *   POST /reset-sessions                            ← drop all sessions (re-prove)
+ *   POST /resetSessions                            ← drop all sessions (re-prove)
  *   GET  /root?zkApp=...
  *   GET  /witness/:zkAppAddress/:licenseHash
  *   GET  /license/:zkAppAddress/:licenseHash
@@ -75,16 +75,22 @@ import { mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import express from 'express';
-import { Field, Mina, fetchLastBlock, fetchAccount, PublicKey, Cache, setBackend, verify, } from '../o1js/index.js';
+import { Field, Mina, fetchLastBlock, fetchAccount, PublicKey, setBackend, } from '../o1js/index.js';
 import { buildMap, getLicense, licenseStatus, readRecords, serializeWitness, } from './licenseStore.js';
-import { verifyLicenseCore } from './verifyCore.js';
-import { bootstrapFromArchive, applyEventsToStore, lazyBootstrap } from './archiveBootstrap.js';
-import { LicenseProof, LicenseProofProof } from './licenseProof.js';
-import { CANONICAL_VK_HASHES, CANONICAL_LICENSE_PROOF_VK_HASH, SUPPORTED_LICENSING_APP_VERSIONS, fetchLicensingAppVersion, GRACE_PERIOD_N, MS_PER_SLOT_N, } from './contractInterface.js';
+import { findAppByAnyAddress } from './appsLookup.js';
+import { verifyLicenseWithAncestors } from './verifyWithAncestors.js';
+import { bootstrapFromArchive, applyEventsToStore } from './archiveBootstrap.js';
+import { verifyChallenge, decodeBase64 } from './ownershipSignature.js';
+import { licenseHashFromPubkey } from './ownershipLicenseHash.js';
+import { CANONICAL_VK_HASHES, SUPPORTED_LICENSING_APP_VERSIONS, fetchLicensingAppVersion, GRACE_PERIOD_N, MS_PER_SLOT_N, } from './contractInterface.js';
 import { createChallengeStore, createSessionStore, createRateLimitStore, mintOwnershipToken, signOwnershipToken, verifyOwnershipToken, peekOwnershipTokenPayload, loadOrCreateOwnershipKey, OWNERSHIP_TOKEN_TTL_MS, } from './ownership.js';
+import { randomSeatName } from './seatName.js';
 setBackend('native');
-const CIRCUIT_CACHE_DIR = join(homedir(), '.cache', 'zklic-verifier');
-mkdirSync(CIRCUIT_CACHE_DIR, { recursive: true });
+// Keeper on-disk state directory. Historically held the LicenseProof VK
+// cache; today it only holds the ownership Ed25519 keypair. Path kept
+// identical to preserve existing operator installs.
+const KEEPER_STATE_DIR = join(homedir(), '.cache', 'zklic-verifier');
+mkdirSync(KEEPER_STATE_DIR, { recursive: true });
 // ------------------------------------------------------------
 // CONFIG (env vars) & NETWORK
 // ------------------------------------------------------------
@@ -122,43 +128,63 @@ Mina.setActiveInstance(Mina.Network({
     mina: MINA_GRAPHQL_URL,
     archive: archiveUrl,
 }));
-// ------------------------------------------------------------
-// CIRCUIT — LicenseProof (ownership challenge/response)
-// ------------------------------------------------------------
-let licenseProofVk = null;
-let licenseProofCompile = null;
-async function ensureCompiled() {
-    if (licenseProofVk)
-        return;
-    licenseProofCompile ??= (async () => {
-        const cached = Cache.FileSystem(CIRCUIT_CACHE_DIR);
-        const t = Date.now();
-        console.log(`[verify-prover] Compiling LicenseProof (cache: ${CIRCUIT_CACHE_DIR})…`);
-        const lpVk = await LicenseProof.compile({ cache: cached });
-        const vk = lpVk.verificationKey;
-        if (CANONICAL_LICENSE_PROOF_VK_HASH && vk.hash.toString() !== CANONICAL_LICENSE_PROOF_VK_HASH) {
-            throw new Error(`LicenseProof VK hash ${vk.hash.toString()} does not match CANONICAL_LICENSE_PROOF_VK_HASH ${CANONICAL_LICENSE_PROOF_VK_HASH}`);
-        }
-        licenseProofVk = vk;
-        console.log(`[verify-prover] Ready in ${((Date.now() - t) / 1000).toFixed(1)}s — vk ${vk.hash.toString().slice(0, 16)}…`);
-    })();
-    await licenseProofCompile;
+async function verifyOwnershipSignature(zkAppAddress, body) {
+    const { licenseHash, pubKey, nonce, signature } = body;
+    if (typeof licenseHash !== 'string' || licenseHash.length === 0 ||
+        typeof pubKey !== 'string' || pubKey.length === 0 ||
+        typeof nonce !== 'string' || nonce.length === 0 ||
+        typeof signature !== 'string' || signature.length === 0) {
+        return { ok: false, status: 400, error: 'Missing or invalid licenseHash / pubKey / nonce / signature' };
+    }
+    let pubKeyRaw;
+    let sigRaw;
+    try {
+        pubKeyRaw = decodeBase64(pubKey);
+        sigRaw = decodeBase64(signature);
+    }
+    catch {
+        return { ok: false, status: 400, error: 'pubKey / signature must be base64' };
+    }
+    if (pubKeyRaw.length !== 32) {
+        return { ok: false, status: 400, error: 'pubKey must decode to 32 bytes (Ed25519 raw)' };
+    }
+    if (sigRaw.length !== 64) {
+        return { ok: false, status: 400, error: 'signature must decode to 64 bytes (Ed25519 raw)' };
+    }
+    // Field-side binding — proves the pubkey hashes to the same licenseHash
+    // the buyer committed to at /prove/buy. Runs BEFORE the signature check
+    // because a mismatched pubkey means the signature would be worthless
+    // even if valid: it wouldn't be over the correct license.
+    let derived;
+    try {
+        derived = licenseHashFromPubkey(pubKeyRaw);
+    }
+    catch (err) {
+        return { ok: false, status: 400, error: `licenseHash derivation failed: ${err?.message || String(err)}` };
+    }
+    if (derived !== licenseHash) {
+        return { ok: false, status: 403, error: 'pubKey does not bind to licenseHash — wrong passphrase or wrong license' };
+    }
+    const sigValid = await verifyChallenge(pubKeyRaw, { licenseHash, nonce, zkAppAddress }, sigRaw);
+    if (!sigValid) {
+        return { ok: false, status: 400, error: 'Ownership signature is invalid' };
+    }
+    return { ok: true, licenseHash, nonce };
 }
-ensureCompiled().catch((e) => console.error('[verify-prover] Compile failed:', e));
 // ------------------------------------------------------------
 // OWNERSHIP — challenge + activation token (helpers live in ownership.ts)
 // ------------------------------------------------------------
 const ownershipChallenges = createChallengeStore();
 setInterval(() => { /* opportunistic GC */ ownershipChallenges.size(); }, 30_000).unref();
 // Per-license active-device session store. Backs the concurrent-device cap
-// (AppRecord.maxConcurrentDevices), /releaseSeat, and /reset-sessions. In-memory
+// (AppRecord.maxConcurrentDevices), /releaseSeat, and /resetSessions. In-memory
 // by design — a keeper restart drops every session, forcing devices to
 // re-prove ownership. That is a security feature: persisted sessions would
 // let a stolen token bypass concurrency caps across restarts.
 const ownershipSessions = createSessionStore();
 setInterval(() => { /* opportunistic GC — activeCount touches prune */ ownershipSessions.size(); }, 30_000).unref();
 // Per-license rolling 24h rate limits on the two abuse-prone endpoints
-// (/releaseSeat, /reset-sessions). Both are legitimate operations the
+// (/releaseSeat, /resetSessions). Both are legitimate operations the
 // license owner might invoke, but at bounded frequency.
 //
 // The daily limit is exactly `maxConcurrentDevices` — one call per seat per
@@ -168,7 +194,7 @@ setInterval(() => { /* opportunistic GC — activeCount touches prune */ ownersh
 //
 // Cap=0 (unlimited) apps never reach these endpoints — /respond refuses
 // to mint for cap=0 (see the precheck in that handler), so no token can
-// exist and neither /releaseSeat nor /reset-sessions has anything to
+// exist and neither /releaseSeat nor /resetSessions has anything to
 // authenticate against. The cap>0 invariant is upheld at the mint boundary.
 //
 // In-memory, restart-drops-counts by design — same semantics as the
@@ -176,9 +202,14 @@ setInterval(() => { /* opportunistic GC — activeCount touches prune */ ownersh
 // against sustained abuse, not against a single burst timed to a reboot.
 const releaseSeatRateLimit = createRateLimitStore();
 const resetSessionsRateLimit = createRateLimitStore();
+// Match against the app's current live zkAppAddress OR any entry in its
+// deploymentHistory[]. Callers pass whatever address the client pinned
+// (which for older buyers is the original gen-1 address, not the current
+// live one after a bump) — matching by-any keeps cap/seat lookups stable
+// across generation bumps.
 async function loadAppByAddress(zkAppAddress) {
     const apps = await readApps();
-    return apps.find((a) => a.zkAppAddress === zkAppAddress) ?? null;
+    return findAppByAnyAddress(apps, zkAppAddress) ?? null;
 }
 // Resolve which generation a zkAppAddress claims to belong to by walking the
 // keeper's AppRecord.deploymentHistory[]. The top-level address is the current
@@ -210,7 +241,7 @@ async function resolveGenerationByAddress(zkAppAddress) {
 // it must NOT also be able to forge signed generation lists (key separation).
 // Bootstrap-on-first-run: a fresh host generates a fresh keypair and prints
 // the public key so the operator can pin it into the vendor SDK build.
-const OWNERSHIP_KEY_PATH = process.env.OWNERSHIP_KEY_PATH ?? join(CIRCUIT_CACHE_DIR, 'ownership-ed25519.key');
+const OWNERSHIP_KEY_PATH = process.env.OWNERSHIP_KEY_PATH ?? join(KEEPER_STATE_DIR, 'ownership-ed25519.key');
 const { privateKey: ownershipPrivateKey, publicKeyBase64: ownershipPublicKeyBase64, created: ownershipKeyCreated } = await loadOrCreateOwnershipKey(OWNERSHIP_KEY_PATH);
 if (ownershipKeyCreated) {
     console.log(`🔑 Ownership Ed25519 keypair generated → ${OWNERSHIP_KEY_PATH}`);
@@ -294,43 +325,60 @@ async function fetchWithOneRetry(fn, delayMs = 500) {
         return fn();
     }
 }
-// Fetch fresh on-chain state and run verifyLicenseCore against it, with one
-// lazy-bootstrap replay if the local store is stale. Throws only on network
-// / RPC failure; every other outcome (address unknown, VK mismatch, license
-// missing / expired) surfaces as a `kind` on the returned verdict.
+// Fetch fresh on-chain state and delegate address routing + ancestor walk
+// to verifyLicenseWithAncestors. Throws only on network / RPC failure;
+// every other outcome (address unknown, VK mismatch, license missing /
+// expired) surfaces as a `kind` on the returned verdict.
+//
+// The `generation` field echoes the *request* address's own stable
+// generation, so a client that pinned an older address at build time sees
+// a token whose `g` still matches its local expectation across bumps.
 async function checkOnChainLicense(zkAppAddress, licenseHash) {
+    const apps = await readApps();
+    const appRecord = findAppByAnyAddress(apps, zkAppAddress);
+    if (!appRecord)
+        return { kind: 'unregistered-address' };
+    const historyLen = appRecord.deploymentHistory?.length ?? 0;
+    const currentGeneration = historyLen + 1;
+    const currentLive = appRecord.zkAppAddress;
+    // Echo: the request address's own stable generation. Stays consistent
+    // across bumps for any client that pinned an older address.
+    let requestGeneration = currentGeneration;
+    if (zkAppAddress !== currentLive) {
+        const idx = (appRecord.deploymentHistory ?? []).findIndex((d) => d.zkAppAddress === zkAppAddress);
+        if (idx >= 0)
+            requestGeneration = idx + 1;
+    }
     const [records, { account }, lastBlock] = await Promise.all([
         readRecords(),
-        fetchWithOneRetry(() => fetchAccount({ publicKey: PublicKey.fromBase58(zkAppAddress) })),
+        fetchWithOneRetry(() => fetchAccount({ publicKey: PublicKey.fromBase58(currentLive) })),
         fetchWithOneRetry(() => fetchLastBlock()),
     ]);
-    const onChainRoot = account?.zkapp?.appState?.[0]?.toString();
-    if (!onChainRoot)
+    const currentRoot = account?.zkapp?.appState?.[0]?.toString();
+    if (!currentRoot)
         return { kind: 'zkapp-not-found' };
     const zkAppVersion = Number(account?.zkapp?.appState?.[7]?.toString() ?? '0');
-    const generation = await resolveGenerationByAddress(zkAppAddress);
-    if (generation === null)
-        return { kind: 'unregistered-address' };
     const onChainVk = account?.zkapp?.verificationKey?.hash?.toString();
-    const expectedVk = CANONICAL_VK_HASHES[generation];
+    const expectedVk = CANONICAL_VK_HASHES[currentGeneration];
     if (expectedVk && onChainVk !== expectedVk)
-        return { kind: 'vk-mismatch', generation };
+        return { kind: 'vk-mismatch', generation: currentGeneration };
     const currentSlotNum = Number(lastBlock.globalSlotSinceGenesis.toString());
-    let liveRecords = records;
-    let result = verifyLicenseCore({ zkAppAddress, licenseHash, records: liveRecords, onChainRoot, currentSlot: currentSlotNum });
-    if (!result.valid && result.reason === 'License state does not match on-chain root') {
-        await lazyBootstrap(zkAppAddress);
-        liveRecords = await readRecords();
-        result = verifyLicenseCore({ zkAppAddress, licenseHash, records: liveRecords, onChainRoot, currentSlot: currentSlotNum });
-    }
+    const walked = await verifyLicenseWithAncestors({
+        appRecord,
+        licenseHash,
+        currentSlot: currentSlotNum,
+        currentLiveRoot: currentRoot,
+        records,
+    });
     return {
         kind: 'checked',
-        onChainRoot,
+        onChainRoot: walked.onChainRoot,
         currentSlot: currentSlotNum,
         zkAppVersion,
-        generation,
-        liveRecords,
-        result,
+        generation: requestGeneration,
+        resolvedAddress: walked.resolvedAddress,
+        liveRecords: walked.liveRecords,
+        result: walked.result,
     };
 }
 const APPS_FILE = 'apps.json';
@@ -413,32 +461,40 @@ app.get('/challenge', (req, res) => {
     }
     res.json(ownershipChallenges.issue(licenseHash));
 });
-// POST /respond — body: { zkAppAddress, proof }
-// Verifies a LicenseProof against the issued nonce, consumes the nonce,
-// enforces the vendor's concurrent-device cap (if any), and returns
+// POST /respond — body: { zkAppAddress, licenseHash, pubKey, nonce, signature, name? }
+// Verifies the Ed25519 ownership signature against the issued nonce, consumes
+// the nonce, enforces the vendor's concurrent-device cap (if any), and returns
 // { ownership: 'verified', token, expiresAt, jti, activeSessions, deviceLimit }
 // on success. On cap overflow returns 429 without minting a token — clients
 // must release a seat (POST /releaseSeat), reset all sessions (POST
-// /reset-sessions), or wait for the oldest to hit TTL.
+// /resetSessions), or wait for the oldest to hit TTL.
 app.post('/respond', async (req, res) => {
-    await ensureCompiled();
-    if (!licenseProofVk) {
-        return res.status(503).json({ error: 'Verify service not ready — circuits compiling' });
-    }
-    const { zkAppAddress, proof: proofJson } = req.body;
-    if (!zkAppAddress || !proofJson) {
-        return res.status(400).json({ error: 'Missing zkAppAddress or proof' });
+    const body = req.body;
+    const { zkAppAddress, name: rawName } = body;
+    if (!zkAppAddress) {
+        return res.status(400).json({ error: 'Missing zkAppAddress' });
     }
     const addrErr = validateZkAppAddress(zkAppAddress);
     if (addrErr)
         return res.status(400).json({ error: addrErr });
+    // Client-supplied device name is cosmetic — sanitize (strip control chars,
+    // cap at 32 chars) and fall back to a random Adjective+Animal if absent or
+    // empty. The name is echoed back to the client and shown in the device
+    // list (GET /seats); the verifier never gates on it.
+    const sanitizedName = (() => {
+        if (typeof rawName !== 'string')
+            return randomSeatName();
+        // eslint-disable-next-line no-control-regex
+        const trimmed = rawName.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 32);
+        return trimmed.length > 0 ? trimmed : randomSeatName();
+    })();
     // Refuse cap=0 (unlimited) apps at the API boundary. Unlimited apps are
     // architecturally tokenless — clients call GET /verify directly and gate
     // on the on-chain license status. Minting tokens here would only carry
     // downstream state (session-store rows, /refresh, /releaseSeat cadence)
-    // for no cap-enforcement benefit. Refused early (before the expensive
-    // proof crypto and on-chain lookup) so a misconfigured client fails
-    // fast with a clear hint instead of burning CPU and hitting the archive.
+    // for no cap-enforcement benefit. Refused early (before the signature
+    // check and on-chain lookup) so a misconfigured client fails fast with
+    // a clear hint instead of burning cycles and hitting the archive.
     const app_record_precheck = await loadAppByAddress(zkAppAddress);
     const cap_precheck = Math.max(0, Math.floor(app_record_precheck?.maxConcurrentDevices ?? 0));
     if (cap_precheck === 0) {
@@ -447,30 +503,17 @@ app.post('/respond', async (req, res) => {
             hint: 'Call GET /verify?licenseHash=…&zkAppAddress=… directly. On-chain license status alone gates access for unlimited apps.',
         });
     }
-    let proof;
-    try {
-        proof = await LicenseProofProof.fromJSON(proofJson);
-    }
-    catch {
-        return res.status(400).json({ error: 'Invalid proof format' });
-    }
-    let proofValid = false;
-    try {
-        proofValid = await verify(proof, licenseProofVk);
-    }
-    catch {
-        return res.status(400).json({ error: 'Proof verification threw' });
-    }
-    if (!proofValid) {
-        return res.status(400).json({ error: 'Proof is cryptographically invalid' });
-    }
-    const licenseHash = proof.publicInput.licenseHash.toString();
-    const nonce = proof.publicInput.nonce.toString();
-    // On-chain license-membership check. The ZK proof alone only demonstrates
-    // knowledge of *some* preimage of the licenseHash — trivially satisfiable
-    // for any invented (secret, hash) pair. To gate a real purchase, require
-    // that licenseHash actually exists in this zkApp's on-chain MerkleMap,
-    // and that the zkApp itself is registered with a matching canonical VK.
+    const ownership = await verifyOwnershipSignature(zkAppAddress, body);
+    if (!ownership.ok)
+        return res.status(ownership.status).json({ error: ownership.error });
+    const { licenseHash, nonce } = ownership;
+    // On-chain license-membership check. The ownership signature alone only
+    // demonstrates knowledge of a keypair whose pubkey hashes to `licenseHash`
+    // — trivially satisfiable by generating a keypair and then declaring
+    // "my licenseHash is Poseidon(this pubkey)." To gate a real purchase,
+    // require that licenseHash actually exists in this zkApp's on-chain
+    // MerkleMap, and that the zkApp itself is registered with a matching
+    // canonical VK.
     //
     // Runs BEFORE the nonce is consumed. A 502 from a transient Mina-node
     // failure must not burn the nonce — the client-side retry-with-backoff
@@ -518,18 +561,36 @@ app.post('/respond', async (req, res) => {
     const exp = Math.min(rawExp, graceEndMs);
     // Mint FIRST so jti is generated inside the helper (single source of truth
     // for "mint always sets jti"). Reserve the seat under that jti; on cap
-    // overflow the minted token is thrown away — the client never sees it —
-    // so no dangling signature-valid tokens leak past the cap.
+    // overflow we auto-evict the least-recently-refreshed seat and retry once
+    // — the just-proven caller wins the slot because they demonstrated
+    // knowledge of the passphrase, which the evicted device does not need to
+    // re-do (it will just fail its next /refresh and drop into a re-activation
+    // flow). The minted token from a failed insert is thrown away; the retry
+    // uses the same jti but the client never saw the failed token.
     const { token, jti } = mintOwnershipToken(_ownershipPrivateKey, {
         z: zkAppAddress,
         g: String(onChain.generation),
         l: licenseHash,
         e: exp,
+        n: sanitizedName,
     });
-    const reserved = ownershipSessions.insert(licenseHash, jti, exp, cap);
+    let reserved = ownershipSessions.insert(licenseHash, jti, exp, cap, sanitizedName);
+    let evicted = null;
     if (reserved.state === 'at-cap') {
+        evicted = ownershipSessions.evictLRR(licenseHash);
+        if (evicted) {
+            // eslint-disable-next-line no-console
+            console.log(`[respond] LRR eviction: license=${licenseHash} evicted-jti=${evicted.jti} evicted-name="${evicted.name}" evicted-lastRefreshAt=${new Date(evicted.lastRefreshAt).toISOString()} new-name="${sanitizedName}"`);
+            reserved = ownershipSessions.insert(licenseHash, jti, exp, cap, sanitizedName);
+        }
+    }
+    if (reserved.state === 'at-cap') {
+        // Shouldn't happen after a successful eviction, but guard against the
+        // race where a concurrent /respond filled the slot between evict and
+        // retry. Surface the classic cap error so the client falls back to the
+        // manual release / reset flow.
         return res.status(429).json({
-            error: 'Concurrent-device limit reached — release a seat, run POST /reset-sessions, or wait for the oldest session to expire',
+            error: 'Concurrent-device limit reached — release a seat, run POST /resetSessions, or wait for the oldest session to expire',
             activeSessions: reserved.active,
             deviceLimit: cap,
         });
@@ -545,19 +606,114 @@ app.post('/respond', async (req, res) => {
         // they end up displaying the rolling 7-day token TTL.
         licenseExpiresAt: onChain.result.expiresAt,
         jti,
+        name: sanitizedName,
         activeSessions: reserved.active,
         deviceLimit: cap,
+        // Populated when the cap-overflow path forced us to boot an existing
+        // seat. Clients surface this ("Replaced 'Silent Otter' — last active
+        // 3 days ago") so the buyer understands why an old device just stopped
+        // working. Absent on the common no-eviction path.
+        ...(evicted ? { evicted: { jti: evicted.jti, name: evicted.name, lastRefreshAt: evicted.lastRefreshAt } } : {}),
     });
 });
-// POST /releaseSeat — body: { token }
-// Releases the seat identified by the token's jti. Possession of the token
-// is authorization to release it (same threat model as any bearer token);
-// no proof-of-ownership is required. Enables an in-app "log out this device"
-// button. Idempotent — a second call with the same token silently no-ops.
+// POST /releaseSeat — two authorization modes:
+//
+//   Self-release:   body { token }
+//     Releases the caller's own seat. Possession of a valid token is enough
+//     (same threat model as any bearer token) — the caller could just drop
+//     the token locally, so this endpoint just makes the server-side slot
+//     free up in the same moment.
+//
+//   Kick-other:     body { zkAppAddress, proof, targetJti }
+//     Releases a seat identified by `targetJti` within the same license as
+//     the proof. Requires a fresh challenge/response — same trust bar as
+//     /seats and /resetSessions: enumerating other devices already required
+//     the passphrase, so acting on that list must too. A stolen token alone
+//     CANNOT kick other devices; only self-release.
+//
+// Idempotent in both modes — releasing an unknown or already-released jti
+// returns 200 with released:false.
 app.post('/releaseSeat', async (req, res) => {
-    const { token } = req.body;
+    const body = req.body;
+    // Sanitize targetJti — accept only non-empty strings up to 64 chars.
+    const targetJti = typeof body.targetJti === 'string' && body.targetJti.length > 0 && body.targetJti.length <= 64
+        ? body.targetJti
+        : null;
+    // Kick-other mode: ownership envelope + zkAppAddress + targetJti. Detected
+    // by the presence of `signature` — a caller that supplied a signature gets
+    // the elevated path even if they also (redundantly) sent a token; a caller
+    // that only sent a token but no signature falls into the self-release
+    // path below.
+    if (body.signature !== undefined) {
+        if (!targetJti) {
+            return res.status(400).json({ error: 'Kick-other requires targetJti; omit signature to self-release' });
+        }
+        if (typeof body.zkAppAddress !== 'string' || !body.zkAppAddress) {
+            return res.status(400).json({ error: 'Missing zkAppAddress' });
+        }
+        const addrErr = validateZkAppAddress(body.zkAppAddress);
+        if (addrErr)
+            return res.status(400).json({ error: addrErr });
+        const ownership = await verifyOwnershipSignature(body.zkAppAddress, body);
+        if (!ownership.ok)
+            return res.status(ownership.status).json({ error: ownership.error });
+        const { licenseHash, nonce } = ownership;
+        // Rate-limit AFTER signature verification (licenseHash cryptographically
+        // trusted) but BEFORE the on-chain lookup and nonce consume — same
+        // ordering as /resetSessions. Kick-other counts against the same
+        // per-license daily budget as self-release: an attacker holding either
+        // a token OR the passphrase shares a bounded budget with the honest
+        // owner.
+        const app_record_kick = await loadAppByAddress(body.zkAppAddress);
+        const kickLimit = Math.max(0, Math.floor(app_record_kick?.maxConcurrentDevices ?? 0));
+        if (kickLimit === 0) {
+            return res.status(400).json({
+                error: 'This app has maxConcurrentDevices=0 (unlimited) — no session state to release.',
+            });
+        }
+        const rlKick = releaseSeatRateLimit.bump(licenseHash, kickLimit);
+        if (rlKick.state === 'at-cap') {
+            return res.status(429)
+                .set('Retry-After', String(rlKick.retryAfterSec))
+                .json({
+                error: `releaseSeat rate limit exceeded (${kickLimit}/day) — retry in ${rlKick.retryAfterSec}s`,
+                retryAfterSec: rlKick.retryAfterSec,
+                dailyLimit: kickLimit,
+            });
+        }
+        // On-chain gate BEFORE nonce consume — same rationale as /respond.
+        let onChain;
+        try {
+            onChain = await checkOnChainLicense(body.zkAppAddress, licenseHash);
+        }
+        catch (err) {
+            return res.status(502).json({ error: `On-chain license lookup failed: ${err?.message || String(err)}` });
+        }
+        switch (onChain.kind) {
+            case 'zkapp-not-found':
+                return res.status(404).json({ error: 'zkApp not found on chain' });
+            case 'unregistered-address':
+                return res.status(403).json({ error: 'zkAppAddress is not in any registered app deployment history' });
+            case 'vk-mismatch':
+                return res.status(403).json({ error: `zkApp VK does not match generation ${onChain.generation}'s canonical circuit` });
+            case 'checked':
+                if (!onChain.result.valid) {
+                    return res.status(403).json({ error: `License not valid: ${onChain.result.reason}` });
+                }
+                break;
+        }
+        const nonceState = ownershipChallenges.consume(licenseHash, nonce);
+        if (nonceState !== 'ok') {
+            return res.status(400).json({ error: `Nonce ${nonceState} — request a fresh /challenge` });
+        }
+        const released = ownershipSessions.releaseSeat(licenseHash, targetJti);
+        return res.json({ ok: true, released, jti: targetJti, self: false });
+    }
+    // Self-release mode: token-only. Reject a request that supplied no token
+    // AND no proof — nothing to act on.
+    const token = typeof body.token === 'string' ? body.token : undefined;
     if (!token)
-        return res.status(400).json({ error: 'Missing token' });
+        return res.status(400).json({ error: 'Missing token (or supply zkAppAddress+proof+targetJti to kick another seat)' });
     const payload = await verifyKeeperInternal(token);
     if (!payload)
         return res.status(401).json({ error: 'Invalid or expired token' });
@@ -588,13 +744,99 @@ app.post('/releaseSeat', async (req, res) => {
         });
     }
     if (!payload.jti) {
-        // Pre-jti tokens aren't tracked in the session store, so there's no seat
-        // to release. Return 200 for idempotency — the caller's intent (log this
-        // device out) is satisfied by the local token delete.
-        return res.json({ ok: true, released: false, reason: 'token has no jti (pre-jti issue)' });
+        // Pre-jti tokens aren't tracked in the session store, so there's no
+        // seat to release. Return 200 for idempotency — the caller's intent
+        // (log this device out) is satisfied by the local token delete.
+        return res.json({ ok: true, released: false, reason: 'token has no jti (pre-jti issue)', self: true });
     }
     const released = ownershipSessions.releaseSeat(payload.l, payload.jti);
-    res.json({ ok: true, released, jti: payload.jti });
+    res.json({ ok: true, released, jti: payload.jti, self: true });
+});
+// POST /seats — body: { zkAppAddress, licenseHash, pubKey, nonce, signature, currentJti? }
+// Returns the device list for the licenseHash proved by the ownership signature.
+// Requires a fresh challenge/response — same trust bar as /resetSessions,
+// intentionally elevated above /releaseSeat's token-alone check: a leaked
+// or stolen ownership token can already release its own seat, but
+// enumerating (and thus targeting) other devices on the same license is
+// gated on the passphrase-holder actually holding the passphrase.
+//
+// POST (not GET) because the proof blob is large and structured — a query
+// string is the wrong shape. Nothing about this call mutates state beyond
+// consuming the one-shot nonce, which the passphrase-holder can always
+// re-issue.
+//
+// Optional `currentJti` lets the caller ask the server to stamp `self:true`
+// on their own row so the UI can highlight "this device" without a second
+// lookup. It's advisory — an unrecognised value simply produces no self
+// flag; a hostile value can only lie to the caller's own UI, which they
+// already control.
+app.post('/seats', async (req, res) => {
+    const body = req.body;
+    const { zkAppAddress, currentJti: rawCurrentJti } = body;
+    if (!zkAppAddress) {
+        return res.status(400).json({ error: 'Missing zkAppAddress' });
+    }
+    const addrErr = validateZkAppAddress(zkAppAddress);
+    if (addrErr)
+        return res.status(400).json({ error: addrErr });
+    const currentJti = typeof rawCurrentJti === 'string' && rawCurrentJti.length > 0 && rawCurrentJti.length <= 64
+        ? rawCurrentJti
+        : null;
+    const ownership = await verifyOwnershipSignature(zkAppAddress, body);
+    if (!ownership.ok)
+        return res.status(ownership.status).json({ error: ownership.error });
+    const { licenseHash, nonce } = ownership;
+    // On-chain gate BEFORE consuming the nonce, mirroring /respond and
+    // /resetSessions. A transient RPC failure returns 502 without burning
+    // the nonce so client-side retry-with-backoff still works.
+    let onChain;
+    try {
+        onChain = await checkOnChainLicense(zkAppAddress, licenseHash);
+    }
+    catch (err) {
+        return res.status(502).json({ error: `On-chain license lookup failed: ${err?.message || String(err)}` });
+    }
+    switch (onChain.kind) {
+        case 'zkapp-not-found':
+            return res.status(404).json({ error: 'zkApp not found on chain' });
+        case 'unregistered-address':
+            return res.status(403).json({ error: 'zkAppAddress is not in any registered app deployment history' });
+        case 'vk-mismatch':
+            return res.status(403).json({ error: `zkApp VK does not match generation ${onChain.generation}'s canonical circuit` });
+        case 'checked':
+            if (!onChain.result.valid) {
+                return res.status(403).json({ error: `License not valid: ${onChain.result.reason}` });
+            }
+            break;
+    }
+    const nonceState = ownershipChallenges.consume(licenseHash, nonce);
+    if (nonceState !== 'ok') {
+        return res.status(400).json({ error: `Nonce ${nonceState} — request a fresh /challenge` });
+    }
+    const app_record = await loadAppByAddress(zkAppAddress);
+    const cap = Math.max(0, Math.floor(app_record?.maxConcurrentDevices ?? 0));
+    if (cap === 0) {
+        // Unlimited apps don't track sessions at all — surface an empty seat
+        // list rather than 404 so a UI generically wired against /seats degrades
+        // to "no devices to show" instead of an error toast.
+        return res.json({ seats: [], deviceLimit: 0 });
+    }
+    // Sort by lastRefreshAt DESC (freshest first) so the UI naturally shows
+    // active devices at the top and the LRR candidate — the next eviction
+    // target if a new device joins over the cap — at the bottom.
+    const rows = ownershipSessions.list(licenseHash);
+    const seats = rows
+        .slice()
+        .sort((a, b) => b.lastRefreshAt - a.lastRefreshAt)
+        .map(row => ({
+        jti: row.jti,
+        name: row.name,
+        mintedAt: row.mintedAt,
+        lastRefreshAt: row.lastRefreshAt,
+        exp: row.exp,
+        ...(currentJti !== null && row.jti === currentJti ? { self: true } : {}),
+    }));
+    res.json({ seats, deviceLimit: cap });
 });
 // POST /refresh — body: { token }
 // Extends the lifetime of the current session without a fresh ownership proof.
@@ -665,13 +907,22 @@ app.post('/refresh', async (req, res) => {
     const rawExp = Date.now() + OWNERSHIP_TOKEN_TTL_MS;
     const newExp = graceEndMs !== null ? Math.min(rawExp, graceEndMs) : rawExp;
     if (payload.jti) {
-        // Idempotent for existing jti — updates the expiry, never trips the cap.
-        ownershipSessions.insert(payload.l, payload.jti, newExp, 0);
+        // Advance the seat's expiry AND its lastRefreshAt — the latter is the
+        // load-bearing field for LRR eviction on the next /respond. If refresh()
+        // returns false the seat was released or expired between the has() check
+        // above and now (rare — has() prunes opportunistically); treat it the
+        // same as "seat released" and 401 so the client drops state.
+        if (!ownershipSessions.refresh(payload.l, payload.jti, newExp)) {
+            return res.status(401).json({ error: 'Seat released' });
+        }
     }
     // Fresh iat on every reissue — the browser verifier ratchets an iatFloor
     // from every accepted token, and a stashed old-iat token replayed later
     // must not verify. Reissuing under the OLD iat would let a compromised
     // client keep refreshing with an old-iat payload.
+    //
+    // Preserve `n` (device name) verbatim — the client's device list keeps its
+    // stable label across refreshes. A pre-name token stays pre-name.
     const next = {
         v: 1,
         z: payload.z,
@@ -680,52 +931,35 @@ app.post('/refresh', async (req, res) => {
         e: newExp,
         iat: Date.now(),
         ...(payload.jti ? { jti: payload.jti } : {}),
+        ...(payload.n ? { n: payload.n } : {}),
     };
     const nextToken = signOwnershipToken(_ownershipPrivateKey, next);
-    res.json({ token: nextToken, expiresAt: newExp, licenseExpiresAt, jti: payload.jti });
+    res.json({ token: nextToken, expiresAt: newExp, licenseExpiresAt, jti: payload.jti, name: payload.n });
 });
-// POST /reset-sessions — body: { zkAppAddress, proof }
-// Drops ALL active sessions for the licenseHash proved by the LicenseProof.
-// Requires the same challenge/response as /respond — only the passphrase
-// holder can invoke it. Intended for "reinstall unsticks a device that
-// burned a slot without logging out" recovery. After this returns, the
-// caller runs a fresh /respond to re-provision a session under a zero
-// active count.
-app.post('/reset-sessions', async (req, res) => {
-    await ensureCompiled();
-    if (!licenseProofVk) {
-        return res.status(503).json({ error: 'Verify service not ready — circuits compiling' });
-    }
-    const { zkAppAddress, proof: proofJson } = req.body;
-    if (!zkAppAddress || !proofJson) {
-        return res.status(400).json({ error: 'Missing zkAppAddress or proof' });
+// POST /resetSessions — body: { zkAppAddress, licenseHash, pubKey, nonce, signature }
+// Drops ALL active sessions for the licenseHash proved by the Ed25519
+// ownership signature. Requires the same challenge/response as /respond —
+// only the passphrase holder can invoke it. Intended for "reinstall
+// unsticks a device that burned a slot without logging out" recovery.
+// After this returns, the caller runs a fresh /respond to re-provision a
+// session under a zero active count.
+app.post('/resetSessions', async (req, res) => {
+    const body = req.body;
+    const { zkAppAddress } = body;
+    if (!zkAppAddress) {
+        return res.status(400).json({ error: 'Missing zkAppAddress' });
     }
     const addrErr = validateZkAppAddress(zkAppAddress);
     if (addrErr)
         return res.status(400).json({ error: addrErr });
-    let proof;
-    try {
-        proof = await LicenseProofProof.fromJSON(proofJson);
-    }
-    catch {
-        return res.status(400).json({ error: 'Invalid proof format' });
-    }
-    let proofValid = false;
-    try {
-        proofValid = await verify(proof, licenseProofVk);
-    }
-    catch {
-        return res.status(400).json({ error: 'Proof verification threw' });
-    }
-    if (!proofValid) {
-        return res.status(400).json({ error: 'Proof is cryptographically invalid' });
-    }
-    const licenseHash = proof.publicInput.licenseHash.toString();
-    const nonce = proof.publicInput.nonce.toString();
-    // Rate-limit AFTER proof verification (so licenseHash is cryptographically
+    const ownership = await verifyOwnershipSignature(zkAppAddress, body);
+    if (!ownership.ok)
+        return res.status(ownership.status).json({ error: ownership.error });
+    const { licenseHash, nonce } = ownership;
+    // Rate-limit AFTER signature verification (so licenseHash is cryptographically
     // trusted) but BEFORE the on-chain lookup and nonce consume — a rate-limited
     // caller must not burn their nonce or hammer the archive node. An attacker
-    // without the license secret can't forge a valid proof, so they can't drive
+    // without the license secret can't forge a valid signature, so they can't drive
     // this counter for a license they don't hold. Limit = the app's device cap
     // (1 reset per seat per day). Cap=0 apps have no tokens (see /respond
     // precheck), so there is nothing to reset; refuse with 400 pointing at
@@ -743,7 +977,7 @@ app.post('/reset-sessions', async (req, res) => {
         return res.status(429)
             .set('Retry-After', String(rl.retryAfterSec))
             .json({
-            error: `reset-sessions rate limit exceeded (${resetLimit}/day) — retry in ${rl.retryAfterSec}s`,
+            error: `resetSessions rate limit exceeded (${resetLimit}/day) — retry in ${rl.retryAfterSec}s`,
             retryAfterSec: rl.retryAfterSec,
             dailyLimit: resetLimit,
         });
@@ -811,7 +1045,7 @@ app.get('/', async (req, res) => {
         }
         // Session-store gate: a jti-bearing token must still be in the active-
         // session set for its license. A token whose jti was released (via
-        // /releaseSeat, /reset-sessions, or evicted by TTL prune) is refused even if
+        // /releaseSeat, /resetSessions, or evicted by TTL prune) is refused even if
         // it's still HMAC-valid and inside its exp. Pre-jti tokens (issued
         // before the session-tracking rollout) skip this check and remain
         // usable until their exp — no forced logout across the migration.
@@ -858,7 +1092,11 @@ app.get('/', async (req, res) => {
                     ownership,
                 });
             case 'checked': {
-                const record = onChain.liveRecords.find(r => r.zkAppAddress === zkAppAddress && r.licenseHash === licenseHashStr);
+                // Key on resolvedAddress (the address the license was actually found
+                // under) rather than the request address — for pre-bump buyers who
+                // never migrated, these differ: request is the retired addr the
+                // client pinned, resolved is the retired addr the record lives on.
+                const record = onChain.liveRecords.find(r => r.zkAppAddress === onChain.resolvedAddress && r.licenseHash === licenseHashStr);
                 return res.json({
                     ...onChain.result,
                     currentSlot: onChain.currentSlot,
@@ -992,7 +1230,7 @@ app.listen(PORT, () => {
     console.log(`   POST /respond`);
     console.log(`   POST /refresh`);
     console.log(`   POST /releaseSeat`);
-    console.log(`   POST /reset-sessions`);
+    console.log(`   POST /resetSessions`);
     console.log(`   GET  /witness/:zkAppAddress/:licenseHash`);
     console.log(`   GET  /license/:zkAppAddress/:licenseHash`);
     console.log(`   GET  /apps`);

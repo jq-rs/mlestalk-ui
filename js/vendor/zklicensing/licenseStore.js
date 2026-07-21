@@ -13,7 +13,6 @@
  * Used by:
  *   - interact.ts / buyLicense.ts (CLI) — reads/writes directly
  *   - keeperService.ts              — exposes the same logic over HTTP
- *   - proofServer.ts                — reads expirySlot for a given licenseHash
  */
 import fs from 'fs/promises';
 import { Bool, Field, MerkleMap, MerkleMapWitness, Poseidon, PublicKey, UInt32, UInt64 } from '../o1js/index.js';

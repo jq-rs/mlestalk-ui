@@ -2674,20 +2674,10 @@ function showUpgradeModal(ev) {
 
   const pro       = !!(window.License && window.License.isPro());
   const expires   = pro && window.License.getLicenseExpiresAt && window.License.getLicenseExpiresAt();
-  const supported = !!(window.License && window.License.isSupported());
-  const useBrowser = !!(window.License && window.License.isBrowserFlowAvailable && window.License.isBrowserFlowAvailable());
 
-  // Cordova: the key is entered in the hosted popup, so hide the input here
-  // and relabel the primary button.
-  if (input) input.style.display = useBrowser ? "none" : "";
-  if (activate) activate.value = useBrowser ? "Open upgrade window" : "Activate";
+  if (activate) activate.value = "Activate";
 
-  if (!useBrowser && !supported && window.License) {
-    status.textContent = window.License.supportReason() || "PRO activation is not available in this environment.";
-    status.className   = "upgrade_status error";
-    if (input)    input.disabled    = true;
-    if (activate) activate.disabled = true;
-  } else if (pro) {
+  if (pro) {
     const seatName = window.License.getSeatName && window.License.getSeatName();
     const asClause = seatName ? ' as "' + seatName + '"' : "";
     status.textContent = expires
@@ -2786,11 +2776,8 @@ async function submitUpgrade() {
   const progress = document.getElementById("upgrade_progress");
   if (!status || !btn || !window.License) return;
 
-  // Cordova / InAppBrowser path: passphrase is entered in the hosted popup,
-  // not here. The key input is bypassed entirely.
-  const useBrowser = window.License.isBrowserFlowAvailable && window.License.isBrowserFlowAvailable();
-  const key = useBrowser ? "" : (input?.value || "").trim();
-  if (!useBrowser && !key) {
+  const key = (input?.value || "").trim();
+  if (!key) {
     status.textContent = "Enter your license key.";
     status.className   = "upgrade_status error";
     return;
@@ -2803,9 +2790,7 @@ async function submitUpgrade() {
   const tracker = makeUpgradeProgress();
 
   try {
-    const r = useBrowser
-      ? await window.License.activateViaBrowser({ onProgress: tracker.onProgress })
-      : await window.License.activate(key, { onProgress: tracker.onProgress });
+    const r = await window.License.activate(key, { onProgress: tracker.onProgress });
     status.textContent =
       "PRO activated in " + (tracker.totalMs() / 1000).toFixed(1) + " s. " +
       "Expires " + new Date(r.expiresAt).toLocaleString() + ".";

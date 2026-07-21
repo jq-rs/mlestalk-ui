@@ -14,5 +14,6 @@ export type OwnershipTokenPayload = {
     e: number;
     iat?: number;
     jti?: string;
+    n?: string;
 };
 //# sourceMappingURL=ownershipTypes.d.ts.map
