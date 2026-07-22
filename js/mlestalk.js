@@ -2852,6 +2852,16 @@ function fmtWhen(ms) {
   return Math.round(delta / 86_400_000) + " d ago";
 }
 
+function fmtUntil(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "unknown";
+  const delta = ms - Date.now();
+  if (delta <= 0)              return "expired";
+  if (delta < 60_000)          return "in <1 min";
+  if (delta < 3_600_000)       return "in " + Math.round(delta / 60_000) + " min";
+  if (delta < 86_400_000)      return "in " + Math.round(delta / 3_600_000) + " h";
+  return "in " + Math.round(delta / 86_400_000) + " d";
+}
+
 function renderDevicesList(body) {
   const box  = document.getElementById("upgrade_devices");
   const ul   = document.getElementById("upgrade_devices_list");
@@ -2880,6 +2890,19 @@ function renderDevicesList(body) {
                          " · added " + fmtWhen(seat.mintedAt);
     meta.appendChild(nameEl);
     meta.appendChild(whenEl);
+
+    const leaseEl = document.createElement("div");
+    leaseEl.className = "upgrade_device_when";
+    let leaseText = "lease " + fmtUntil(seat.exp);
+    // For the self row, also surface when our local scheduler will next
+    // fire /refresh — the keeper only knows other devices' lastRefreshAt,
+    // never their client-side scheduler state.
+    if (seat.self && window.License?.getNextRefreshAt) {
+      const nextAt = window.License.getNextRefreshAt();
+      if (nextAt) leaseText += " · next refresh " + fmtUntil(nextAt);
+    }
+    leaseEl.textContent = leaseText;
+    meta.appendChild(leaseEl);
     li.appendChild(meta);
 
     const btn = document.createElement("input");

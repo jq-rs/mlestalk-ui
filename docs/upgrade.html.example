@@ -122,7 +122,7 @@
     // Same LICENSE_CONFIG / callbackUrlPrefix as in the app (they must match).
     const CALLBACK = 'https://zklicensing.com/apps/mlestalk-pro/upgrade-callback';
     const VERIFIER = 'https://zklicensing.com/api/verify';
-    const ZK_APP   = 'B62qjsYuLJ9ZeEfFMrLp6gn5ZFH5v18WZkfn3ozURKfhtcJSB2cvYXJ';
+    const ZK_APP   = 'B62qqyz4uUjZbyEAehKKyqde4CpXJhCwrVW8S7MkY7MXqYGP1hBd4sz';
 
     const $ = id => document.getElementById(id);
     const setStatus = (msg, cls='') => { $('status').textContent = msg; $('status').className = 'status ' + cls; };

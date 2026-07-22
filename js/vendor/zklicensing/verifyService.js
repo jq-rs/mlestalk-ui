@@ -82,8 +82,8 @@ import { verifyLicenseWithAncestors } from './verifyWithAncestors.js';
 import { bootstrapFromArchive, applyEventsToStore } from './archiveBootstrap.js';
 import { verifyChallenge, decodeBase64 } from './ownershipSignature.js';
 import { licenseHashFromPubkey } from './ownershipLicenseHash.js';
-import { CANONICAL_VK_HASHES, SUPPORTED_LICENSING_APP_VERSIONS, fetchLicensingAppVersion, GRACE_PERIOD_N, MS_PER_SLOT_N, } from './contractInterface.js';
-import { createChallengeStore, createSessionStore, createRateLimitStore, mintOwnershipToken, signOwnershipToken, verifyOwnershipToken, peekOwnershipTokenPayload, loadOrCreateOwnershipKey, OWNERSHIP_TOKEN_TTL_MS, } from './ownership.js';
+import { CANONICAL_VK_HASHES, SUPPORTED_LICENSING_APP_VERSIONS, fetchLicensingAppVersion, GRACE_PERIOD_N, MS_PER_SLOT_N, REFUND_WINDOW_N, } from './contractInterface.js';
+import { createChallengeStore, createSessionStore, createRateLimitStore, mintOwnershipToken, signOwnershipToken, verifyOwnershipToken, peekOwnershipTokenPayload, loadOrCreateOwnershipKey, OWNERSHIP_TOKEN_TTL_REFUND_MS, } from './ownership.js';
 import { randomSeatName } from './seatName.js';
 setBackend('native');
 // Keeper on-disk state directory. Historically held the LicenseProof VK
@@ -390,6 +390,30 @@ async function readApps() {
         return [];
     }
 }
+// Ownership-token expiry follows a two-regime policy keyed on the license's
+// refund state (see OWNERSHIP_TOKEN_TTL_REFUND_MS for rationale):
+//
+//   • refund window open  → 24h ceiling (a refund can still void the license)
+//   • refund window closed → grace-end  (license is now irrevocable)
+//
+// Callers (/respond and /refresh) pass the already-verified 'checked' branch
+// of OnChainLicenseCheck; the licenseHash locates the matching LicenseRecord
+// so we can read its purchaseSlot. Missing / zero purchaseSlot is treated as
+// "no known purchase" and the token is minted at grace-end (matches the
+// legacy behavior for pre-tracking records — no migration path is planned).
+function computeTokenExp(onChain, licenseHash) {
+    const graceEndMs = onChain.result.expirySlot > 0 && onChain.result.expiresAt
+        ? Date.parse(onChain.result.expiresAt) + GRACE_PERIOD_N * MS_PER_SLOT_N
+        : Number.POSITIVE_INFINITY;
+    const record = onChain.liveRecords.find(r => r.zkAppAddress === onChain.resolvedAddress && r.licenseHash === licenseHash);
+    const purchaseSlot = record?.purchaseSlot ?? 0;
+    const refundWindowClosed = purchaseSlot > 0
+        && onChain.currentSlot > purchaseSlot + REFUND_WINDOW_N;
+    const ceiling = refundWindowClosed
+        ? graceEndMs
+        : Date.now() + OWNERSHIP_TOKEN_TTL_REFUND_MS;
+    return Math.min(ceiling, graceEndMs);
+}
 // ------------------------------------------------------------
 // EXPRESS SERVER
 // ------------------------------------------------------------
@@ -488,21 +512,14 @@ app.post('/respond', async (req, res) => {
         const trimmed = rawName.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 32);
         return trimmed.length > 0 ? trimmed : randomSeatName();
     })();
-    // Refuse cap=0 (unlimited) apps at the API boundary. Unlimited apps are
-    // architecturally tokenless — clients call GET /verify directly and gate
-    // on the on-chain license status. Minting tokens here would only carry
-    // downstream state (session-store rows, /refresh, /releaseSeat cadence)
-    // for no cap-enforcement benefit. Refused early (before the signature
-    // check and on-chain lookup) so a misconfigured client fails fast with
-    // a clear hint instead of burning cycles and hitting the archive.
+    // Load the app record up front so we know the device cap before deciding
+    // whether to mint a session token. cap=0 (unlimited) apps still get the
+    // full Ed25519 + on-chain ownership proof — they just don't need a token
+    // or session-store row (nothing to enforce against), so the response is
+    // tokenless. Callers that only want a one-shot "does the caller know the
+    // passphrase?" verdict for an unlimited app get it here.
     const app_record_precheck = await loadAppByAddress(zkAppAddress);
     const cap_precheck = Math.max(0, Math.floor(app_record_precheck?.maxConcurrentDevices ?? 0));
-    if (cap_precheck === 0) {
-        return res.status(400).json({
-            error: 'This app has maxConcurrentDevices=0 (unlimited) — no token flow is available.',
-            hint: 'Call GET /verify?licenseHash=…&zkAppAddress=… directly. On-chain license status alone gates access for unlimited apps.',
-        });
-    }
     const ownership = await verifyOwnershipSignature(zkAppAddress, body);
     if (!ownership.ok)
         return res.status(ownership.status).json({ error: ownership.error });
@@ -542,23 +559,31 @@ app.post('/respond', async (req, res) => {
     if (nonceState !== 'ok') {
         return res.status(400).json({ error: `Nonce ${nonceState} — request a fresh /challenge` });
     }
+    // Unlimited apps: ownership is proven (crypto + on-chain), nonce consumed,
+    // but there's no cap to enforce so we skip token minting and session-store
+    // bookkeeping entirely. Return a tokenless verified verdict; callers that
+    // just want "does the caller know the passphrase?" get their answer here.
+    // Consequences: no /refresh, no /releaseSeat, no /resetSessions for this
+    // app — every re-verification runs a fresh /challenge → /respond dance,
+    // which is fine because there's no session state to maintain.
+    if (cap_precheck === 0) {
+        return res.json({
+            ownership: 'verified',
+            licenseExpiresAt: onChain.result.expiresAt,
+            deviceLimit: 0,
+        });
+    }
     // Concurrent-device cap enforcement. Reuse the app record we loaded up
-    // front for the cap=0 precheck — the value can't have changed within a
-    // request. Try to reserve a session slot BEFORE minting: a token without
-    // a matching session-store entry is dead on arrival at GET / anyway, so
-    // refusing here avoids handing the caller a bearer they can only use to
-    // be rejected.
+    // front — the value can't have changed within a request. Try to reserve
+    // a session slot BEFORE minting: a token without a matching session-store
+    // entry is dead on arrival at GET / anyway, so refusing here avoids
+    // handing the caller a bearer they can only use to be rejected.
     const cap = cap_precheck;
-    // Cap the token's `e` so it never outlives the on-chain license's grace
-    // period. The client's local `stateIsFresh` check (`nowMs < state.expiresAt`)
-    // then enforces grace-end offline for free — no separate license-expiry
-    // check needed on the client, and a phone that never talks to us again
-    // still transitions out of PRO exactly when grace ends.
-    const rawExp = Date.now() + OWNERSHIP_TOKEN_TTL_MS;
-    const graceEndMs = onChain.result.expirySlot > 0 && onChain.result.expiresAt
-        ? Date.parse(onChain.result.expiresAt) + GRACE_PERIOD_N * MS_PER_SLOT_N
-        : rawExp;
-    const exp = Math.min(rawExp, graceEndMs);
+    // Token expiry follows the two-regime policy documented on
+    // OWNERSHIP_TOKEN_TTL_REFUND_MS: 24h while the buyer can still refund
+    // (voiding the license), grace-end once the refund window has closed
+    // (the license can no longer be revoked).
+    const exp = computeTokenExp(onChain, licenseHash);
     // Mint FIRST so jti is generated inside the helper (single source of truth
     // for "mint always sets jti"). Reserve the seat under that jti; on cap
     // overflow we auto-evict the least-recently-refreshed seat and retry once
@@ -876,15 +901,15 @@ app.post('/refresh', async (req, res) => {
     //   2. Cut the session off when the chain says the license is past its
     //      grace period, refunded, or otherwise no longer valid. During grace,
     //      verifyLicenseCore returns `valid: true` — grace-period sessions
-    //      keep refreshing normally, but the token's `e` is capped at
-    //      grace-end below so PRO ends locally exactly when grace ends,
+    //      keep refreshing normally, but the token's `e` is capped by
+    //      computeTokenExp below so PRO ends locally exactly when grace ends,
     //      offline or not.
     //
     // Only revoke on a *clear* invalid verdict (`kind: 'checked'` AND
     // `!result.valid`). A transient RPC failure returns null and leaves the
     // seat alive — an archive-node outage must not kick every user offline.
     let licenseExpiresAt = null;
-    let graceEndMs = null;
+    let onChainForExp = null;
     try {
         const onChain = await checkOnChainLicense(payload.z, payload.l);
         if (onChain.kind === 'checked') {
@@ -897,15 +922,18 @@ app.post('/refresh', async (req, res) => {
                 return res.status(401).json({ error: `License no longer valid: ${onChain.result.reason ?? 'unknown'}` });
             }
             licenseExpiresAt = onChain.result.expiresAt;
-            if (onChain.result.expirySlot > 0 && onChain.result.expiresAt) {
-                graceEndMs = Date.parse(onChain.result.expiresAt) + GRACE_PERIOD_N * MS_PER_SLOT_N;
-            }
+            onChainForExp = onChain;
         }
     }
     catch { /* non-fatal — leave null, session survives transient RPC failure */ }
-    // Cap the reissued token at grace-end (see /respond for rationale).
-    const rawExp = Date.now() + OWNERSHIP_TOKEN_TTL_MS;
-    const newExp = graceEndMs !== null ? Math.min(rawExp, graceEndMs) : rawExp;
+    // Compute the new exp using the same two-regime policy as /respond
+    // (24h during refund window, grace-end after). If the on-chain re-read
+    // was skipped (RPC blip), fall back to a 24h ceiling — the seat survives,
+    // and the next successful refresh will bump the token back up to grace-end
+    // if refund window has since closed.
+    const newExp = onChainForExp !== null
+        ? computeTokenExp(onChainForExp, payload.l)
+        : Date.now() + OWNERSHIP_TOKEN_TTL_REFUND_MS;
     if (payload.jti) {
         // Advance the seat's expiry AND its lastRefreshAt — the latter is the
         // load-bearing field for LRR eviction on the next /respond. If refresh()

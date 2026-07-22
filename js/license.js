@@ -24,6 +24,14 @@
  * tampering cannot extend it. `licenseExpiresAt` (from /respond and /refresh)
  * carries the on-chain expiry so the UI can render a real date.
  *
+ * Refresh cadence mirrors the SDK's two-regime scheme
+ * (packages/sdk/src/index.ts): wake once the token has ≤12h left, honor a
+ * 60s+jitter cooldown between attempts, and surface refresh failures via
+ * `license:change`.detail.refreshFailed so the UI can warn without breaking
+ * the seat. Cooldown state lives in its own storage key
+ * (`mlestalk_pro_refresh_state`) so it survives past the token's exp — an
+ * expired-token client hitting refresh() during cooldown must still no-op.
+ *
  * The 32-byte HKDF-derived seed is persisted under `secretSeed` in localStorage
  * so listSeats() and releaseOtherSeat() can rebuild the signing key silently
  * without re-prompting for the passphrase. Same trust posture as the previous
@@ -39,6 +47,12 @@ import {
   signChallenge,
   encodeBase64,
 } from './vendor/zklicensing/ownershipSignature.js';
+import {
+  createRefreshStateStore,
+  runGuardedRefresh,
+  createRefreshScheduler,
+  DEFAULT_COOLDOWN_MIN_MS,
+} from './vendor/zklicensing/refreshScheduler.js';
 
 // ---------------------------------------------------------------------------
 // Config — populate before deploy.
@@ -48,7 +62,7 @@ export const LICENSE_CONFIG = {
   verifierUrl:  'https://zklicensing.com/api/verify',
   appId:        'mlestalk-pro',
   // TODO: set after vendor-side deploy of the mlestalk-pro app.
-  zkAppAddress: 'B62qjsYuLJ9ZeEfFMrLp6gn5ZFH5v18WZkfn3ozURKfhtcJSB2cvYXJ',
+  zkAppAddress: 'B62qqyz4uUjZbyEAehKKyqde4CpXJhCwrVW8S7MkY7MXqYGP1hBd4sz',
   network:      'devnet',   // 'mainnet' | 'testnet' | 'devnet'
 
   // Generation this build was pinned against. Stays fixed for the lifetime
@@ -72,7 +86,24 @@ const STORAGE_KEY         = 'mlestalk_pro_license';
 // roll clock back, present stashed old token" replay a wall-clock expiry
 // check alone can't catch.
 const IAT_FLOOR_KEY       = 'mlestalk_pro_iat_floor';
-const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;   // 24h — 6d slack against 7d TTL
+// State of the background refresh loop, persisted independently of the
+// license record so it survives past the token's exp. Mirrors the SDK's
+// RefreshState (packages/sdk/src/index.ts): { nextAllowedAt, failed }.
+// Purpose: (a) throttle /refresh across invocations so visibilitychange +
+// multi-tab flapping don't hammer the keeper during an outage; (b) surface
+// refreshFailed to the UI even after the token has died.
+const REFRESH_STATE_KEY   = 'mlestalk_pro_refresh_state';
+
+// Two-regime TTL: token exp = min(24h, licenseExp) during the on-chain
+// refund window; = grace-end after. Refresh when the token has ≤12h left —
+// gives a daily-verify buyer many chances to renew before the seat dies,
+// and sits dormant in the post-refund regime where exp is often years out.
+const TOKEN_EXP_RENEW_MS  = 12 * 60 * 60 * 1000;
+// Cap on any scheduled setTimeout. A post-refund token whose exp is years
+// out yields a naive delay above 2^31 ms — browsers clamp that to fire
+// immediately, causing a refresh storm. Waking every 12h in that regime
+// re-checks state cheaply (isPro() is local + cryptographic).
+const MAX_REFRESH_DELAY_MS = 12 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Seed <-> keypair — inlined PKCS8 wrap so listSeats() / releaseOtherSeat()
@@ -145,10 +176,24 @@ function saveState(state) {
 
 function clearState() {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  // Also clear the refresh-state record. It's meaningless once the license
+  // record is gone (there's nothing to refresh) and leaving a stale failed=true
+  // flag around would falsely signal "refresh failing" on the next activation.
+  try { localStorage.removeItem(REFRESH_STATE_KEY); } catch {}
   // Deliberately do NOT clear the iat floor — clearing it would let an
   // attacker reset the ratchet by triggering a logout, then roll back the
   // clock and present a stashed old token. The floor only ever grows.
   verifiedPayload = null;
+}
+
+// Shared refresh-state store, backed by the SDK's createRefreshStateStore
+// primitive. Same storage shape ({ nextAllowedAt, failed }) as the SDK's
+// own tryActivate loop — namespaced to mlestalk since we run a different
+// endpoint (/refresh vs /challenge+/respond) but the same throttle policy.
+const refreshStore = createRefreshStateStore(localStorage, REFRESH_STATE_KEY);
+
+function isRefreshFailed() {
+  return refreshStore.load()?.failed === true;
 }
 
 function readIatFloor() {
@@ -323,7 +368,11 @@ async function respondAndPersist(keypair, seed, licenseHash, emit) {
     name:             respondBody.name ?? payload.n ?? null,
   };
   saveState(state);
-  scheduleRefresh();
+  // Fresh activation clears any stale failed=true left over from a previous
+  // session. Cooldown is anchored to 'now' so a subsequent verifyLicense
+  // burst can't immediately re-fire /refresh.
+  refreshStore.save({ nextAllowedAt: Date.now() + DEFAULT_COOLDOWN_MIN_MS, failed: false });
+  scheduleNextRefresh();
   emitChange();
 
   emit({ stage: 'done', message: 'PRO activated.' });
@@ -352,47 +401,87 @@ async function activate(passphrase, opts = {}) {
   return respondAndPersist(keypair, seed, licenseHash, emit);
 }
 
+// Sentinel used to distinguish "failed signature/pin verification" (a hard
+// failure — clear state, no cooldown) from transient network / 5xx errors.
+// Thrown from inside the refreshFn and caught by runGuardedRefresh's
+// isHardFailure predicate.
+class HardRefreshError extends Error {
+  constructor(reason) { super(reason); this.name = 'HardRefreshError'; }
+}
+
 async function refresh() {
   const state = loadState();
   if (!state?.token) { cancelRefresh(); emitChange(); return { valid: false }; }
 
+  let refreshedTokenPayload = null;   // captured from inside the closure
+  let refreshedBody         = null;
+
   try {
-    const body = await fetchJson(`${baseUrl()}/refresh`, {
-      method:  'POST',
-      headers: { 'content-type': 'application/json' },
-      body:    JSON.stringify({ token: state.token }),
+    const outcome = await runGuardedRefresh(async () => {
+      const body = await fetchJson(`${baseUrl()}/refresh`, {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body:    JSON.stringify({ token: state.token }),
+      });
+      const payload = await verifyToken(body.token);
+      if (!payload) {
+        try {
+          console.warn('[mlestalk-pro] refresh token failed signature/pin verification — clearing PRO state. Check pinnedOwnershipPubKeys against the keeper and confirm zkAppAddress + generation match the vendor config.');
+        } catch { /* console unavailable */ }
+        throw new HardRefreshError('Refreshed token failed signature verification.');
+      }
+      refreshedTokenPayload = payload;
+      refreshedBody = body;
+      return body;
+    }, {
+      store: refreshStore,
+      isHardFailure: (err) =>
+        err instanceof HardRefreshError ||
+        err?.status === 401,   // seat lost / token revoked — clear, no cooldown
     });
-    const payload = await verifyToken(body.token);
-    if (!payload) {
-      // Fail closed: a token we can't verify is worse than no token. In
-      // practice this branch fires only on keeper key rotation without an
-      // SDK resync (stale pinnedOwnershipPubKeys) or an actual forgery
-      // attempt. Log a diagnostic so operators can distinguish.
-      try {
-        console.warn('[mlestalk-pro] refresh token failed signature/pin verification — clearing PRO state. Check pinnedOwnershipPubKeys against the keeper and confirm zkAppAddress + generation match the vendor config.');
-      } catch { /* console unavailable — swallow */ }
-      clearState();
-      cancelRefresh();
-      emitChange();
-      return { valid: false, reason: 'Refreshed token failed signature verification.' };
+
+    if (outcome.status === 'skipped') {
+      // Caller-driven refresh() during cooldown. Reschedule so the next
+      // wake happens at nextAllowedAt, not later.
+      scheduleNextRefresh();
+      return {
+        valid: !!verifiedPayload,
+        cooldownUntil: outcome.nextAllowedAt,
+        refreshFailed: outcome.failed,
+      };
     }
-    verifiedPayload = payload;
-    const next = {
-      ...state,
-      token:            body.token,
-      expiresAt:        body.expiresAt,
-      licenseExpiresAt: body.licenseExpiresAt ?? state.licenseExpiresAt ?? null,
-      name:             body.name ?? payload.n ?? state.name ?? null,
-    };
-    saveState(next);
+
+    if (outcome.status === 'success') {
+      verifiedPayload = refreshedTokenPayload;
+      const next = {
+        ...state,
+        token:            refreshedBody.token,
+        expiresAt:        refreshedBody.expiresAt,
+        licenseExpiresAt: refreshedBody.licenseExpiresAt ?? state.licenseExpiresAt ?? null,
+        name:             refreshedBody.name ?? refreshedTokenPayload.n ?? state.name ?? null,
+      };
+      saveState(next);
+      scheduleNextRefresh();
+      emitChange();
+      return { valid: true, expiresAt: next.expiresAt };
+    }
+
+    // Transient failure — token retained, failed=true persisted by
+    // runGuardedRefresh. Reschedule so we retry when cooldown elapses.
+    scheduleNextRefresh();
     emitChange();
-    return { valid: true, expiresAt: next.expiresAt };
+    return {
+      valid: !!verifiedPayload,
+      reason: outcome.error?.message ?? 'refresh failed',
+      refreshFailed: true,
+    };
   } catch (err) {
-    if (err.status === 401) {
-      clearState();
-      cancelRefresh();
-      emitChange();
-    }
+    // Hard failure: seat lost, token revoked, or refreshed token failed
+    // signature verification. Not transient — clear everything so the
+    // user re-activates cleanly on next attempt.
+    clearState();
+    cancelRefresh();
+    emitChange();
     return { valid: false, reason: err.message };
   }
 }
@@ -400,7 +489,9 @@ async function refresh() {
 function emitChange() {
   try {
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('license:change', { detail: { isPro: isPro() } }));
+      window.dispatchEvent(new CustomEvent('license:change', {
+        detail: { isPro: isPro(), refreshFailed: isRefreshFailed() },
+      }));
     }
   } catch { /* CustomEvent unavailable — swallow */ }
 }
@@ -439,6 +530,20 @@ function getLicenseExpiresAt() {
 
 function getSeatName() {
   return loadState()?.name ?? verifiedPayload?.n ?? null;
+}
+
+// When the background scheduler is next scheduled to fire /refresh for this
+// device. Mirrors createRefreshScheduler's own delay math: fires when BOTH
+// the cooldown has elapsed AND the token is inside the 12h renew window,
+// then clamped to the 12h max scheduled-delay. Returns null when there's
+// no active session to refresh.
+function getNextRefreshAt() {
+  const state = loadState();
+  if (!state?.token) return null;
+  const cooldownAt = refreshStore.load()?.nextAllowedAt ?? 0;
+  const renewAt = state.expiresAt - TOKEN_EXP_RENEW_MS;
+  const nextAt = Math.max(cooldownAt, renewAt, Date.now());
+  return Math.min(nextAt, Date.now() + MAX_REFRESH_DELAY_MS);
 }
 
 // Rebuild the signing keypair from the persisted seed. Used by the elevated
@@ -519,18 +624,32 @@ async function releaseOtherSeat(targetJti, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Background refresh — silent, no user prompt.
+// Background refresh — silent, no user prompt. Threshold-driven via the
+// SDK's createRefreshScheduler: fires when the token has ≤12h left, or
+// when a prior-attempt cooldown elapses, whichever is later. Replaces the
+// old fixed 24h interval, which raced with the token's own exp during the
+// refund window and was wasteful in the post-refund regime.
 // ---------------------------------------------------------------------------
-let refreshTimer = null;
 
-function scheduleRefresh() {
-  cancelRefresh();
-  refreshTimer = setInterval(() => { void refresh(); }, REFRESH_INTERVAL_MS);
+const scheduler = createRefreshScheduler({
+  store: refreshStore,
+  maxDelayMs: MAX_REFRESH_DELAY_MS,
+  computeRenewDelay: () => {
+    const state = loadState();
+    if (!state?.token) return Infinity;   // nothing to refresh
+    return Math.max(0, state.expiresAt - Date.now() - TOKEN_EXP_RENEW_MS);
+  },
+  // refresh() calls scheduleNextRefresh() at each terminal path except
+  // the hard-failure branches, which call cancelRefresh() explicitly.
+  onTick: () => { void refresh(); },
+});
+
+function scheduleNextRefresh() {
+  if (!loadState()?.token) { scheduler.cancel(); return; }
+  scheduler.reschedule();
 }
 
-function cancelRefresh() {
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-}
+function cancelRefresh() { scheduler.cancel(); }
 
 // Re-refresh whenever the app returns to the foreground.
 function installForegroundResync() {
@@ -559,7 +678,7 @@ async function init() {
   if (readIatFloor() === 0) {
     const outcome = await refresh();
     if (outcome?.valid) {
-      scheduleRefresh();
+      scheduleNextRefresh();
       return;
     }
     const stillHave = loadState()?.token;
@@ -579,7 +698,7 @@ async function init() {
     }
     verifiedPayload = payload;
     emitChange();
-    scheduleRefresh();
+    scheduleNextRefresh();
     return;
   }
 
@@ -595,7 +714,7 @@ async function init() {
   emitChange();
 
   await refresh();
-  if (isPro()) scheduleRefresh();
+  if (isPro()) scheduleNextRefresh();
 }
 
 // ---------------------------------------------------------------------------
@@ -613,6 +732,7 @@ const License = {
   getExpiresAt,
   getLicenseExpiresAt,
   getSeatName,
+  getNextRefreshAt,
   config: LICENSE_CONFIG,
 };
 

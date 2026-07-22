@@ -21,6 +21,7 @@
  * offline branch at all and falls through to the keeper on every call.
  */
 import { REFUND_WINDOW_N, GRACE_PERIOD_N, MS_PER_SLOT_N, SLOTS_PER_DAY_N, } from './contractInterface.js';
+import { createRefreshStateStore as _createRefreshStateStore, runGuardedRefresh as _runGuardedRefresh, } from './refreshScheduler.js';
 const MS_PER_SLOT = MS_PER_SLOT_N;
 const SLOTS_PER_DAY = SLOTS_PER_DAY_N;
 // Anchor and activation records are keyed by (zkAppAddress, licenseHash).
@@ -34,12 +35,25 @@ const SLOTS_PER_DAY = SLOTS_PER_DAY_N;
 // buyers accumulate KB, not incorrect verdicts.
 const ANCHOR_KEY_PREFIX = 'zklic_anchor_';
 const ACTIVATION_KEY_PREFIX = 'zklic_activation_';
+// Separate storage record for tryActivate's cooldown + failure state. Keyed
+// per-license (like activation), but written independently so it survives
+// the token's lifecycle: an activation record disappears from loadActivation
+// past its exp, but the refresh state persists so we can still throttle
+// signer invocations and surface refreshFailed after the token has died.
+const REFRESH_STATE_KEY_PREFIX = 'zklic_refresh_';
 function anchorKey(zkAppAddress, licenseHash) {
     return `${ANCHOR_KEY_PREFIX}${zkAppAddress}_${licenseHash}`;
 }
 function activationKey(zkAppAddress, licenseHash) {
     return `${ACTIVATION_KEY_PREFIX}${zkAppAddress}_${licenseHash}`;
 }
+function refreshStateKey(zkAppAddress, licenseHash) {
+    return `${REFRESH_STATE_KEY_PREFIX}${zkAppAddress}_${licenseHash}`;
+}
+// RefreshState primitives live in ./refreshScheduler.ts — shared with
+// bespoke app-side refresh loops (e.g. mlestalk-ui's silent /refresh).
+// Re-exported here so vendors can import the whole surface from the barrel.
+export { createRefreshStateStore, runGuardedRefresh, createRefreshScheduler, DEFAULT_COOLDOWN_MIN_MS, DEFAULT_COOLDOWN_JITTER_MS, DEFAULT_MAX_REFRESH_DELAY_MS, } from './refreshScheduler.js';
 export function loadActivation(storage, zkAppAddress, licenseHash, nowMs = Date.now()) {
     try {
         const raw = storage.getItem(activationKey(zkAppAddress, licenseHash));
@@ -102,18 +116,48 @@ function computeRemainingDays(expirySlot, currentSlot) {
         return 0;
     return Math.floor((expirySlot - currentSlot) / SLOTS_PER_DAY);
 }
-// Renew the activation token when within this window of expiry. Picked so
-// that a daily verify call has many chances to refresh before the token dies.
-const TOKEN_RENEW_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+// Renew when the token has ≤12 h of TTL left. Half the refund-window TTL
+// so a fresh 24 h token gets a real 12 h skip window, and the last 12 h
+// gives a daily-verify client many chances to renew before it dies. In the
+// post-refund regime the token exp is clamped to grace-end (potentially
+// years out), so this threshold sits dormant until near grace-end — which
+// is the correct behavior: no refunds are possible past the window, and
+// verifyLicense() itself re-reads chain state on every call, so mid-life
+// renewals/expiries are picked up without a token refresh.
+const TOKEN_EXP_RENEW_MS = 12 * 60 * 60 * 1000;
+// Minimum gap between tryActivate attempts. A vendor calling verifyLicense
+// on every user action would otherwise hammer /respond during a keeper
+// outage — this caps the retry cadence at ~1/min per client, regardless
+// of caller frequency. Exponential backoff was considered and rejected:
+// it delays user-facing recovery once the keeper comes back, which matters
+// more here than shaving further off an already-modest request volume.
+const REFRESH_COOLDOWN_MIN_MS = 60 * 1000;
+// Jitter width added on top of the cooldown, sampled per attempt. Prevents
+// a thundering herd when many clients cross the 12 h threshold in lockstep
+// (e.g., all installed on the same rollout day) and try to refresh the
+// instant the keeper recovers from an outage. 60 s cooldown + up to 60 s
+// jitter → effective 60–120 s per-client spread.
+const REFRESH_COOLDOWN_JITTER_MS = 60 * 1000;
+// Test seam for jitter. Real code goes through Math.random; unit tests
+// override this to make cooldown timing deterministic.
+let sampleJitter = () => Math.random();
+export function __setJitterSampler(fn) {
+    sampleJitter = fn;
+}
+function shouldRefresh(current, nowMs) {
+    if (!current?.token)
+        return true;
+    return current.expiresAt - nowMs <= TOKEN_EXP_RENEW_MS;
+}
 async function tryActivate(storage, zkAppAddress, licenseHash, current, signer, verifierUrl, fetcher, nowMs) {
-    // Existing token still fresh — nothing to do.
-    if (current?.token && current.expiresAt - nowMs > TOKEN_RENEW_THRESHOLD_MS)
+    if (!shouldRefresh(current, nowMs))
         return current;
-    try {
+    const store = _createRefreshStateStore(storage, refreshStateKey(zkAppAddress, licenseHash));
+    const outcome = await _runGuardedRefresh(async () => {
         const base = verifierUrl.replace(/\/+$/, '');
         const challengeResp = await fetcher(`${base}/challenge?licenseHash=${encodeURIComponent(licenseHash)}`);
         if (!challengeResp.ok)
-            return current;
+            throw new Error(`challenge HTTP ${challengeResp.status}`);
         const { nonce } = (await challengeResp.json());
         const { pubKey, signature } = await signer({ licenseHash, nonce, zkAppAddress });
         const respondResp = await fetcher(`${base}/respond`, {
@@ -122,15 +166,19 @@ async function tryActivate(storage, zkAppAddress, licenseHash, current, signer, 
             body: JSON.stringify({ zkAppAddress, licenseHash, pubKey, nonce, signature }),
         });
         if (!respondResp.ok)
-            return current;
+            throw new Error(`respond HTTP ${respondResp.status}`);
         const { token, expiresAt } = (await respondResp.json());
         const next = { token, expiresAt };
         saveActivation(storage, zkAppAddress, licenseHash, next);
         return next;
-    }
-    catch {
-        return current;
-    }
+    }, {
+        store,
+        now: () => nowMs,
+        cooldownMinMs: REFRESH_COOLDOWN_MIN_MS,
+        cooldownJitterMs: REFRESH_COOLDOWN_JITTER_MS,
+        jitterSampler: sampleJitter,
+    });
+    return outcome.status === 'success' ? outcome.value : current;
 }
 function offlineCheck(anchor, nowMs) {
     const elapsedSlots = Math.max(0, Math.floor((nowMs - anchor.anchoredAtMs) / MS_PER_SLOT));
@@ -190,6 +238,10 @@ export async function verifyLicense(proof, options = {}) {
         `?licenseHash=${encodeURIComponent(proof.licenseHash)}` +
         `&zkAppAddress=${encodeURIComponent(proof.zkAppAddress)}` +
         tokenParam;
+    const refreshState = storage
+        ? _createRefreshStateStore(storage, refreshStateKey(proof.zkAppAddress, proof.licenseHash)).load()
+        : null;
+    const refreshFailedFlag = refreshState?.failed === true ? { activationRefreshFailed: true } : {};
     let data;
     try {
         const resp = await fetcher(url);
@@ -204,6 +256,7 @@ export async function verifyLicense(proof, options = {}) {
                 reason: `Verification request failed (HTTP ${resp.status})`,
                 source: 'chain',
                 ownership: 'unverified',
+                ...refreshFailedFlag,
             };
         }
         data = await resp.json();
@@ -219,6 +272,7 @@ export async function verifyLicense(proof, options = {}) {
             reason: err?.message ?? 'Verification request errored',
             source: 'chain',
             ownership: 'unverified',
+            ...refreshFailedFlag,
         };
     }
     // Keeper's authoritative expiry, or null if the response omits it. Only
@@ -240,6 +294,7 @@ export async function verifyLicense(proof, options = {}) {
         reason: data.reason ?? null,
         source: 'chain',
         ownership: data.ownership === 'verified' ? 'verified' : 'unverified',
+        ...refreshFailedFlag,
     };
     // Anchor gate uses the keeper's own refund-window decision. The keeper
     // knows the true purchaseSlot (stored in its LicenseRecord) and the true
@@ -265,7 +320,7 @@ export async function verifyLicense(proof, options = {}) {
 // the SDK uses internally without re-deriving them.
 export { REFUND_WINDOW_N, GRACE_PERIOD_N, MS_PER_SLOT };
 // Browser-side ownership-token verifier. Vendor apps import this to gate
-// PRO features offline: verify the /respond-minted token against the
+// licensed features offline: verify the /respond-minted token against the
 // keeper's pinned public key(s) and the app's own pinned (z, g). See
 // ownershipTokenVerify.ts for the security-critical requirements around
 // how expected.z / expected.g / pinnedPublicKeysBase64 must be sourced.

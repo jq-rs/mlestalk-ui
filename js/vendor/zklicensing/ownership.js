@@ -57,17 +57,23 @@ import { createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, si
 import fs from 'fs/promises';
 import { Field } from '../o1js/index.js';
 export const OWNERSHIP_CHALLENGE_TTL_MS = 600_000;
-// A device that stays active refreshes via a fresh /challenge + /respond;
-// a lost/uninstalled device burns its slot for at most this long before
-// the server prunes it (see verifyService session store). 7 days gives
-// plenty of margin over the recommended 24h client refresh cadence so a
-// client whose silent refresh is delayed by intermittent network trouble
-// (weekend traveling, spotty carrier) never drops out of PRO mid-session.
+// Token TTL policy has two regimes, keyed on the license's refund state:
 //
-// This value is a ceiling: verifyService caps every issued token at
-// grace-end (`Date.parse(licenseExpiresAt) + GRACE_PERIOD_N * MS_PER_SLOT_N`)
-// so a token can never outlive the on-chain license. If the raw TTL below
-// would exceed grace-end for a near-expiry license, the shorter one wins.
+//   1. Refund window OPEN  (currentSlot ≤ purchaseSlot + REFUND_WINDOW_N)
+//      → cap at OWNERSHIP_TOKEN_TTL_REFUND_MS (24h).
+//      Rationale: a buyer can still refund during this window; refunding
+//      voids the license. Capping at 24h bounds the "PRO stays unlocked
+//      after refund" window to at most one day, after which the client's
+//      /refresh gets a 401 and drops back to free mode.
+//
+//   2. Refund window CLOSED (currentSlot >  purchaseSlot + REFUND_WINDOW_N)
+//      → cap at grace-end
+//      (Date.parse(licenseExpiresAt) + GRACE_PERIOD_N * MS_PER_SLOT_N).
+//      Rationale: the license can no longer be revoked (the circuit has no
+//      admin key; refunds are gated by the same window), so a token can
+//      safely live for the full remaining term. The client stops
+//      re-verifying frequently, and a device that never talks to us again
+//      still transitions out of PRO exactly when grace ends.
 //
 // The bound on a stashed / replayed token comes from the browser-side
 // iatFloor ratchet (see verifyOwnershipTokenClient in this package):
@@ -76,7 +82,7 @@ export const OWNERSHIP_CHALLENGE_TTL_MS = 600_000;
 // a token pulled off disk from a week ago is rejected as stale by the
 // verifier the moment a newer one has been observed. TTL alone is NOT
 // the replay defense; the ratchet is.
-export const OWNERSHIP_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const OWNERSHIP_TOKEN_TTL_REFUND_MS = 24 * 60 * 60 * 1000;
 // Generate a 128-bit random jti. base64url so it drops into token payloads
 // and query strings without escaping.
 export function newJti() {

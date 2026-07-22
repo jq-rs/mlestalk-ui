@@ -53,7 +53,7 @@
  */
 import { type KeyObject } from 'crypto';
 export declare const OWNERSHIP_CHALLENGE_TTL_MS = 600000;
-export declare const OWNERSHIP_TOKEN_TTL_MS: number;
+export declare const OWNERSHIP_TOKEN_TTL_REFUND_MS: number;
 export type { OwnershipTokenPayload } from './ownershipTypes.js';
 import type { OwnershipTokenPayload } from './ownershipTypes.js';
 export declare function newJti(): string;

@@ -28,6 +28,8 @@ export interface ActivationRecord {
     token: string;
     expiresAt: number;
 }
+export { createRefreshStateStore, runGuardedRefresh, createRefreshScheduler, DEFAULT_COOLDOWN_MIN_MS, DEFAULT_COOLDOWN_JITTER_MS, DEFAULT_MAX_REFRESH_DELAY_MS, } from './refreshScheduler.js';
+export type { RefreshState, RefreshStateStore, RefreshStateStorage, RefreshOutcome, GuardedRefreshOpts, RefreshScheduler, RefreshSchedulerOpts, } from './refreshScheduler.js';
 export declare function loadActivation(storage: Storage, zkAppAddress: string, licenseHash: string, nowMs?: number): ActivationRecord | null;
 export declare function saveActivation(storage: Storage, zkAppAddress: string, licenseHash: string, rec: ActivationRecord): void;
 export interface ProofInput {
@@ -72,7 +74,9 @@ export interface VerifyResult {
     reason: string | null;
     source: 'offline' | 'chain';
     ownership: 'verified' | 'unverified';
+    activationRefreshFailed?: boolean;
 }
+export declare function __setJitterSampler(fn: () => number): void;
 export declare function verifyLicense(proof: ProofInput, options?: VerifyOptions): Promise<VerifyResult>;
 export { REFUND_WINDOW_N, GRACE_PERIOD_N, MS_PER_SLOT };
 export { verifyOwnershipTokenClient } from './ownershipTokenVerify.js';
